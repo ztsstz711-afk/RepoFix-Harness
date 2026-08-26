@@ -51,7 +51,13 @@ class RunManager:
         state.evaluation.rollback_files = restored
         state.evaluation.rollback_error = ""
         state.evaluation.post_rollback = RepairEvaluator(
-            ToolRuntime(str(self.repo)), state.test_command
+            ToolRuntime(
+                str(self.repo),
+                execution_backend=state.execution_backend,
+                docker_image=state.docker_image,
+                command_timeout_seconds=state.command_timeout_seconds,
+            ),
+            state.test_command,
         ).run_tests()
         state.updated_at = utc_now()
         self.store.save(state, update_latest=state.run_id == latest_id)

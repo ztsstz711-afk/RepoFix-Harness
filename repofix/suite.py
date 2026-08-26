@@ -26,6 +26,7 @@ class SuiteTask:
     test_command: str = "pytest -q"
     execution_backend: str = "local"
     docker_image: str = "repofix-pytest:latest"
+    command_timeout_seconds: int = 30
     tags: tuple[str, ...] = ()
     expected_changed_files: tuple[str, ...] = ()
 
@@ -80,6 +81,7 @@ def load_suite(path: str) -> EvaluationSuite:
             test_command=test_command,
             execution_backend=item.get("execution_backend", "local"),
             docker_image=item.get("docker_image", "repofix-pytest:latest"),
+            command_timeout_seconds=int(item.get("command_timeout_seconds", 30)),
             tags=tags,
             expected_changed_files=tuple(sorted(expected_changed_files)),
         ))
@@ -169,6 +171,7 @@ class EvaluationRunner:
                 test_command=task.test_command,
                 execution_backend=task.execution_backend,
                 docker_image=task.docker_image,
+                command_timeout_seconds=task.command_timeout_seconds,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
@@ -195,6 +198,7 @@ class EvaluationRunner:
             "test_command": state.test_command,
             "execution_backend": state.execution_backend,
             "docker_image": state.docker_image,
+            "command_timeout_seconds": state.command_timeout_seconds,
             "changed_files": state.evaluation.changed_files,
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),

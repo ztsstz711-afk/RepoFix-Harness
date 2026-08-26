@@ -1,0 +1,17 @@
+{
+  "name": "external-h11-v0.16.0",
+  "tasks": [
+    {
+      "id": "expect-100-continue-http11",
+      "repo": "../external-workspaces/h11-benchmark/buggy",
+      "task": "Fix the regression where valid HTTP/1.1 requests with Expect: 100-continue are not recognized, while preserving HTTP/1.0 behavior and case-insensitive header handling. Run the full h11 test suite.",
+      "test_command": "pytest -q h11",
+      "execution_backend": "docker",
+      "max_steps": 14,
+      "max_requests": 10,
+      "max_tokens": 20000,
+      "expected_changed_files": ["h11/_headers.py"],
+      "tags": ["external", "protocol", "boundary", "h11-v0.16.0"]
+    }
+  ]
+}

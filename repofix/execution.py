@@ -5,6 +5,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Protocol
+from uuid import uuid4
 
 from .schemas import Observation
 
@@ -21,13 +22,15 @@ class LocalPytestExecutor:
     def run(self, repo: Path, arguments: list[str], timeout_seconds: int) -> Observation:
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
-        return _run(
+        observation = _run(
             "run_command",
             [sys.executable, "-m", "pytest", *arguments],
             repo,
             timeout_seconds,
             env,
         )
+        observation.metadata["execution_backend"] = self.name
+        return observation
 
 
 class DockerPytestExecutor:
@@ -39,10 +42,13 @@ class DockerPytestExecutor:
 
     def run(self, repo: Path, arguments: list[str], timeout_seconds: int) -> Observation:
         mount = f"type=bind,source={repo},target=/workspace,readonly"
+        container_name = f"repofix-{uuid4().hex[:12]}"
         command = [
             self.docker,
             "run",
             "--rm",
+            "--name",
+            container_name,
             "--network",
             "none",
             "--read-only",
@@ -73,12 +79,20 @@ class DockerPytestExecutor:
             *arguments,
         ]
         observation = _run("run_command", command, repo, timeout_seconds, os.environ.copy())
+        if observation.metadata.get("timed_out"):
+            subprocess.run(
+                [self.docker, "rm", "--force", container_name],
+                text=True,
+                capture_output=True,
+                timeout=10,
+            )
         observation.metadata.update(
             {
                 "execution_backend": self.name,
                 "docker_image": self.image,
                 "network": "none",
                 "workspace_mount": "readonly",
+                "container_name": container_name,
             }
         )
         return observation
@@ -108,6 +122,51 @@ def find_docker_executable() -> str:
         if candidate.is_file():
             return str(candidate)
     raise FileNotFoundError("Docker CLI not found; install Docker Desktop and open a new terminal")
+
+
+def check_docker_ready(image: str, timeout_seconds: int = 15) -> str:
+    docker = find_docker_executable()
+    env = os.environ.copy()
+    env["PATH"] = str(Path(docker).parent) + os.pathsep + env.get("PATH", "")
+    checks = (
+        [docker, "version", "--format", "{{.Server.Version}}"],
+        [docker, "image", "inspect", image, "--format", "{{.Id}}"],
+        [
+            docker,
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            image,
+            "python",
+            "-m",
+            "pytest",
+            "--version",
+        ],
+    )
+    outputs = []
+    labels = ("Docker daemon", f"Docker image {image}", "container pytest")
+    for label, command in zip(labels, checks):
+        try:
+            result = subprocess.run(
+                command,
+                text=True,
+                capture_output=True,
+                timeout=timeout_seconds,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"{label} readiness check timed out") from exc
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout).strip()[:500]
+            raise RuntimeError(f"{label} is not ready: {detail}")
+        outputs.append(result.stdout.strip())
+    return "; ".join(outputs)
 
 
 def _run(

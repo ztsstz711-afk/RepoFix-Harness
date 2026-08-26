@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from math import ceil
 from pathlib import Path
 from typing import Callable
 from .budget import BudgetLimits, ModelPricing, classify_provider_failure
@@ -40,9 +41,12 @@ class AgentLoop:
         self.execution_backend = execution_backend or settings.execution_backend
         self.docker_image = docker_image or settings.docker_image
         self.command_timeout_seconds = command_timeout_seconds or settings.command_timeout_seconds
+        if self.command_timeout_seconds <= 0:
+            raise ValueError("command timeout must be positive")
         self.state = RunState(
             "", str(self.repo), test_command=self.test_command,
             execution_backend=self.execution_backend, docker_image=self.docker_image,
+            command_timeout_seconds=self.command_timeout_seconds,
         )
         self.store = RunStore(repo)
         self.max_changed_files = (
@@ -109,12 +113,13 @@ class AgentLoop:
             preflight=self.state.preflight,
         )
         for step in range(self.state.step, self.max_steps):
-            exceeded = self.budget.exceeded(self.state.usage)
-            if exceeded:
-                self._finish_budget(*exceeded)
+            context = context_builder.build(self.state.history)
+            estimated_next_tokens = self._estimate_next_request_tokens(context)
+            denied = self.budget.admission_denied(self.state.usage, estimated_next_tokens)
+            if denied:
+                self._finish_budget(*denied)
                 break
             self.state.step = step + 1
-            context = context_builder.build(self.state.history)
             self._notify({"type": "model_request", "step": self.state.step})
             try:
                 decision = self.provider.next_action(context)
@@ -191,13 +196,39 @@ class AgentLoop:
         self._notify({"type": "rollback", "files": restored})
 
     def _finish_budget(self, failure_kind: str, message: str) -> None:
-        self.state.status = "budget_exhausted"
-        self.state.failure_kind = failure_kind
-        self.state.error = message
         self.state.evaluation.final = self.evaluator.run_tests()
         self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
+        repair_verified = (
+            self.state.evaluation.final.success
+            and bool(self.state.evaluation.changed_files)
+            and self.state.evaluation.baseline is not None
+            and not self.state.evaluation.baseline.success
+        )
+        if repair_verified:
+            self.state.status = "success"
+            self.state.failure_kind = ""
+            self.state.error = ""
+            self.state.summary = "Repair independently verified at the model budget boundary."
+        else:
+            self.state.status = "budget_exhausted"
+            self.state.failure_kind = failure_kind
+            self.state.error = message
         self._save_checkpoint()
-        self._notify({"type": "budget", "failure_kind": failure_kind, "error": message})
+        self._notify({
+            "type": "budget",
+            "failure_kind": failure_kind,
+            "error": message,
+            "repair_verified": repair_verified,
+        })
+
+    def _estimate_next_request_tokens(self, context: str) -> int:
+        context_estimate = ceil(len(context) / 3) + 2_000
+        if not self.state.usage.requests:
+            return context_estimate
+        historical_average = ceil(
+            self.state.usage.total_tokens / self.state.usage.requests
+        )
+        return max(context_estimate, historical_average)
 
     def _finish_stalled(self, failure_kind: str, message: str) -> None:
         self.state.status = "stalled"
@@ -232,4 +263,6 @@ class AgentLoop:
             raise ValueError("checkpoint execution backend does not match")
         if state.docker_image != self.docker_image:
             raise ValueError("checkpoint Docker image does not match")
+        if state.command_timeout_seconds != self.command_timeout_seconds:
+            raise ValueError("checkpoint command timeout does not match")
         return state

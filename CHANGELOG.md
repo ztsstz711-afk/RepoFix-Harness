@@ -21,6 +21,10 @@
 - Restrict Docker test runs with no network, a read-only repository/root filesystem, dropped capabilities, no-new-privileges, tmpfs, and CPU/memory/PID limits.
 - Persist the execution backend and image through settings, CLI, checkpoints, resume validation, and evaluation suites.
 - Complete a real DeepSeek package repair with all pytest execution routed through the restricted Docker backend.
+- Fail Docker preflight before model use when the daemon, image, or container pytest is unavailable.
+- Add next-request token admission estimates and allow independently verified repairs to complete safely at a budget boundary.
+- Persist backend, image, and timeout across checkpoints and post-rollback verification.
+- Add a checksum-pinned, reproducible external h11 v0.16.0 benchmark and complete it in 17,287/20,000 tokens.
 
 ## 1.0.0
 

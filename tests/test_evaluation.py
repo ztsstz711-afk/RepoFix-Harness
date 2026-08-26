@@ -8,6 +8,7 @@ def test_evaluator_captures_pytest_result(tmp_path):
     assert snapshot.success is False
     assert "1 failed" in snapshot.output
     assert snapshot.duration_ms >= 0
+    assert snapshot.execution_backend == "local"
 
 
 def test_evaluator_uses_a_custom_targeted_pytest_command(tmp_path):

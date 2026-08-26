@@ -21,6 +21,25 @@ class BudgetLimits:
             return "token_budget", f"token budget reached ({usage.total_tokens}/{self.max_tokens})"
         return None
 
+    def admission_denied(
+        self, usage: TokenUsage, estimated_next_tokens: int
+    ) -> tuple[str, str] | None:
+        exceeded = self.exceeded(usage)
+        if exceeded:
+            return exceeded
+        if (
+            self.max_tokens
+            and usage.requests
+            and usage.total_tokens + estimated_next_tokens > self.max_tokens
+        ):
+            remaining = self.max_tokens - usage.total_tokens
+            return (
+                "token_budget_reserve",
+                f"next model request estimated at {estimated_next_tokens} tokens but only "
+                f"{remaining} remain ({usage.total_tokens}/{self.max_tokens} used)",
+            )
+        return None
+
 
 @dataclass(frozen=True)
 class ModelPricing:

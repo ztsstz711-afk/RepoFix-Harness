@@ -44,3 +44,27 @@ def test_preflight_reports_missing_pytest(monkeypatch, tmp_path):
 
     assert report.success is False
     assert check(report, "pytest").status == "fail"
+
+
+def test_docker_preflight_checks_daemon_image_and_container_pytest(monkeypatch, tmp_path):
+    monkeypatch.setattr("repofix.preflight.check_docker_ready", lambda image: "ready")
+    report = RepositoryPreflight(
+        str(tmp_path), "pytest -q", execution_backend="docker", docker_image="test:image"
+    ).run()
+
+    assert report.success is True
+    assert check(report, "docker_runtime").status == "pass"
+    assert check(report, "pytest").message == "provided by test:image"
+
+
+def test_docker_preflight_fails_when_image_is_missing(monkeypatch, tmp_path):
+    def fail(image):
+        raise RuntimeError("Docker image test:image is not ready")
+
+    monkeypatch.setattr("repofix.preflight.check_docker_ready", fail)
+    report = RepositoryPreflight(
+        str(tmp_path), "pytest -q", execution_backend="docker", docker_image="test:image"
+    ).run()
+
+    assert report.success is False
+    assert check(report, "docker_runtime").status == "fail"

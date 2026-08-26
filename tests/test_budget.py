@@ -14,6 +14,21 @@ def test_token_budget_reports_reason():
     assert result == ("token_budget", "token budget reached (500/500)")
 
 
+def test_token_budget_reserves_capacity_for_the_next_request():
+    result = BudgetLimits(max_tokens=10_000).admission_denied(
+        TokenUsage(total_tokens=8_500, requests=3), estimated_next_tokens=2_000
+    )
+    assert result is not None
+    assert result[0] == "token_budget_reserve"
+    assert "1500 remain" in result[1]
+
+
+def test_first_request_is_admitted_without_usage_history():
+    assert BudgetLimits(max_tokens=1_000).admission_denied(
+        TokenUsage(), estimated_next_tokens=3_000
+    ) is None
+
+
 def test_negative_budget_is_rejected():
     with pytest.raises(ValueError, match="zero or positive"):
         BudgetLimits(max_requests=-1)

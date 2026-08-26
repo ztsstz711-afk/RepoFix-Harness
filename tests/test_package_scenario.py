@@ -42,6 +42,7 @@ def test_package_style_scenario_repairs_in_isolation(tmp_path):
     assert task["baseline_success"] is False
     assert task["final_success"] is True
     assert task["test_command"] == "pytest -q tests"
+    assert task["execution_backend"] == "docker"
     assert task["changed_files"] == ["src/order_pipeline/service.py"]
     assert task["changed_files_match"] is True
     assert report["usage"]["requests"] == 6

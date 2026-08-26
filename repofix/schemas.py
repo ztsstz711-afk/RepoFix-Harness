@@ -57,6 +57,7 @@ class TestSnapshot:
     output: str
     duration_ms: int = 0
     command: str = "pytest -q"
+    execution_backend: str = "local"
 
 
 @dataclass
@@ -89,6 +90,7 @@ class RunState:
     test_command: str = "pytest -q"
     execution_backend: str = "local"
     docker_image: str = "repofix-pytest:latest"
+    command_timeout_seconds: int = 30
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     model: str = ""
     step: int = 0

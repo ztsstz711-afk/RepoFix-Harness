@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from repofix.execution import DockerPytestExecutor, create_pytest_executor
+from repofix.schemas import Observation
 
 
 def test_docker_executor_builds_a_restricted_container_command(monkeypatch, tmp_path):
@@ -36,3 +37,21 @@ def test_docker_executor_builds_a_restricted_container_command(monkeypatch, tmp_
 def test_unknown_execution_backend_is_rejected():
     with pytest.raises(ValueError, match="unknown execution backend"):
         create_pytest_executor("remote", "unused")
+
+
+def test_docker_executor_force_removes_a_timed_out_container(monkeypatch, tmp_path):
+    cleanup = {}
+    monkeypatch.setattr("repofix.execution.find_docker_executable", lambda: "docker")
+    monkeypatch.setattr(
+        "repofix.execution._run",
+        lambda *args: Observation("run_command", "timeout", False, metadata={"timed_out": True}),
+    )
+    monkeypatch.setattr(
+        "repofix.execution.subprocess.run",
+        lambda command, **kwargs: cleanup.update(command=command),
+    )
+
+    result = DockerPytestExecutor().run(tmp_path, ["-q"], 1)
+
+    assert cleanup["command"][:3] == ["docker", "rm", "--force"]
+    assert cleanup["command"][-1] == result.metadata["container_name"]

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .schemas import PreflightCheck, PreflightState
 from .tools import ToolRuntime
-from .execution import find_docker_executable
+from .execution import check_docker_ready
 
 
 PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "requirements.txt")
@@ -37,10 +37,16 @@ class RepositoryPreflight:
         checks.append(PreflightCheck("repository", "pass", str(self.repo)))
         checks.append(PreflightCheck("execution_backend", "pass", self.execution_backend))
 
-        if importlib.util.find_spec("pytest") is None:
-            checks.append(
-                PreflightCheck("pytest", "fail", f"pytest is not installed for {sys.executable}")
-            )
+        if self.execution_backend == "docker":
+            try:
+                docker_detail = check_docker_ready(self.docker_image)
+            except (FileNotFoundError, RuntimeError) as exc:
+                checks.append(PreflightCheck("docker_runtime", "fail", str(exc)))
+            else:
+                checks.append(PreflightCheck("docker_runtime", "pass", docker_detail))
+                checks.append(PreflightCheck("pytest", "pass", f"provided by {self.docker_image}"))
+        elif importlib.util.find_spec("pytest") is None:
+            checks.append(PreflightCheck("pytest", "fail", f"pytest is not installed for {sys.executable}"))
         else:
             checks.append(PreflightCheck("pytest", "pass", f"available via {sys.executable}"))
 

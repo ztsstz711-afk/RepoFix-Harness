@@ -14,6 +14,7 @@ class RepairEvaluator:
             output=observation.output,
             duration_ms=observation.duration_ms,
             command=self.test_command,
+            execution_backend=observation.metadata.get("execution_backend", "local"),
         )
 
     @staticmethod

@@ -98,6 +98,12 @@ repofix --repo <python-repo> --task "Fix the failing tests" --rollback-on-failur
 repofix-doctor --repo <python-repo> --test-command "pytest -q tests"
 ```
 
+Docker 模式预检：
+
+```powershell
+repofix-doctor --repo <python-repo> --test-command "pytest -q tests" --execution-backend docker
+```
+
 预检会检查 pytest、命令安全性、Python/测试文件、项目元数据和 Git。致命问题会生成 `preflight_failed`，并在零模型请求时停止；非标准但可能合法的项目结构只产生 warning。
 
 ## 四个命令行入口
@@ -141,6 +147,15 @@ repofix-runs --repo <repo> rollback latest
 
 `evals/regression.json` 包含五种小型 Bug：错误运算符、字符串规范化、`None` 配置语义、分页边界和跨模块库存判断。`evals/package.json` 进一步提供带 `src/` 布局、Decimal 金额计算以及 pricing/discount/shipping/service 边界的包级场景。每个任务声明隐藏的期望改动范围，但该信息不会进入模型 prompt。
 
+复现外部 h11 基准（下载内容和工作区均被 Git 忽略）：
+
+```powershell
+.\scripts\prepare_h11_benchmark.ps1
+.\scripts\run_demo.ps1 -Suite evals\external-h11.json
+```
+
+准备脚本固定到 h11 `v0.16.0` 并校验归档 SHA-256，同时保留 clean 与 injected-bug 两份工作区。该结果属于在真实第三方源码上注入的受控回归，不是上游真实 issue 或 SWE-bench 成绩。
+
 单元测试使用 mock/scripted provider，因此不会产生 API 费用；项目主路径和 `repofix-eval` 始终使用真实 API provider。
 
 ## 安全边界与非目标
@@ -158,3 +173,4 @@ V1.0 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V0.9 回归集设计](docs/v0.9-regression-suite.md)
 - [真实 benchmark 结果](docs/v0.9-deepseek-results.md)
 - [Package-style 真实验证](docs/package-scenario-results.md)
+- [外部 h11 v0.16.0 隔离修复](docs/external-h11-results.md)

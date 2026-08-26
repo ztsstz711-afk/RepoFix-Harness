@@ -184,6 +184,50 @@ def test_step_budget_has_failure_kind(tmp_path):
     assert state.failure_kind == "step_budget"
 
 
+class BudgetBoundaryRepairProvider:
+    def __init__(self):
+        self.actions = iter(
+            [
+                Action(
+                    "apply_patch",
+                    {
+                        "path": "calculator.py",
+                        "old_text": "return a - b",
+                        "new_text": "return a + b",
+                    },
+                ),
+                Action("run_command", {"command": "pytest -q"}),
+            ]
+        )
+
+    def next_action(self, context):
+        return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock")
+
+
+def test_verified_repair_can_finish_at_request_budget_boundary(tmp_path):
+    (tmp_path / "calculator.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n", encoding="utf-8"
+    )
+    events = []
+
+    state = AgentLoop(
+        BudgetBoundaryRepairProvider(),
+        str(tmp_path),
+        max_steps=5,
+        max_requests=2,
+        on_event=lambda state, event: events.append(event),
+    ).run("fix add")
+
+    assert state.status == "success"
+    assert state.usage.requests == 2
+    assert state.evaluation.final.success is True
+    assert state.evaluation.changed_files == ["calculator.py"]
+    assert state.summary == "Repair independently verified at the model budget boundary."
+    assert events[-1]["type"] == "budget"
+    assert events[-1]["repair_verified"] is True
+
+
 def test_loop_stops_third_identical_action(tmp_path):
     events = []
     state = AgentLoop(

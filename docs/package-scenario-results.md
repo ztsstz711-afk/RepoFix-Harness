@@ -16,8 +16,9 @@ The repository uses a `src/` package layout and separates order models, merchand
 | Baseline | 1 failed, 6 passed |
 | Final | 7 passed |
 | API requests | 7 |
-| Total tokens | 13,743 |
-| Estimated cost | $0.0050259 |
+| Execution backend | restricted Docker |
+| Total tokens | 14,868 |
+| Estimated cost | $0.00579018 |
 | Changed file | `src/order_pipeline/service.py` |
 | Expected scope match | yes |
 | Patch mode | localized |
@@ -28,4 +29,4 @@ Action path:
 list → read → read → read → apply_patch → run_command → finish
 ```
 
-The evaluator ran against an isolated copy and left the source fixture in its original failing state. This remains a controlled project-authored scenario, not evidence of performance on arbitrary production repositories.
+The evaluator ran against an isolated copy and left the source fixture in its original failing state. Baseline, Agent-requested pytest, and final verification all ran in the restricted Docker backend. This remains a controlled project-authored scenario, not evidence of performance on arbitrary production repositories.

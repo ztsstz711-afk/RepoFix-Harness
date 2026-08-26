@@ -13,10 +13,16 @@ def main() -> int:
     )
     parser.add_argument("--repo", required=True)
     parser.add_argument("--test-command", default=settings.test_command)
+    parser.add_argument(
+        "--execution-backend", choices=("local", "docker"), default=settings.execution_backend
+    )
+    parser.add_argument("--docker-image", default=settings.docker_image)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
 
-    report = RepositoryPreflight(args.repo, args.test_command).run()
+    report = RepositoryPreflight(
+        args.repo, args.test_command, args.execution_backend, args.docker_image
+    ).run()
     if args.json:
         print(json.dumps(asdict(report), indent=2))
     else:
