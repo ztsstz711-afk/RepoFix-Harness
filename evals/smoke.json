@@ -1,0 +1,17 @@
+{
+  "name": "smoke",
+  "tasks": [
+    {
+      "id": "toy-add",
+      "repo": "../examples/toy_repo",
+      "task": "Fix the failing addition test with the smallest correct change and verify it.",
+      "max_steps": 10
+    },
+    {
+      "id": "username-normalization",
+      "repo": "../examples/multi_file_repo",
+      "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
+      "max_steps": 12
+    }
+  ]
+}

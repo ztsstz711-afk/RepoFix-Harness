@@ -13,6 +13,7 @@ dev = ["pytest>=8.0"]
 
 [project.scripts]
 repofix = "repofix.cli:main"
+repofix-eval = "repofix.eval_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

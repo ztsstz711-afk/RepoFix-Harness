@@ -1,0 +1,125 @@
+import json
+import re
+import shutil
+import tempfile
+import time
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Callable
+
+from .loop import AgentLoop
+from .schemas import TokenUsage, utc_now
+
+
+@dataclass(frozen=True)
+class SuiteTask:
+    id: str
+    repo: str
+    task: str
+    max_steps: int = 12
+
+
+@dataclass(frozen=True)
+class EvaluationSuite:
+    name: str
+    tasks: list[SuiteTask]
+
+
+def load_suite(path: str) -> EvaluationSuite:
+    manifest = Path(path).resolve()
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    name = data.get("name", manifest.stem)
+    tasks = []
+    seen = set()
+    for item in data.get("tasks", []):
+        task_id = item["id"]
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", task_id):
+            raise ValueError(f"invalid task id: {task_id}")
+        if task_id in seen:
+            raise ValueError(f"duplicate task id: {task_id}")
+        seen.add(task_id)
+        repo = (manifest.parent / item["repo"]).resolve()
+        if not repo.is_dir():
+            raise FileNotFoundError(f"task repository not found: {repo}")
+        tasks.append(SuiteTask(task_id, str(repo), item["task"], int(item.get("max_steps", 12))))
+    if not tasks:
+        raise ValueError("evaluation suite must contain at least one task")
+    return EvaluationSuite(name, tasks)
+
+
+class EvaluationRunner:
+    def __init__(self, provider_factory: Callable, on_event: Callable[[dict], None] | None = None):
+        self.provider_factory = provider_factory
+        self.on_event = on_event
+
+    def run(self, suite: EvaluationSuite, output_dir: str) -> dict:
+        destination = Path(output_dir).resolve()
+        if destination.exists() and any(destination.iterdir()):
+            raise FileExistsError(f"evaluation output directory is not empty: {destination}")
+        destination.mkdir(parents=True, exist_ok=True)
+        started_at = utc_now()
+        total_usage = TokenUsage()
+        results = []
+
+        for index, task in enumerate(suite.tasks, 1):
+            self._notify({"type": "task_start", "index": index, "total": len(suite.tasks), "task_id": task.id})
+            result = self._run_task(task, destination)
+            total_usage.add(TokenUsage(**result["usage"]))
+            results.append(result)
+            self._notify({"type": "task_end", "task_id": task.id, "status": result["status"]})
+
+        successes = sum(result["status"] == "success" for result in results)
+        report = {
+            "suite": suite.name,
+            "started_at": started_at,
+            "completed_at": utc_now(),
+            "task_count": len(results),
+            "successes": successes,
+            "success_rate": successes / len(results),
+            "total_steps": sum(result["steps"] for result in results),
+            "usage": asdict(total_usage),
+            "tasks": results,
+        }
+        self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
+        return report
+
+    def _run_task(self, task: SuiteTask, destination: Path) -> dict:
+        started = time.perf_counter()
+        with tempfile.TemporaryDirectory(prefix=f"repofix-{task.id}-") as temporary:
+            workspace = Path(temporary) / "repo"
+            shutil.copytree(
+                task.repo,
+                workspace,
+                ignore=shutil.ignore_patterns(".git", ".repofix", ".venv", "__pycache__", ".pytest_cache"),
+            )
+            state = AgentLoop(self.provider_factory(), str(workspace), task.max_steps).run(task.task)
+            source_artifacts = workspace / ".repofix" / "runs" / state.run_id
+            target_artifacts = destination / "runs" / task.id
+            if source_artifacts.exists():
+                shutil.copytree(source_artifacts, target_artifacts)
+
+        return {
+            "id": task.id,
+            "source_repo": task.repo,
+            "run_id": state.run_id,
+            "status": state.status,
+            "model": state.model,
+            "steps": state.step,
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+            "usage": asdict(state.usage),
+            "baseline_success": getattr(state.evaluation.baseline, "success", None),
+            "final_success": getattr(state.evaluation.final, "success", None),
+            "changed_files": state.evaluation.changed_files,
+            "summary": state.summary,
+            "error": state.error,
+        }
+
+    def _notify(self, event: dict) -> None:
+        if self.on_event:
+            self.on_event(event)
+
+    @staticmethod
+    def _atomic_write(path: Path, content: str) -> None:
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(content, encoding="utf-8")
+        temporary.replace(path)
