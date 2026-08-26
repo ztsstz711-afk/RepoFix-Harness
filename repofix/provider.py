@@ -27,6 +27,7 @@ class OpenAICompatibleProvider:
             base_url=base_url or settings.base_url,
             api_key=resolved_key,
             max_retries=0,
+            timeout=settings.request_timeout_seconds,
         )
 
     def next_action(self, context: str) -> ModelDecision:

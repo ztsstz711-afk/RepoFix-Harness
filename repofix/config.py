@@ -9,6 +9,7 @@ class Settings:
     model: str
     max_steps: int
     max_context_chars: int
+    request_timeout_seconds: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -18,4 +19,5 @@ class Settings:
             model=os.getenv("REPOFIX_MODEL", "gpt-4o-mini"),
             max_steps=int(os.getenv("REPOFIX_MAX_STEPS", "12")),
             max_context_chars=int(os.getenv("REPOFIX_MAX_CONTEXT_CHARS", "24000")),
+            request_timeout_seconds=float(os.getenv("REPOFIX_REQUEST_TIMEOUT_SECONDS", "45")),
         )
