@@ -2,7 +2,7 @@ import pytest
 
 from types import SimpleNamespace
 
-from repofix.provider import extract_usage, parse_action_json, retry_delay_seconds
+from repofix.provider import extract_usage, parse_action_json, retry_delay_seconds, transient_retry_delay
 
 
 def test_parse_action_json_accepts_markdown_fence():
@@ -17,6 +17,10 @@ def test_parse_action_json_rejects_unknown_tool():
 
 def test_retry_delay_uses_provider_hint():
     assert retry_delay_seconds("Please retry in 38.5s") == 39.5
+
+
+def test_transient_retry_delay_is_bounded():
+    assert [transient_retry_delay(i) for i in range(5)] == [2, 4, 8, 15, 15]
 
 
 def test_extract_usage_from_compatible_response():
