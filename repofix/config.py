@@ -19,6 +19,9 @@ class Settings:
     max_changed_files: int
     rollback_on_failure: bool
     test_command: str
+    execution_backend: str
+    docker_image: str
+    command_timeout_seconds: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -39,4 +42,7 @@ class Settings:
             rollback_on_failure=os.getenv("REPOFIX_ROLLBACK_ON_FAILURE", "0").lower()
             in {"1", "true", "yes"},
             test_command=os.getenv("REPOFIX_TEST_COMMAND", "pytest -q"),
+            execution_backend=os.getenv("REPOFIX_EXECUTION_BACKEND", "local"),
+            docker_image=os.getenv("REPOFIX_DOCKER_IMAGE", "repofix-pytest:latest"),
+            command_timeout_seconds=int(os.getenv("REPOFIX_COMMAND_TIMEOUT_SECONDS", "30")),
         )

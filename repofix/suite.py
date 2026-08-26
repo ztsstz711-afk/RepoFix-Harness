@@ -24,6 +24,8 @@ class SuiteTask:
     max_changed_files: int | None = None
     rollback_on_failure: bool | None = None
     test_command: str = "pytest -q"
+    execution_backend: str = "local"
+    docker_image: str = "repofix-pytest:latest"
     tags: tuple[str, ...] = ()
     expected_changed_files: tuple[str, ...] = ()
 
@@ -76,6 +78,8 @@ def load_suite(path: str) -> EvaluationSuite:
             ),
             rollback_on_failure=rollback_on_failure,
             test_command=test_command,
+            execution_backend=item.get("execution_backend", "local"),
+            docker_image=item.get("docker_image", "repofix-pytest:latest"),
             tags=tags,
             expected_changed_files=tuple(sorted(expected_changed_files)),
         ))
@@ -163,6 +167,8 @@ class EvaluationRunner:
                 max_changed_files=task.max_changed_files,
                 rollback_on_failure=task.rollback_on_failure,
                 test_command=task.test_command,
+                execution_backend=task.execution_backend,
+                docker_image=task.docker_image,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
@@ -187,6 +193,8 @@ class EvaluationRunner:
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
             "test_command": state.test_command,
+            "execution_backend": state.execution_backend,
+            "docker_image": state.docker_image,
             "changed_files": state.evaluation.changed_files,
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),

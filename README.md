@@ -77,6 +77,15 @@ repofix --repo <python-repo> --task "Fix the parser bug" --test-command "pytest 
 
 `--test-command` 只接受 pytest 调用，且同一命令会用于 baseline、最终验证和回滚后验证。它也可以通过 `REPOFIX_TEST_COMMAND` 或 evaluation task 的 `test_command` 配置。
 
+使用受限 Docker 容器执行所有 pytest：
+
+```powershell
+.\scripts\build_sandbox.ps1
+repofix --repo <python-repo> --task "Fix the failing tests" --execution-backend docker
+```
+
+Docker backend 默认禁用网络、只读挂载仓库、丢弃 capabilities、禁止提权，并限制 CPU、内存和进程数。模型仍在 Harness 中决策，只有测试代码进入容器执行。
+
 启用失败自动回滚：
 
 ```powershell

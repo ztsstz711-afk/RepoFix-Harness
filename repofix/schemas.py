@@ -87,6 +87,8 @@ class RunState:
     task: str
     repo: str
     test_command: str = "pytest -q"
+    execution_backend: str = "local"
+    docker_image: str = "repofix-pytest:latest"
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     model: str = ""
     step: int = 0

@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .schemas import PreflightCheck, PreflightState
 from .tools import ToolRuntime
+from .execution import find_docker_executable
 
 
 PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "requirements.txt")
@@ -13,9 +14,11 @@ PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "requirements.txt"
 class RepositoryPreflight:
     """Inspect local prerequisites without executing repository code or calling a model."""
 
-    def __init__(self, repo: str, test_command: str):
+    def __init__(self, repo: str, test_command: str, execution_backend: str = "local", docker_image: str = "repofix-pytest:latest"):
         self.repo = Path(repo).resolve()
         self.test_command = test_command
+        self.execution_backend = execution_backend
+        self.docker_image = docker_image
 
     def run(self) -> PreflightState:
         checks: list[PreflightCheck] = []
@@ -25,8 +28,14 @@ class RepositoryPreflight:
                 [PreflightCheck("repository", "fail", f"directory not found: {self.repo}")],
             )
 
-        runtime = ToolRuntime(str(self.repo))
+        try:
+            runtime = ToolRuntime(
+                str(self.repo), execution_backend=self.execution_backend, docker_image=self.docker_image
+            )
+        except (ValueError, FileNotFoundError) as exc:
+            return PreflightState(False, [PreflightCheck("execution_backend", "fail", str(exc))])
         checks.append(PreflightCheck("repository", "pass", str(self.repo)))
+        checks.append(PreflightCheck("execution_backend", "pass", self.execution_backend))
 
         if importlib.util.find_spec("pytest") is None:
             checks.append(

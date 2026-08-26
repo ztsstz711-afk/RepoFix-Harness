@@ -6,6 +6,7 @@
       "repo": "../examples/order_pipeline_repo",
       "task": "Fix the failing order quote behavior so loyalty discounts apply to the correct amount without changing shipping thresholds or standard-customer totals. Inspect the package boundaries and verify the full test suite.",
       "test_command": "pytest -q tests",
+      "execution_backend": "docker",
       "max_steps": 14,
       "max_requests": 10,
       "max_tokens": 18000,

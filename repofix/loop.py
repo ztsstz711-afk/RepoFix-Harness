@@ -27,6 +27,9 @@ class AgentLoop:
         max_changed_files: int | None = None,
         rollback_on_failure: bool | None = None,
         test_command: str | None = None,
+        execution_backend: str | None = None,
+        docker_image: str | None = None,
+        command_timeout_seconds: int | None = None,
     ):
         settings = Settings.from_env()
         self.provider, self.max_steps = provider, max_steps
@@ -34,7 +37,13 @@ class AgentLoop:
         if not self.repo.is_dir():
             raise FileNotFoundError(f"repository directory not found: {self.repo}")
         self.test_command = test_command or settings.test_command
-        self.state = RunState("", str(self.repo), test_command=self.test_command)
+        self.execution_backend = execution_backend or settings.execution_backend
+        self.docker_image = docker_image or settings.docker_image
+        self.command_timeout_seconds = command_timeout_seconds or settings.command_timeout_seconds
+        self.state = RunState(
+            "", str(self.repo), test_command=self.test_command,
+            execution_backend=self.execution_backend, docker_image=self.docker_image,
+        )
         self.store = RunStore(repo)
         self.max_changed_files = (
             settings.max_changed_files if max_changed_files is None else max_changed_files
@@ -75,7 +84,9 @@ class AgentLoop:
             self.state.evaluation.rollback_error = ""
         else:
             self.state.task = task
-        self.state.preflight = RepositoryPreflight(str(self.repo), self.test_command).run()
+        self.state.preflight = RepositoryPreflight(
+            str(self.repo), self.test_command, self.execution_backend, self.docker_image
+        ).run()
         self._save_checkpoint()
         self._notify({"type": "preflight", "success": self.state.preflight.success})
         if not self.state.preflight.success:
@@ -152,7 +163,12 @@ class AgentLoop:
         self.journal = WorkspaceJournal(
             str(self.repo), artifact_dir, self.max_changed_files
         )
-        self.runtime = ToolRuntime(str(self.repo), journal=self.journal)
+        self.runtime = ToolRuntime(
+            str(self.repo), journal=self.journal,
+            execution_backend=self.execution_backend,
+            docker_image=self.docker_image,
+            command_timeout_seconds=self.command_timeout_seconds,
+        )
         self.evaluator = RepairEvaluator(self.runtime, self.test_command)
 
     def _maybe_rollback(self) -> None:
@@ -212,4 +228,8 @@ class AgentLoop:
             raise ValueError("checkpoint task does not match --task")
         if state.test_command != self.test_command:
             raise ValueError("checkpoint test command does not match --test-command")
+        if state.execution_backend != self.execution_backend:
+            raise ValueError("checkpoint execution backend does not match")
+        if state.docker_image != self.docker_image:
+            raise ValueError("checkpoint Docker image does not match")
         return state
