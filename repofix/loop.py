@@ -135,8 +135,7 @@ class AgentLoop:
     def _maybe_rollback(self) -> None:
         if self.state.status == "success" or not self.rollback_on_failure:
             return
-        tracked = self.journal.tracked_files()
-        if not tracked:
+        if not self.journal.has_pending_changes():
             return
         try:
             restored = self.journal.rollback()

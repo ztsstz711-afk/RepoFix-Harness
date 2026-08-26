@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from repofix.tools import ToolRuntime
 from repofix.workspace import WorkspaceJournal
 
@@ -25,6 +27,7 @@ def test_journal_restores_existing_file_and_removes_created_file(tmp_path):
     assert not (tmp_path / "new.py").exists()
     manifest = json.loads(journal.manifest_path.read_text(encoding="utf-8"))
     assert manifest["files"]["existing.py"]["before_sha256"]
+    assert manifest["files"]["existing.py"]["after_sha256"]
     assert manifest["files"]["new.py"]["existed"] is False
     assert manifest["rolled_back_at"]
 
@@ -67,3 +70,19 @@ def test_unchanged_write_does_not_consume_file_limit(tmp_path):
     assert unchanged.metadata["changed"] is False
     assert changed.success
     assert journal.tracked_files() == ["b.py"]
+
+
+def test_missing_backup_is_detected_before_any_file_is_restored(tmp_path):
+    (tmp_path / "a.py").write_bytes(b"original a\n")
+    (tmp_path / "b.py").write_bytes(b"original b\n")
+    runtime, journal = make_runtime(tmp_path)
+    runtime.execute("apply_patch", {"path": "a.py", "content": "changed a\n"})
+    runtime.execute("apply_patch", {"path": "b.py", "content": "changed b\n"})
+    missing_name = journal.manifest["files"]["b.py"]["backup"]
+    (journal.backup_dir / missing_name).unlink()
+
+    with pytest.raises(FileNotFoundError, match="backup missing"):
+        journal.rollback(force=True)
+
+    assert (tmp_path / "a.py").read_bytes() == b"changed a\n"
+    assert (tmp_path / "b.py").read_bytes() == b"changed b\n"

@@ -69,6 +69,8 @@ class ToolRuntime:
                 self.journal.capture(path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(encoded)
+            if self.journal and changed:
+                self.journal.record_after(path, after_hash)
             return Observation(
                 name,
                 f"{'updated' if changed else 'unchanged'} {args['path']}",

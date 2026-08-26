@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0
+
+- Add `repofix-runs list/show/rollback` for local run inspection and recovery.
+- Record the Agent's final file hash and refuse to overwrite later user edits by default.
+- Add an explicit `--force` override for intentional conflict recovery.
+- Preflight every path, end hash, and backup before a multi-file rollback starts.
+- Keep the latest-run pointer unchanged when an older run is inspected or restored.
+- Reject unsafe run IDs before resolving artifact paths.
+
 ## 0.7.0
 
 - Snapshot original file bytes before the first real Agent write in each run.

@@ -1,3 +1,5 @@
+import pytest
+
 from repofix.schemas import RunState
 from repofix.storage import RunStore
 
@@ -22,3 +24,9 @@ def test_run_state_loads_rollback_evaluation(tmp_path):
     loaded = store.load_latest()
     assert loaded.evaluation.rollback_performed is True
     assert loaded.evaluation.rollback_files == ["a.py"]
+
+
+def test_run_store_rejects_unsafe_run_id(tmp_path):
+    store = RunStore(str(tmp_path))
+    with pytest.raises(ValueError, match="invalid run ID"):
+        store.load_run("../../outside")

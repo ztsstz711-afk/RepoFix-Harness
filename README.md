@@ -2,7 +2,7 @@
 
 面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
 
-## V0.7 当前能力
+## V0.8 当前能力
 
 - Agent loop：模型选择下一步 action，直到完成或达到步数预算
 - 基础工具：list/search/read/apply_patch/run_command/git diff/status
@@ -17,6 +17,9 @@
 - 每个 run 首次写文件前保存原始字节快照，新建文件也记录在变更日志中
 - 默认限制单次运行最多涉及 5 个真实改动文件，空修改不占额度
 - 可选失败回滚：已有文件原子恢复，新建文件删除，并记录回滚后 pytest
+- `repofix-runs` 可列出历史 run、查看完整结果，并在运行结束后手动回滚
+- 快照记录 Agent 最后写入哈希；检测到用户后续编辑时拒绝覆盖
+- 多文件回滚先完成路径、哈希和备份完整性预检，避免半回滚
 - 单一工具注册表与参数校验
 - 仓库边界、控制目录和 pytest 命令权限
 - Harness 独立执行 baseline/final pytest
@@ -75,6 +78,16 @@ repofix --repo examples/toy_repo --task "Fix the failing tests" --max-changed-fi
 ```
 
 回滚默认关闭，避免用户未明确选择时撤销 Agent 的调试现场。快照和清单保存在 `.repofix/runs/<run_id>/workspace/`，Agent 工具无权访问该目录。
+
+运行结束后查看和恢复：
+
+```powershell
+repofix-runs --repo examples/toy_repo list
+repofix-runs --repo examples/toy_repo show latest
+repofix-runs --repo examples/toy_repo rollback latest
+```
+
+如果文件在 Agent 结束后又被修改，普通回滚会拒绝覆盖。确认放弃这些后续修改时才使用 `rollback <run_id> --force`。机器读取可在子命令前增加 `--json`。
 
 默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
 如果使用其他兼容服务，同时设置 `REPOFIX_BASE_URL`。可参考 `.env.example`，但不要把真实密钥写入 Git。
