@@ -17,6 +17,8 @@ def print_suite_progress(event: dict) -> None:
             print(f"task={event['task_id']} baseline={inner['success']}")
         elif inner["type"] == "model_request":
             print(f"task={event['task_id']} step={inner['step']} requesting model...")
+        elif inner["type"] == "budget":
+            print(f"task={event['task_id']} stopped by {inner['failure_kind']}: {inner['error']}")
         elif inner["type"] == "step":
             action = inner.get("action", {}).get("name")
             observation = inner.get("observation")
@@ -39,6 +41,7 @@ def main() -> int:
     print(
         f"suite={report['suite']} success={report['successes']}/{report['task_count']} "
         f"tokens={report['usage']['total_tokens']} report={Path(output).resolve() / 'report.json'}"
+        f" cost_usd={report['estimated_cost_usd']:.6f} failures={report['failure_counts']}"
     )
     return 0 if report["successes"] == report["task_count"] else 1
 

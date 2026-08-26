@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Add request, token, and step budgets with resumable budget-exhausted results.
+- Track format and transient retry counts alongside model requests and tokens.
+- Estimate run and suite cost using configurable input, output, and cached-input prices.
+- Classify provider, verification, and budget failures in run and aggregate reports.
+- Add CLI budget flags and suite-level budget overrides.
+
 ## 0.4.0
 
 - Add JSON evaluation suites and an isolated sequential runner.

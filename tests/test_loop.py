@@ -1,5 +1,6 @@
 import pytest
 
+from repofix.budget import ModelPricing
 from repofix.loop import AgentLoop
 from repofix.schemas import Action, ModelDecision, TokenUsage
 
@@ -52,6 +53,7 @@ def test_loop_checkpoints_provider_errors(tmp_path):
     state = AgentLoop(FailingProvider(), str(tmp_path), 2).run("fix tests")
     assert state.status == "error"
     assert "provider unavailable" in state.error
+    assert state.failure_kind == "provider_error"
     assert (tmp_path / ".repofix" / "trace.json").exists()
 
 
@@ -86,6 +88,7 @@ def test_finish_does_not_override_failed_verification(tmp_path):
     assert state.status == "verification_failed"
     assert state.evaluation.baseline.success is False
     assert state.evaluation.final.success is False
+    assert state.failure_kind == "verification"
 
 
 def test_loop_emits_progress_events(tmp_path):
@@ -94,3 +97,35 @@ def test_loop_emits_progress_events(tmp_path):
     AgentLoop(FinishProvider(), str(tmp_path), 2, on_event=lambda state, event: events.append(event)).run("verify")
     assert [event["type"] for event in events] == ["baseline", "model_request", "step"]
     assert events[-1]["action"]["name"] == "finish"
+
+
+class CountingProvider:
+    def next_action(self, context):
+        return ModelDecision(
+            Action("list"),
+            TokenUsage(1_000, 100, 1_100, requests=1),
+            "priced-model",
+        )
+
+
+def test_loop_stops_before_request_over_budget_and_estimates_cost(tmp_path):
+    state = AgentLoop(
+        CountingProvider(),
+        str(tmp_path),
+        max_steps=5,
+        max_requests=1,
+        pricing=ModelPricing(input_per_million=2.0, output_per_million=4.0),
+    ).run("inspect")
+
+    assert state.status == "budget_exhausted"
+    assert state.failure_kind == "request_budget"
+    assert state.step == 1
+    assert state.usage.requests == 1
+    assert state.estimated_cost_usd == 0.0024
+    assert state.evaluation.final is not None
+
+
+def test_step_budget_has_failure_kind(tmp_path):
+    state = AgentLoop(CountingProvider(), str(tmp_path), max_steps=1).run("inspect")
+    assert state.status == "budget_exhausted"
+    assert state.failure_kind == "step_budget"

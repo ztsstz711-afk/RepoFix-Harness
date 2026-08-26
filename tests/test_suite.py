@@ -46,6 +46,9 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["success_rate"] == 1.0
     assert report["usage"]["requests"] == 5
     assert report["usage"]["total_tokens"] == 600
+    assert report["usage"]["retries"] == 0
+    assert report["failure_counts"] == {}
+    assert report["estimated_cost_usd"] == 0
     assert report["tasks"][0]["changed_files"] == ["calculator.py"]
     assert (output / "report.json").exists()
     assert (output / "runs" / "addition" / "result.json").exists()

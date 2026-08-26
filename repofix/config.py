@@ -10,6 +10,11 @@ class Settings:
     max_steps: int
     max_context_chars: int
     request_timeout_seconds: float
+    max_requests: int
+    max_tokens: int
+    input_cost_per_million: float
+    output_cost_per_million: float
+    cached_input_cost_per_million: float
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -20,4 +25,9 @@ class Settings:
             max_steps=int(os.getenv("REPOFIX_MAX_STEPS", "12")),
             max_context_chars=int(os.getenv("REPOFIX_MAX_CONTEXT_CHARS", "24000")),
             request_timeout_seconds=float(os.getenv("REPOFIX_REQUEST_TIMEOUT_SECONDS", "45")),
+            max_requests=int(os.getenv("REPOFIX_MAX_REQUESTS", "0")),
+            max_tokens=int(os.getenv("REPOFIX_MAX_TOKENS", "0")),
+            input_cost_per_million=float(os.getenv("REPOFIX_INPUT_COST_PER_MILLION", "0")),
+            output_cost_per_million=float(os.getenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")),
+            cached_input_cost_per_million=float(os.getenv("REPOFIX_CACHED_INPUT_COST_PER_MILLION", "0")),
         )

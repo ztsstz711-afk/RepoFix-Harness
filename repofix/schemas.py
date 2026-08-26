@@ -21,6 +21,9 @@ class TokenUsage:
     total_tokens: int = 0
     cached_input_tokens: int = 0
     requests: int = 0
+    retries: int = 0
+    format_retries: int = 0
+    transient_retries: int = 0
 
     def add(self, other: "TokenUsage") -> None:
         self.input_tokens += other.input_tokens
@@ -28,6 +31,9 @@ class TokenUsage:
         self.total_tokens += other.total_tokens
         self.cached_input_tokens += other.cached_input_tokens
         self.requests += other.requests
+        self.retries += other.retries
+        self.format_retries += other.format_retries
+        self.transient_retries += other.transient_retries
 
 
 @dataclass
@@ -68,6 +74,8 @@ class RunState:
     status: str = "running"
     summary: str = ""
     error: str = ""
+    failure_kind: str = ""
+    estimated_cost_usd: float = 0.0
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     usage: TokenUsage = field(default_factory=TokenUsage)

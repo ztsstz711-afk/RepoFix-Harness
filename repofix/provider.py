@@ -50,8 +50,13 @@ Do not send a unified diff to apply_patch; it requires the complete file content
         total_usage = TokenUsage()
         last_text = ""
         for attempt in range(self.max_format_retries + 1):
+            self._last_transient_retries = 0
             response = self._create_completion(prompt)
-            total_usage.add(extract_usage(response))
+            request_usage = extract_usage(response)
+            request_usage.requests += self._last_transient_retries
+            request_usage.retries += self._last_transient_retries
+            request_usage.transient_retries += self._last_transient_retries
+            total_usage.add(request_usage)
             last_text = response.choices[0].message.content or ""
             try:
                 data = parse_action_json(last_text)
@@ -63,6 +68,8 @@ Do not send a unified diff to apply_patch; it requires the complete file content
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 if attempt == self.max_format_retries:
                     raise ValueError(f"invalid model action after retries: {exc}; output={last_text[:500]!r}") from exc
+                total_usage.retries += 1
+                total_usage.format_retries += 1
                 prompt += (
                     "\nYour previous response was invalid JSON or violated the action schema. "
                     f"Error: {exc}. Return one corrected JSON action only.\n"
@@ -76,11 +83,13 @@ Do not send a unified diff to apply_patch; it requires the complete file content
         transient_errors = (RateLimitError, InternalServerError, APIConnectionError, APITimeoutError)
         for attempt in range(self.max_transient_retries + 1):
             try:
-                return self.client.chat.completions.create(
+                response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0,
                 )
+                self._last_transient_retries = attempt
+                return response
             except transient_errors as exc:
                 if attempt == self.max_transient_retries:
                     raise

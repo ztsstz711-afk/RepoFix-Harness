@@ -17,6 +17,8 @@ class SuiteTask:
     repo: str
     task: str
     max_steps: int = 12
+    max_requests: int | None = None
+    max_tokens: int | None = None
 
 
 @dataclass(frozen=True)
@@ -41,7 +43,14 @@ def load_suite(path: str) -> EvaluationSuite:
         repo = (manifest.parent / item["repo"]).resolve()
         if not repo.is_dir():
             raise FileNotFoundError(f"task repository not found: {repo}")
-        tasks.append(SuiteTask(task_id, str(repo), item["task"], int(item.get("max_steps", 12))))
+        tasks.append(SuiteTask(
+            task_id,
+            str(repo),
+            item["task"],
+            int(item.get("max_steps", 12)),
+            int(item["max_requests"]) if "max_requests" in item else None,
+            int(item["max_tokens"]) if "max_tokens" in item else None,
+        ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
     return EvaluationSuite(name, tasks)
@@ -69,6 +78,10 @@ class EvaluationRunner:
             self._notify({"type": "task_end", "task_id": task.id, "status": result["status"]})
 
         successes = sum(result["status"] == "success" for result in results)
+        failure_counts = {}
+        for result in results:
+            if result["failure_kind"]:
+                failure_counts[result["failure_kind"]] = failure_counts.get(result["failure_kind"], 0) + 1
         report = {
             "suite": suite.name,
             "started_at": started_at,
@@ -78,6 +91,8 @@ class EvaluationRunner:
             "success_rate": successes / len(results),
             "total_steps": sum(result["steps"] for result in results),
             "usage": asdict(total_usage),
+            "estimated_cost_usd": round(sum(result["estimated_cost_usd"] for result in results), 8),
+            "failure_counts": failure_counts,
             "tasks": results,
         }
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
@@ -96,7 +111,12 @@ class EvaluationRunner:
                 self._notify({"type": "agent_event", "task_id": task.id, "event": event})
 
             state = AgentLoop(
-                self.provider_factory(), str(workspace), task.max_steps, on_event=forward_agent_event
+                self.provider_factory(),
+                str(workspace),
+                task.max_steps,
+                on_event=forward_agent_event,
+                max_requests=task.max_requests,
+                max_tokens=task.max_tokens,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
@@ -117,6 +137,8 @@ class EvaluationRunner:
             "changed_files": state.evaluation.changed_files,
             "summary": state.summary,
             "error": state.error,
+            "failure_kind": state.failure_kind,
+            "estimated_cost_usd": state.estimated_cost_usd,
         }
 
     def _notify(self, event: dict) -> None:

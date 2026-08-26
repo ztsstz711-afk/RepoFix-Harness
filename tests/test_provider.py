@@ -70,3 +70,5 @@ def test_provider_retries_malformed_action_and_accumulates_usage():
     assert decision.action.name == "list"
     assert decision.usage.requests == 2
     assert decision.usage.total_tokens == 35
+    assert decision.usage.retries == 1
+    assert decision.usage.format_retries == 1
