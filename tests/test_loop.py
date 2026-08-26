@@ -33,3 +33,15 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert state.history[4]["observation"]["success"] is True
     assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")
     assert (tmp_path / ".repofix" / "trace.json").exists()
+
+
+class FailingProvider:
+    def next_action(self, context):
+        raise RuntimeError("provider unavailable")
+
+
+def test_loop_checkpoints_provider_errors(tmp_path):
+    state = AgentLoop(FailingProvider(), str(tmp_path), 2).run("fix tests")
+    assert state.status == "error"
+    assert "provider unavailable" in state.error
+    assert (tmp_path / ".repofix" / "trace.json").exists()
