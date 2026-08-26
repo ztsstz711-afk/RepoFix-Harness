@@ -34,7 +34,14 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
         json.dumps(
             {
                 "name": "unit-smoke",
-                "tasks": [{"id": "addition", "repo": "source_repo", "task": "fix add", "max_steps": 8}],
+                "tasks": [{
+                    "id": "addition",
+                    "repo": "source_repo",
+                    "task": "fix add",
+                    "max_steps": 8,
+                    "tags": ["single-file"],
+                    "expected_changed_files": ["calculator.py"],
+                }],
             }
         ),
         encoding="utf-8",
@@ -51,6 +58,9 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["estimated_cost_usd"] == 0
     assert report["tasks"][0]["changed_files"] == ["calculator.py"]
     assert report["tasks"][0]["rollback_performed"] is False
+    assert report["tasks"][0]["tags"] == ["single-file"]
+    assert report["tasks"][0]["changed_files_match"] is True
+    assert report["change_scope_rate"] == 1.0
     assert (output / "report.json").exists()
     assert (output / "runs" / "addition" / "result.json").exists()
     assert "a - b" in (repo / "calculator.py").read_text(encoding="utf-8")
@@ -90,4 +100,25 @@ def test_suite_requires_boolean_rollback_setting(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="JSON boolean"):
+        load_suite(str(manifest))
+
+
+def test_suite_rejects_unsafe_expected_changed_file(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [{
+                    "id": "task",
+                    "repo": "repo",
+                    "task": "test",
+                    "expected_changed_files": ["../outside.py"],
+                }]
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="unsafe expected"):
         load_suite(str(manifest))

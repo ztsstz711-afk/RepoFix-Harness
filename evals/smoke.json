@@ -5,13 +5,17 @@
       "id": "toy-add",
       "repo": "../examples/toy_repo",
       "task": "Fix the failing addition test with the smallest correct change and verify it.",
-      "max_steps": 10
+      "max_steps": 10,
+      "tags": ["single-file", "wrong-operator"],
+      "expected_changed_files": ["calculator.py"]
     },
     {
       "id": "username-normalization",
       "repo": "../examples/multi_file_repo",
       "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
-      "max_steps": 12
+      "max_steps": 12,
+      "tags": ["multi-file-navigation", "string-normalization"],
+      "expected_changed_files": ["formatter.py"]
     }
   ]
 }

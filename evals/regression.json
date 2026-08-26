@@ -1,0 +1,45 @@
+{
+  "name": "regression-v0.9",
+  "tasks": [
+    {
+      "id": "toy-add",
+      "repo": "../examples/toy_repo",
+      "task": "Fix the failing addition test with the smallest correct change and verify it.",
+      "max_steps": 10,
+      "tags": ["single-file", "wrong-operator"],
+      "expected_changed_files": ["calculator.py"]
+    },
+    {
+      "id": "username-normalization",
+      "repo": "../examples/multi_file_repo",
+      "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
+      "max_steps": 12,
+      "tags": ["multi-file-navigation", "string-normalization"],
+      "expected_changed_files": ["formatter.py"]
+    },
+    {
+      "id": "optional-config-override",
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "max_steps": 12,
+      "tags": ["data-semantics", "none-handling"],
+      "expected_changed_files": ["config_loader.py"]
+    },
+    {
+      "id": "one-based-pagination",
+      "repo": "../examples/pagination_repo",
+      "task": "Fix the failing pagination boundary behavior without weakening input validation, then verify all tests.",
+      "max_steps": 12,
+      "tags": ["boundary", "off-by-one"],
+      "expected_changed_files": ["pagination.py"]
+    },
+    {
+      "id": "exact-inventory-boundary",
+      "repo": "../examples/inventory_repo",
+      "task": "Fix order acceptance at the exact inventory boundary, trace the behavior across modules, and verify all tests.",
+      "max_steps": 14,
+      "tags": ["package", "multi-file-navigation", "boundary"],
+      "expected_changed_files": ["inventory/policy.py"]
+    }
+  ]
+}

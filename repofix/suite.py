@@ -22,6 +22,8 @@ class SuiteTask:
     max_identical_actions: int | None = None
     max_changed_files: int | None = None
     rollback_on_failure: bool | None = None
+    tags: tuple[str, ...] = ()
+    expected_changed_files: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,12 @@ def load_suite(path: str) -> EvaluationSuite:
         rollback_on_failure = item.get("rollback_on_failure")
         if rollback_on_failure is not None and not isinstance(rollback_on_failure, bool):
             raise ValueError("rollback_on_failure must be a JSON boolean")
+        tags = _string_list(item, "tags")
+        expected_changed_files = _string_list(item, "expected_changed_files")
+        for expected_path in expected_changed_files:
+            path = Path(expected_path)
+            if path.is_absolute() or ".." in path.parts:
+                raise ValueError(f"unsafe expected changed file: {expected_path}")
         tasks.append(SuiteTask(
             task_id,
             str(repo),
@@ -59,10 +67,21 @@ def load_suite(path: str) -> EvaluationSuite:
             int(item["max_identical_actions"]) if "max_identical_actions" in item else None,
             int(item["max_changed_files"]) if "max_changed_files" in item else None,
             rollback_on_failure,
+            tags,
+            tuple(sorted(expected_changed_files)),
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
     return EvaluationSuite(name, tasks)
+
+
+def _string_list(item: dict, key: str) -> tuple[str, ...]:
+    value = item.get(key, [])
+    if not isinstance(value, list) or not all(isinstance(entry, str) for entry in value):
+        raise ValueError(f"{key} must be a JSON string array")
+    if len(value) != len(set(value)):
+        raise ValueError(f"{key} must not contain duplicates")
+    return tuple(value)
 
 
 class EvaluationRunner:
@@ -87,6 +106,8 @@ class EvaluationRunner:
             self._notify({"type": "task_end", "task_id": task.id, "status": result["status"]})
 
         successes = sum(result["status"] == "success" for result in results)
+        scoped_results = [result for result in results if result["changed_files_match"] is not None]
+        scope_matches = sum(result["changed_files_match"] is True for result in scoped_results)
         failure_counts = {}
         for result in results:
             if result["failure_kind"]:
@@ -102,6 +123,9 @@ class EvaluationRunner:
             "usage": asdict(total_usage),
             "estimated_cost_usd": round(sum(result["estimated_cost_usd"] for result in results), 8),
             "failure_counts": failure_counts,
+            "change_scope_evaluated": len(scoped_results),
+            "change_scope_matches": scope_matches,
+            "change_scope_rate": scope_matches / len(scoped_results) if scoped_results else None,
             "tasks": results,
         }
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
@@ -135,6 +159,11 @@ class EvaluationRunner:
             if source_artifacts.exists():
                 shutil.copytree(source_artifacts, target_artifacts)
 
+        changed_files_match = (
+            state.evaluation.changed_files == list(task.expected_changed_files)
+            if task.expected_changed_files
+            else None
+        )
         return {
             "id": task.id,
             "source_repo": task.repo,
@@ -147,6 +176,9 @@ class EvaluationRunner:
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
             "changed_files": state.evaluation.changed_files,
+            "tags": list(task.tags),
+            "expected_changed_files": list(task.expected_changed_files),
+            "changed_files_match": changed_files_match,
             "summary": state.summary,
             "error": state.error,
             "failure_kind": state.failure_kind,

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+- Expand evaluation from two toy tasks to five complementary Python bug scenarios.
+- Add optional-config, one-based-pagination, and package-level inventory fixtures.
+- Add task tags and hidden expected-change scopes to evaluation manifests and reports.
+- Report both test success rate and changed-file scope accuracy.
+- Validate every fixture starts with a failing baseline and passes through isolated scripted repairs.
+
 ## 0.8.0
 
 - Add `repofix-runs list/show/rollback` for local run inspection and recovery.

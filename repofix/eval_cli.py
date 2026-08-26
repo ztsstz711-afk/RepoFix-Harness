@@ -46,6 +46,7 @@ def main() -> int:
     report = EvaluationRunner(OpenAICompatibleProvider, print_suite_progress).run(suite, output)
     print(
         f"suite={report['suite']} success={report['successes']}/{report['task_count']} "
+        f"scope={report['change_scope_matches']}/{report['change_scope_evaluated']} "
         f"tokens={report['usage']['total_tokens']} report={Path(output).resolve() / 'report.json'}"
         f" cost_usd={report['estimated_cost_usd']:.6f} failures={report['failure_counts']}"
     )

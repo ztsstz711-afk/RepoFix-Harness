@@ -2,7 +2,7 @@
 
 面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
 
-## V0.8 当前能力
+## V0.9 当前能力
 
 - Agent loop：模型选择下一步 action，直到完成或达到步数预算
 - 基础工具：list/search/read/apply_patch/run_command/git diff/status
@@ -20,6 +20,9 @@
 - `repofix-runs` 可列出历史 run、查看完整结果，并在运行结束后手动回滚
 - 快照记录 Agent 最后写入哈希；检测到用户后续编辑时拒绝覆盖
 - 多文件回滚先完成路径、哈希和备份完整性预检，避免半回滚
+- 五任务 regression suite，覆盖错误运算符、字符串规范化、`None` 语义、分页边界和跨模块库存判断
+- 评测任务支持 tags 与期望改动文件，报告同时统计测试成功率和改动范围命中率
+- 五个 buggy repo 都有独立失败基线和通过测试，防止只针对单一断言硬编码
 - 单一工具注册表与参数校验
 - 仓库边界、控制目录和 pytest 命令权限
 - Harness 独立执行 baseline/final pytest
@@ -60,6 +63,14 @@ repofix-eval --suite evals/smoke.json
 ```
 
 评测在临时副本中顺序执行，不修改 `examples/` 下的源仓库；输出默认写入 `eval-results/`。
+
+运行完整五任务回归套件：
+
+```powershell
+repofix-eval --suite evals/regression.json
+```
+
+真实评测仍使用配置的 API 模型。测试目录中的 scripted provider 只验证案例标准答案、隔离执行和报告聚合，不替代真实 Agent 主路径。
 
 限制一次运行最多使用 8 次模型请求或 20,000 tokens：
 
@@ -106,7 +117,7 @@ V0.6 再次完成单任务真实回归：5 个 Agent 步骤修复成功，重复
 
 ## 目录
 
-`repofix/` 是 harness 核心；`examples/toy_repo/` 是单文件 Bug；`examples/multi_file_repo/` 用于验证跨文件 search/read/edit；`tests/` 验证工具、provider、loop 和 evaluator。
+`repofix/` 是 Harness 核心；`examples/` 包含五种 Bug 场景；`evals/` 保存 smoke 和 regression 清单；`tests/` 验证工具、provider、Agent Loop、恢复机制和 evaluator。
 
 ## V0.1 技术判断
 
