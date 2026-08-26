@@ -1,0 +1,34 @@
+# RepoFix-Harness
+
+面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
+
+## V0.1 范围
+
+- Agent loop：模型选择下一步 action，直到完成或达到步数预算
+- 基础工具：list/search/read/apply_patch/run_command/git diff/status
+- 基础 context、trace、checkpoint
+- OpenAI-compatible provider：环境变量 `REPOFIX_BASE_URL`、`REPOFIX_API_KEY`、`REPOFIX_MODEL`
+- 可运行 toy buggy repo 与 mock provider 单测
+
+暂不包含 LangGraph、multi-agent、MCP、Docker sandbox、SWE-bench/BugsInPy。
+
+## 快速开始
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+$env:REPOFIX_API_KEY="your-key"
+$env:REPOFIX_MODEL="your-model"
+python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests"
+```
+
+默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
+
+## 目录
+
+`repofix/` 是 harness 核心；`examples/toy_repo/` 是被修复的目标仓库；`tests/` 验证工具、provider 和 loop。
+
+## V0.1 技术判断
+
+可行性高：工具调用和状态机都是本地 Python 能力，真实 LLM 只负责选择动作和生成 patch。风险集中在模型输出格式、命令权限和上下文增长，第一版通过 JSON schema、允许命令白名单、步数预算和 trace 缓解。
