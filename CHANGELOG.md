@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0
+
+- Add JSON evaluation suites and an isolated sequential runner.
+- Add the `repofix-eval` CLI and two-task smoke suite.
+- Aggregate success rate, steps, duration, requests, tokens, and changed files.
+- Preserve per-task run artifacts without mutating source repositories.
+- Validate the real Gemini smoke suite with 2/2 successful repairs.
+
 ## 0.3.0
 
 - Preserve trace and result artifacts for every run ID.
