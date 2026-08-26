@@ -2,7 +2,13 @@ import pytest
 
 from types import SimpleNamespace
 
-from repofix.provider import extract_usage, parse_action_json, retry_delay_seconds, transient_retry_delay
+from repofix.provider import (
+    OpenAICompatibleProvider,
+    extract_usage,
+    parse_action_json,
+    retry_delay_seconds,
+    transient_retry_delay,
+)
 
 
 def test_parse_action_json_accepts_markdown_fence():
