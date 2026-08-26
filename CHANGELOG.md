@@ -11,6 +11,8 @@
 - Include the bounded independent baseline command and pytest output in every model context, avoiding a mandatory duplicate test run.
 - Mark repository content, pytest output, and tool observations as untrusted prompt data.
 - Real-model validation completed the demo in five requests with localized editing and persisted baseline/final commands.
+- Separate immutable tool/control instructions into the system message and untrusted repository context into the user message.
+- Validate the two-role provider path against DeepSeek with a five-request successful repair.
 
 ## 1.0.0
 
