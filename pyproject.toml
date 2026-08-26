@@ -15,5 +15,9 @@ dev = ["pytest>=8.0"]
 repofix = "repofix.cli:main"
 repofix-eval = "repofix.eval_cli:main"
 
+[tool.setuptools.packages.find]
+include = ["repofix*"]
+exclude = ["tests*", "examples*", "evals*", "docs*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
