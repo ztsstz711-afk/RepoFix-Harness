@@ -15,7 +15,10 @@ def main():
     state = AgentLoop(OpenAICompatibleProvider(), a.repo, a.max_steps, settings.max_context_chars).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "
-        f"tokens={state.usage.total_tokens} trace={state.repo}/.repofix/trace.json"
+        f"tokens={state.usage.total_tokens} "
+        f"baseline={getattr(state.evaluation.baseline, 'success', None)} "
+        f"final={getattr(state.evaluation.final, 'success', None)} "
+        f"result={state.repo}/.repofix/result.json"
     )
     return 0 if state.status == "success" else 1
 

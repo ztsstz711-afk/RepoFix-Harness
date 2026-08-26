@@ -30,11 +30,14 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert state.summary == "fixed add"
     assert state.usage.requests == 6
     assert state.usage.total_tokens == 720
+    assert state.evaluation.baseline.success is False
+    assert state.evaluation.final.success is True
     assert len(state.history) == 6
     assert state.history[1]["observation"]["success"] is False
     assert state.history[4]["observation"]["success"] is True
     assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")
     assert (tmp_path / ".repofix" / "trace.json").exists()
+    assert (tmp_path / ".repofix" / "result.json").exists()
 
 
 class FailingProvider:
@@ -59,6 +62,7 @@ class FinishProvider:
 
 
 def test_loop_resumes_same_run_from_checkpoint(tmp_path):
+    (tmp_path / "test_ok.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
     failed = AgentLoop(FailingProvider(), str(tmp_path), 3).run("fix tests")
     resumed = AgentLoop(FinishProvider(), str(tmp_path), 3).run("fix tests", resume=True)
     assert resumed.run_id == failed.run_id
@@ -71,3 +75,11 @@ def test_resume_rejects_different_task(tmp_path):
     AgentLoop(FailingProvider(), str(tmp_path), 3).run("first task")
     with pytest.raises(ValueError, match="does not match"):
         AgentLoop(FinishProvider(), str(tmp_path), 3).run("different task", resume=True)
+
+
+def test_finish_does_not_override_failed_verification(tmp_path):
+    (tmp_path / "test_bad.py").write_text("def test_bad(): assert False\n", encoding="utf-8")
+    state = AgentLoop(FinishProvider(), str(tmp_path), 2).run("fix tests")
+    assert state.status == "verification_failed"
+    assert state.evaluation.baseline.success is False
+    assert state.evaluation.final.success is False

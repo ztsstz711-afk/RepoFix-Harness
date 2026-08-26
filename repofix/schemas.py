@@ -41,6 +41,21 @@ class Observation:
     tool: str
     output: str
     success: bool = True
+    duration_ms: int = 0
+
+
+@dataclass
+class TestSnapshot:
+    success: bool
+    output: str
+    duration_ms: int = 0
+
+
+@dataclass
+class EvaluationState:
+    baseline: TestSnapshot | None = None
+    final: TestSnapshot | None = None
+    changed_files: list[str] = field(default_factory=list)
 
 @dataclass
 class RunState:
@@ -55,6 +70,7 @@ class RunState:
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     usage: TokenUsage = field(default_factory=TokenUsage)
+    evaluation: EvaluationState = field(default_factory=EvaluationState)
     history: list[dict[str, Any]] = field(default_factory=list)
 
     def record(self, item: dict[str, Any]) -> None:
@@ -68,4 +84,13 @@ class RunState:
     def from_dict(cls, data: dict[str, Any]) -> "RunState":
         values = dict(data)
         values["usage"] = TokenUsage(**values.get("usage", {}))
+        evaluation = values.get("evaluation", {})
+        if isinstance(evaluation, dict):
+            baseline = evaluation.get("baseline")
+            final = evaluation.get("final")
+            values["evaluation"] = EvaluationState(
+                baseline=TestSnapshot(**baseline) if baseline else None,
+                final=TestSnapshot(**final) if final else None,
+                changed_files=evaluation.get("changed_files", []),
+            )
         return cls(**values)

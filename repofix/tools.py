@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import time
 from pathlib import Path
 from .permissions import PermissionPolicy
 from .registry import validate_action
@@ -57,5 +58,7 @@ class ToolRuntime:
     def _command(self, tool_name: str, command: list[str]) -> Observation:
         env = os.environ.copy()
         env["PYTHONDONTWRITEBYTECODE"] = "1"
+        started = time.perf_counter()
         p = subprocess.run(command, cwd=self.repo, text=True, capture_output=True, timeout=30, env=env)
-        return Observation(tool_name, (p.stdout + p.stderr)[-12000:], p.returncode == 0)
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        return Observation(tool_name, (p.stdout + p.stderr)[-12000:], p.returncode == 0, duration_ms)
