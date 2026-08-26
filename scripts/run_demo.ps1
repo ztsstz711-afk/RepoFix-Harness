@@ -1,3 +1,7 @@
+param(
+    [string]$Suite = "evals\demo.json"
+)
+
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $python = Join-Path $projectRoot ".venv\Scripts\python.exe"
 
@@ -25,8 +29,9 @@ if ([string]::IsNullOrWhiteSpace($env:REPOFIX_API_KEY)) {
 }
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$output = Join-Path $projectRoot "eval-results\demo-$stamp"
-$suite = Join-Path $projectRoot "evals\demo.json"
+$suitePath = (Resolve-Path (Join-Path $projectRoot $Suite)).Path
+$suiteName = [System.IO.Path]::GetFileNameWithoutExtension($suitePath)
+$output = Join-Path $projectRoot "eval-results\$suiteName-$stamp"
 
 Write-Host "RepoFix isolated demo"
 Write-Host "Model: $env:REPOFIX_MODEL"
@@ -34,7 +39,7 @@ Write-Host "Output: $output"
 
 Push-Location $projectRoot
 try {
-    & $python -m repofix.eval_cli --suite $suite --output $output
+    & $python -m repofix.eval_cli --suite $suitePath --output $output
     $demoExitCode = $LASTEXITCODE
 }
 finally {

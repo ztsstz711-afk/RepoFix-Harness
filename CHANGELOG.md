@@ -13,6 +13,10 @@
 - Real-model validation completed the demo in five requests with localized editing and persisted baseline/final commands.
 - Separate immutable tool/control instructions into the system message and untrusted repository context into the user message.
 - Validate the two-role provider path against DeepSeek with a five-request successful repair.
+- Add persisted, model-free repository preflight checks for pytest, command safety, Python/test files, project metadata, and Git availability.
+- Add `repofix-doctor` so environment problems can be diagnosed without an API key or model request.
+- Add a package-style order pipeline scenario with `src/` layout, Decimal business logic, and cross-module data flow.
+- Validate the package scenario with DeepSeek: 1/1 success, exact change scope, 7 requests, 13,743 tokens, and an estimated $0.00503 cost.
 
 ## 1.0.0
 

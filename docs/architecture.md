@@ -4,7 +4,9 @@
 
 ```mermaid
 flowchart LR
-    U[Repo + task] --> E[Independent baseline pytest]
+    U --> D[Repository Preflight]
+    D -->|pass| E
+    D -->|fail| R
     E --> C[Context Builder]
     C --> P[OpenAI-compatible Provider]
     P --> A[Structured Action]
@@ -20,7 +22,7 @@ flowchart LR
     J --> B[Snapshots / rollback]
 ```
 
-模型只负责选择 action 和生成完整文件内容。Harness 决定模型能看到什么、动作是否合法、工具如何执行、何时停止，以及结果是否可信。
+模型只负责选择 action 和生成局部或完整文件修改。Harness 决定模型能看到什么、动作是否合法、工具如何执行、何时停止，以及结果是否可信。
 
 ## Module map
 
@@ -38,11 +40,13 @@ flowchart LR
 | `storage.py` | 原子保存 latest 与 per-run trace/result |
 | `suite.py` | 隔离复制、顺序评测和聚合报告 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
+| `preflight.py` | 模型调用前检查解释器、pytest、命令和仓库形态 |
 
 ## State transitions
 
 ```text
 running
+├── preflight_failed      local environment or verification contract invalid
 ├── success               final pytest passed after finish
 ├── verification_failed   model finished but final pytest failed
 ├── budget_exhausted      step/request/token limit reached
@@ -60,6 +64,8 @@ running
 4. `finish` 不能决定成功，最终状态由独立 pytest 决定。
 5. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
 6. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
+
+Preflight 不执行仓库代码，也不调用模型。它只检查本地运行前提，并把结果写入同一个 RunState；pytest 缺失或验证命令越权会以 `preflight_failed` 停止，项目元数据或传统测试文件缺失只作为 warning。
 
 验证命令属于 Harness 状态而不是模型状态。CLI 或 suite 可以选择仓库所需的 pytest 目标；命令会写入 checkpoint，resume 时必须保持一致，并在 baseline、final 和 post-rollback 三个阶段复用。命令解析后以参数数组执行，不经过 shell，且非 pytest 入口会在调用模型前被拒绝。
 

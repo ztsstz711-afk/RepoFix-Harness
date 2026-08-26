@@ -112,8 +112,22 @@ def test_resume_rejects_different_test_command(tmp_path):
 
 
 def test_loop_rejects_unsafe_harness_test_command_before_running(tmp_path):
-    with pytest.raises(PermissionError, match="only pytest"):
-        AgentLoop(FinishProvider(), str(tmp_path), test_command="python dangerous.py")
+    state = AgentLoop(
+        FinishProvider(), str(tmp_path), test_command="python dangerous.py"
+    ).run("fix tests")
+
+    assert state.status == "preflight_failed"
+    assert state.failure_kind == "preflight"
+    assert "only pytest" in state.error
+    assert state.usage.requests == 0
+    assert (tmp_path / ".repofix" / "result.json").exists()
+
+
+def test_loop_rejects_missing_repository_without_creating_it(tmp_path):
+    missing = tmp_path / "missing"
+    with pytest.raises(FileNotFoundError, match="repository directory not found"):
+        AgentLoop(FinishProvider(), str(missing))
+    assert not missing.exists()
 
 
 def test_finish_does_not_override_failed_verification(tmp_path):
@@ -129,7 +143,12 @@ def test_loop_emits_progress_events(tmp_path):
     (tmp_path / "test_ok.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
     events = []
     AgentLoop(FinishProvider(), str(tmp_path), 2, on_event=lambda state, event: events.append(event)).run("verify")
-    assert [event["type"] for event in events] == ["baseline", "model_request", "step"]
+    assert [event["type"] for event in events] == [
+        "preflight",
+        "baseline",
+        "model_request",
+        "step",
+    ]
     assert events[-1]["action"]["name"] == "finish"
 
 

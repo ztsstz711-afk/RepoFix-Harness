@@ -183,6 +183,7 @@ class EvaluationRunner:
             "steps": state.step,
             "duration_ms": int((time.perf_counter() - started) * 1000),
             "usage": asdict(state.usage),
+            "preflight_success": state.preflight.success,
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
             "test_command": state.test_command,

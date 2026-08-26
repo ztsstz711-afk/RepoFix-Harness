@@ -5,7 +5,13 @@ from .provider import OpenAICompatibleProvider
 
 
 def print_progress(state, event):
-    if event["type"] == "baseline":
+    if event["type"] == "preflight":
+        warnings = sum(check.status == "warning" for check in state.preflight.checks)
+        print(f"preflight success={event['success']} warnings={warnings}")
+        for check in state.preflight.checks:
+            if check.status == "fail":
+                print(f"preflight failed {check.name}: {check.message}")
+    elif event["type"] == "baseline":
         print(f"baseline pytest success={event['success']}")
     elif event["type"] == "model_request":
         print(f"step={event['step']} requesting model action...")
@@ -74,6 +80,7 @@ def main():
         f"tokens={state.usage.total_tokens} "
         f"retries={state.usage.retries} cost_usd={state.estimated_cost_usd:.6f} "
         f"failure={state.failure_kind or 'none'} "
+        f"preflight={state.preflight.success} "
         f"rollback={state.evaluation.rollback_performed} "
         f"rollback_error={state.evaluation.rollback_error or 'none'} "
         f"baseline={getattr(state.evaluation.baseline, 'success', None)} "

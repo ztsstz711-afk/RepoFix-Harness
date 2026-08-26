@@ -60,6 +60,19 @@ class TestSnapshot:
 
 
 @dataclass
+class PreflightCheck:
+    name: str
+    status: str
+    message: str
+
+
+@dataclass
+class PreflightState:
+    success: bool = False
+    checks: list[PreflightCheck] = field(default_factory=list)
+
+
+@dataclass
 class EvaluationState:
     baseline: TestSnapshot | None = None
     final: TestSnapshot | None = None
@@ -85,6 +98,7 @@ class RunState:
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     usage: TokenUsage = field(default_factory=TokenUsage)
+    preflight: PreflightState = field(default_factory=PreflightState)
     evaluation: EvaluationState = field(default_factory=EvaluationState)
     history: list[dict[str, Any]] = field(default_factory=list)
 
@@ -99,6 +113,12 @@ class RunState:
     def from_dict(cls, data: dict[str, Any]) -> "RunState":
         values = dict(data)
         values["usage"] = TokenUsage(**values.get("usage", {}))
+        preflight = values.get("preflight", {})
+        if isinstance(preflight, dict):
+            values["preflight"] = PreflightState(
+                success=preflight.get("success", False),
+                checks=[PreflightCheck(**check) for check in preflight.get("checks", [])],
+            )
         evaluation = values.get("evaluation", {})
         if isinstance(evaluation, dict):
             baseline = evaluation.get("baseline")

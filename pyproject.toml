@@ -15,6 +15,7 @@ dev = ["pytest>=8.0"]
 repofix = "repofix.cli:main"
 repofix-eval = "repofix.eval_cli:main"
 repofix-runs = "repofix.runs_cli:main"
+repofix-doctor = "repofix.doctor_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["repofix*"]

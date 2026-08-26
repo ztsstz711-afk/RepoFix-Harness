@@ -13,7 +13,9 @@ def print_suite_progress(event: dict) -> None:
         print(f"task={event['task_id']} status={event['status']}")
     elif event["type"] == "agent_event":
         inner = event["event"]
-        if inner["type"] == "baseline":
+        if inner["type"] == "preflight":
+            print(f"task={event['task_id']} preflight={inner['success']}")
+        elif inner["type"] == "baseline":
             print(f"task={event['task_id']} baseline={inner['success']}")
         elif inner["type"] == "model_request":
             print(f"task={event['task_id']} step={inner['step']} requesting model...")

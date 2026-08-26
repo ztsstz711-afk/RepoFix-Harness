@@ -1,5 +1,5 @@
 from repofix.context import ContextBuilder
-from repofix.schemas import TestSnapshot as Snapshot
+from repofix.schemas import PreflightCheck, PreflightState, TestSnapshot as Snapshot
 
 
 def test_context_is_bounded_and_keeps_latest_event():
@@ -61,3 +61,15 @@ def test_context_includes_bounded_independent_baseline():
     assert "TRACEBACK-START" in context
     assert "SUMMARY-END" in context
     assert "chars omitted" in context
+
+
+def test_context_includes_preflight_warnings():
+    preflight = PreflightState(
+        True,
+        [PreflightCheck("project_metadata", "warning", "no standard project metadata found")],
+    )
+
+    context = ContextBuilder("repo", "task", preflight=preflight).build([])
+
+    assert "Preflight: passed" in context
+    assert "no standard project metadata found" in context

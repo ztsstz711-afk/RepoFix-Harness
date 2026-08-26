@@ -5,6 +5,7 @@ from .budget import BudgetLimits, ModelPricing, classify_provider_failure
 from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
+from .preflight import RepositoryPreflight
 from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
@@ -30,6 +31,8 @@ class AgentLoop:
         settings = Settings.from_env()
         self.provider, self.max_steps = provider, max_steps
         self.repo = Path(repo).resolve()
+        if not self.repo.is_dir():
+            raise FileNotFoundError(f"repository directory not found: {self.repo}")
         self.test_command = test_command or settings.test_command
         self.state = RunState("", str(self.repo), test_command=self.test_command)
         self.store = RunStore(repo)
@@ -40,7 +43,6 @@ class AgentLoop:
             settings.rollback_on_failure if rollback_on_failure is None else rollback_on_failure
         )
         self._configure_runtime()
-        self.runtime.pytest_command(self.test_command)
         self.max_context_chars = max_context_chars or settings.max_context_chars
         self.on_event = on_event
         self.budget = BudgetLimits(
@@ -73,6 +75,18 @@ class AgentLoop:
             self.state.evaluation.rollback_error = ""
         else:
             self.state.task = task
+        self.state.preflight = RepositoryPreflight(str(self.repo), self.test_command).run()
+        self._save_checkpoint()
+        self._notify({"type": "preflight", "success": self.state.preflight.success})
+        if not self.state.preflight.success:
+            self.state.status = "preflight_failed"
+            self.state.failure_kind = "preflight"
+            self.state.error = "; ".join(
+                check.message for check in self.state.preflight.checks if check.status == "fail"
+            )[:2000]
+            self._save_checkpoint()
+            return self.state
+        if not resume:
             self.state.evaluation.baseline = self.evaluator.run_tests()
             self._save_checkpoint()
             self._notify({"type": "baseline", "success": self.state.evaluation.baseline.success})
@@ -81,6 +95,7 @@ class AgentLoop:
             task,
             self.max_context_chars,
             baseline=self.state.evaluation.baseline,
+            preflight=self.state.preflight,
         )
         for step in range(self.state.step, self.max_steps):
             exceeded = self.budget.exceeded(self.state.usage)

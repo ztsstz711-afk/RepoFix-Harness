@@ -21,6 +21,8 @@
 
 五任务是项目自建的小型 deterministic regression suite，用来验证 Harness 闭环和改动范围，不等同于 SWE-bench 或生产级泛化结论。
 
+新增的 package-style 场景使用 `src/` 布局和 4 个相互依赖的业务模块。真实 DeepSeek 运行在 7 次请求内只局部修改 `src/order_pipeline/service.py`，最终 7 项测试通过，详见 [Package scenario result](docs/package-scenario-results.md)。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
@@ -81,18 +83,28 @@ repofix --repo <python-repo> --task "Fix the parser bug" --test-command "pytest 
 repofix --repo <python-repo> --task "Fix the failing tests" --rollback-on-failure
 ```
 
-## 三个命令行入口
+运行模型前单独检查仓库环境（不需要 API Key）：
+
+```powershell
+repofix-doctor --repo <python-repo> --test-command "pytest -q tests"
+```
+
+预检会检查 pytest、命令安全性、Python/测试文件、项目元数据和 Git。致命问题会生成 `preflight_failed`，并在零模型请求时停止；非标准但可能合法的项目结构只产生 warning。
+
+## 四个命令行入口
 
 ```text
 repofix       运行单个真实 Agent 修复任务
 repofix-eval  在隔离副本中顺序执行 JSON evaluation suite
 repofix-runs  列出、查看或安全回滚历史 run
+repofix-doctor 在不调用模型的情况下检查仓库运行条件
 ```
 
 常用操作：
 
 ```powershell
 repofix-eval --suite evals/regression.json
+.\scripts\run_demo.ps1 -Suite evals\package.json
 repofix-runs --repo <repo> list
 repofix-runs --repo <repo> show latest
 repofix-runs --repo <repo> rollback latest
@@ -118,7 +130,7 @@ repofix-runs --repo <repo> rollback latest
 
 ## 评测场景
 
-`evals/regression.json` 包含五种 Bug：错误运算符、字符串规范化、`None` 配置语义、分页边界和跨模块库存判断。每个任务声明隐藏的期望改动范围，但该信息不会进入模型 prompt。
+`evals/regression.json` 包含五种小型 Bug：错误运算符、字符串规范化、`None` 配置语义、分页边界和跨模块库存判断。`evals/package.json` 进一步提供带 `src/` 布局、Decimal 金额计算以及 pricing/discount/shipping/service 边界的包级场景。每个任务声明隐藏的期望改动范围，但该信息不会进入模型 prompt。
 
 单元测试使用 mock/scripted provider，因此不会产生 API 费用；项目主路径和 `repofix-eval` 始终使用真实 API provider。
 
@@ -136,3 +148,4 @@ V1.0 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [DeepSeek 配置](docs/deepseek-setup.md)
 - [V0.9 回归集设计](docs/v0.9-regression-suite.md)
 - [真实 benchmark 结果](docs/v0.9-deepseek-results.md)
+- [Package-style 真实验证](docs/package-scenario-results.md)

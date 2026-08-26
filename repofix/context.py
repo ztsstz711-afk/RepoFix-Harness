@@ -1,6 +1,6 @@
 import json
 
-from .schemas import TestSnapshot
+from .schemas import PreflightState, TestSnapshot
 from .text import compact_text
 
 
@@ -15,6 +15,7 @@ class ContextBuilder:
         max_observation_chars: int = 6_000,
         baseline: TestSnapshot | None = None,
         max_baseline_chars: int = 4_000,
+        preflight: PreflightState | None = None,
     ):
         self.repo = repo
         self.task = task
@@ -22,14 +23,17 @@ class ContextBuilder:
         self.max_observation_chars = max_observation_chars
         self.baseline = baseline
         self.max_baseline_chars = max_baseline_chars
+        self.preflight = preflight
 
     def build(self, history: list[dict]) -> str:
         progress = self._progress_summary(history)
+        preflight = self._preflight_section()
         baseline = self._baseline_section()
         fixed = (
             f"Repository: {self.repo}\n"
             "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"{preflight}"
             f"{baseline}"
         )
         task_budget = max(self.max_chars - len(fixed) - len("Task: \n") - 100, 0)
@@ -39,6 +43,7 @@ class ContextBuilder:
             f"Task: {bounded_task}\n"
             "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"{preflight}"
             f"{baseline}"
         )
         budget = max(self.max_chars - len(header) - 100, 0)
@@ -72,6 +77,13 @@ class ContextBuilder:
             f"Baseline command: {self.baseline.command}\n"
             f"Baseline output:\n{output}"
         )
+
+    def _preflight_section(self) -> str:
+        if self.preflight is None:
+            return ""
+        warnings = [check.message for check in self.preflight.checks if check.status == "warning"]
+        suffix = f"; warnings={'; '.join(warnings)}" if warnings else ""
+        return f"\nPreflight: {'passed' if self.preflight.success else 'failed'}{suffix}"
 
     @staticmethod
     def _progress_summary(history: list[dict]) -> str:

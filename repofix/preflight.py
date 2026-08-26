@@ -1,0 +1,99 @@
+import importlib.util
+import shutil
+import sys
+from pathlib import Path
+
+from .schemas import PreflightCheck, PreflightState
+from .tools import ToolRuntime
+
+
+PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "requirements.txt")
+
+
+class RepositoryPreflight:
+    """Inspect local prerequisites without executing repository code or calling a model."""
+
+    def __init__(self, repo: str, test_command: str):
+        self.repo = Path(repo).resolve()
+        self.test_command = test_command
+
+    def run(self) -> PreflightState:
+        checks: list[PreflightCheck] = []
+        if not self.repo.is_dir():
+            return PreflightState(
+                False,
+                [PreflightCheck("repository", "fail", f"directory not found: {self.repo}")],
+            )
+
+        runtime = ToolRuntime(str(self.repo))
+        checks.append(PreflightCheck("repository", "pass", str(self.repo)))
+
+        if importlib.util.find_spec("pytest") is None:
+            checks.append(
+                PreflightCheck("pytest", "fail", f"pytest is not installed for {sys.executable}")
+            )
+        else:
+            checks.append(PreflightCheck("pytest", "pass", f"available via {sys.executable}"))
+
+        try:
+            runtime.pytest_command(self.test_command)
+        except (ValueError, PermissionError) as exc:
+            checks.append(PreflightCheck("test_command", "fail", str(exc)))
+        else:
+            checks.append(PreflightCheck("test_command", "pass", self.test_command))
+
+        python_files = self._visible_files("*.py", runtime)
+        checks.append(
+            PreflightCheck(
+                "python_sources",
+                "pass" if python_files else "warning",
+                f"{len(python_files)} visible Python files",
+            )
+        )
+
+        test_files = sorted(
+            set(self._visible_files("test_*.py", runtime))
+            | set(self._visible_files("*_test.py", runtime))
+        )
+        checks.append(
+            PreflightCheck(
+                "test_files",
+                "pass" if test_files else "warning",
+                f"{len(test_files)} conventional pytest files",
+            )
+        )
+
+        markers = [name for name in PROJECT_MARKERS if (self.repo / name).is_file()]
+        checks.append(
+            PreflightCheck(
+                "project_metadata",
+                "pass" if markers else "warning",
+                ", ".join(markers) if markers else "no standard project metadata found",
+            )
+        )
+
+        git = shutil.which("git")
+        checks.append(
+            PreflightCheck(
+                "git",
+                "pass" if git else "warning",
+                git or "git executable not found; git tools will be unavailable",
+            )
+        )
+        checks.append(
+            PreflightCheck(
+                "git_repository",
+                "pass" if (self.repo / ".git").exists() else "warning",
+                "Git metadata found"
+                if (self.repo / ".git").exists()
+                else "target is not a Git worktree; git diff/status may be unavailable",
+            )
+        )
+        return PreflightState(not any(check.status == "fail" for check in checks), checks)
+
+    def _visible_files(self, pattern: str, runtime: ToolRuntime) -> list[Path]:
+        return [
+            path
+            for path in self.repo.rglob(pattern)
+            if path.is_file() and runtime.permissions.is_visible(path)
+        ]
