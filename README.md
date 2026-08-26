@@ -50,7 +50,7 @@ V0.2 已使用 `gemini-3.5-flash-lite` 完成真实样例验证，后续可仅�
 
 ## 目录
 
-`repofix/` 是 harness 核心；`examples/toy_repo/` 是被修复的目标仓库；`tests/` 验证工具、provider 和 loop。
+`repofix/` 是 harness 核心；`examples/toy_repo/` 是单文件 Bug；`examples/multi_file_repo/` 用于验证跨文件 search/read/edit；`tests/` 验证工具、provider、loop 和 evaluator。
 
 ## V0.1 技术判断
 
