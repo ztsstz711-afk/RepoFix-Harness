@@ -11,6 +11,8 @@ def print_progress(state, event):
         print(f"step={event['step']} requesting model action...")
     elif event["type"] == "budget":
         print(f"stopped by {event['failure_kind']}: {event['error']}")
+    elif event["type"] == "stalled":
+        print(f"stalled by {event['failure_kind']}: {event['error']}")
     elif event["type"] == "step":
         action = event.get("action", {}).get("name")
         observation = event.get("observation")
@@ -29,6 +31,12 @@ def main():
     p.add_argument("--max-steps", type=int, default=settings.max_steps)
     p.add_argument("--max-requests", type=int, default=settings.max_requests, help="0 means unlimited")
     p.add_argument("--max-tokens", type=int, default=settings.max_tokens, help="0 means unlimited")
+    p.add_argument(
+        "--max-identical-actions",
+        type=int,
+        default=settings.max_identical_actions,
+        help="allowed repeats before the loop is stopped",
+    )
     p.add_argument("--resume", action="store_true", help="continue from repo/.repofix/trace.json")
     p.add_argument("--quiet", action="store_true", help="only print the final result")
     a = p.parse_args()
@@ -40,6 +48,7 @@ def main():
         on_event=None if a.quiet else print_progress,
         max_requests=a.max_requests,
         max_tokens=a.max_tokens,
+        max_identical_actions=a.max_identical_actions,
     ).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "

@@ -2,7 +2,7 @@
 
 面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
 
-## V0.5 当前能力
+## V0.6 当前能力
 
 - Agent loop：模型选择下一步 action，直到完成或达到步数预算
 - 基础工具：list/search/read/apply_patch/run_command/git diff/status
@@ -11,6 +11,9 @@
 - request/token/step 三层运行预算，达到预算后保留 checkpoint 和最终测试结果
 - 按输入、输出、缓存输入单价估算单次运行与评测套件成本
 - 统一失败分类：预算、验证、限流、超时、认证、连接、模型格式和 provider 错误
+- 工具输出统一限制长度，超长内容保留头尾并标注省略字符数
+- Context 始终保持字符预算，同时固定保留改动文件与最近 pytest 状态摘要
+- 同一文件改动阶段内第三次完全相同动作自动停止，避免无效循环继续消耗 API
 - 单一工具注册表与参数校验
 - 仓库边界、控制目录和 pytest 命令权限
 - Harness 独立执行 baseline/final pytest
@@ -59,6 +62,8 @@ repofix --repo examples/toy_repo --task "Fix the failing tests" --max-requests 8
 ```
 
 环境变量中的 `REPOFIX_MAX_REQUESTS`、`REPOFIX_MAX_TOKENS` 可设置全局预算；值为 `0` 表示不限制。付费模型还可通过 `.env.example` 中的三个每百万 token 单价变量启用成本估算。密钥和价格都不应硬编码进源码。
+
+默认允许同一个 action 完整执行两次；第三次仍未发生真实文件变化时，运行会以 `stalled/repeated_action` 停止。可通过 `--max-identical-actions` 或 `REPOFIX_MAX_IDENTICAL_ACTIONS` 调整。
 
 默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
 如果使用其他兼容服务，同时设置 `REPOFIX_BASE_URL`。可参考 `.env.example`，但不要把真实密钥写入 Git。

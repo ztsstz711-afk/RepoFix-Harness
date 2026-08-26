@@ -129,3 +129,21 @@ def test_step_budget_has_failure_kind(tmp_path):
     state = AgentLoop(CountingProvider(), str(tmp_path), max_steps=1).run("inspect")
     assert state.status == "budget_exhausted"
     assert state.failure_kind == "step_budget"
+
+
+def test_loop_stops_third_identical_action(tmp_path):
+    events = []
+    state = AgentLoop(
+        CountingProvider(),
+        str(tmp_path),
+        max_steps=6,
+        max_identical_actions=2,
+        on_event=lambda state, event: events.append(event),
+    ).run("inspect")
+    assert state.status == "stalled"
+    assert state.failure_kind == "repeated_action"
+    assert state.step == 3
+    assert state.usage.requests == 3
+    assert len(state.history) == 3
+    assert state.history[-1]["guard"] == "repeated_action"
+    assert events[-1]["type"] == "stalled"

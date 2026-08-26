@@ -19,6 +19,7 @@ class SuiteTask:
     max_steps: int = 12
     max_requests: int | None = None
     max_tokens: int | None = None
+    max_identical_actions: int | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ def load_suite(path: str) -> EvaluationSuite:
             int(item.get("max_steps", 12)),
             int(item["max_requests"]) if "max_requests" in item else None,
             int(item["max_tokens"]) if "max_tokens" in item else None,
+            int(item["max_identical_actions"]) if "max_identical_actions" in item else None,
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
@@ -117,6 +119,7 @@ class EvaluationRunner:
                 on_event=forward_agent_event,
                 max_requests=task.max_requests,
                 max_tokens=task.max_tokens,
+                max_identical_actions=task.max_identical_actions,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id

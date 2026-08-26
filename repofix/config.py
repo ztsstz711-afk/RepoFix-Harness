@@ -15,6 +15,7 @@ class Settings:
     input_cost_per_million: float
     output_cost_per_million: float
     cached_input_cost_per_million: float
+    max_identical_actions: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -30,4 +31,5 @@ class Settings:
             input_cost_per_million=float(os.getenv("REPOFIX_INPUT_COST_PER_MILLION", "0")),
             output_cost_per_million=float(os.getenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")),
             cached_input_cost_per_million=float(os.getenv("REPOFIX_CACHED_INPUT_COST_PER_MILLION", "0")),
+            max_identical_actions=int(os.getenv("REPOFIX_MAX_IDENTICAL_ACTIONS", "2")),
         )

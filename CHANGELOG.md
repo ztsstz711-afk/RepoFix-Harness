@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- Stop repeated identical actions before they create an unbounded agent loop.
+- Reset repetition tracking after a real file modification.
+- Bound every tool observation while preserving both diagnostic headers and summaries.
+- Add compact context progress summaries for changed files and the latest agent pytest result.
+- Guarantee the final model context stays within its configured character budget.
+
 ## 0.5.0
 
 - Add request, token, and step budgets with resumable budget-exhausted results.

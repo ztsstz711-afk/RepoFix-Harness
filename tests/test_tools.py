@@ -61,3 +61,15 @@ def test_pytest_cannot_target_parent_directory(tmp_path):
     )
     assert not result.success
     assert "inside the repository" in result.output
+
+
+def test_tool_output_keeps_head_and_tail_when_truncated(tmp_path):
+    content = "HEAD\n" + "x" * 500 + "\nTAIL\n"
+    (tmp_path / "large.py").write_text(content, encoding="utf-8")
+    result = ToolRuntime(str(tmp_path), max_output_chars=100).execute("read", {"path": "large.py"})
+    assert len(result.output) <= 100
+    assert "HEAD" in result.output
+    assert "TAIL" in result.output
+    assert "chars omitted" in result.output
+    assert result.metadata["output_truncated"] is True
+    assert result.metadata["output_chars"] > len(result.output)

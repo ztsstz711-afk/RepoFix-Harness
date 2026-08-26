@@ -6,6 +6,7 @@ from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
 from .schemas import RunState
+from .stability import RepeatedActionGuard
 from .storage import RunStore
 from .tools import ToolRuntime
 
@@ -20,6 +21,7 @@ class AgentLoop:
         max_requests: int | None = None,
         max_tokens: int | None = None,
         pricing: ModelPricing | None = None,
+        max_identical_actions: int | None = None,
     ):
         settings = Settings.from_env()
         self.provider, self.runtime, self.max_steps = provider, ToolRuntime(repo), max_steps
@@ -36,6 +38,11 @@ class AgentLoop:
             settings.input_cost_per_million,
             settings.output_cost_per_million,
             settings.cached_input_cost_per_million,
+        )
+        self.repeated_action_guard = RepeatedActionGuard(
+            settings.max_identical_actions
+            if max_identical_actions is None
+            else max_identical_actions
         )
 
     def run(self, task: str, resume: bool = False) -> RunState:
@@ -72,6 +79,16 @@ class AgentLoop:
             self.state.model = decision.model or self.state.model
             self.state.usage.add(decision.usage)
             self.state.estimated_cost_usd = self.pricing.estimate_usd(self.state.usage)
+            repeated_action = self.repeated_action_guard.reason(self.state.history, action)
+            if repeated_action:
+                self._record({
+                    "step": self.state.step,
+                    "action": asdict(action),
+                    "guard": "repeated_action",
+                    "usage": asdict(decision.usage),
+                })
+                self._finish_stalled("repeated_action", repeated_action)
+                break
             if action.name == "finish":
                 self.state.summary = action.arguments.get("summary", "")
                 self.state.evaluation.final = self.evaluator.run_tests()
@@ -99,6 +116,15 @@ class AgentLoop:
         self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
         self._save_checkpoint()
         self._notify({"type": "budget", "failure_kind": failure_kind, "error": message})
+
+    def _finish_stalled(self, failure_kind: str, message: str) -> None:
+        self.state.status = "stalled"
+        self.state.failure_kind = failure_kind
+        self.state.error = message
+        self.state.evaluation.final = self.evaluator.run_tests()
+        self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
+        self._save_checkpoint()
+        self._notify({"type": "stalled", "failure_kind": failure_kind, "error": message})
 
     def _save_checkpoint(self) -> None:
         self.store.save(self.state)

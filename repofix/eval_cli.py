@@ -19,6 +19,8 @@ def print_suite_progress(event: dict) -> None:
             print(f"task={event['task_id']} step={inner['step']} requesting model...")
         elif inner["type"] == "budget":
             print(f"task={event['task_id']} stopped by {inner['failure_kind']}: {inner['error']}")
+        elif inner["type"] == "stalled":
+            print(f"task={event['task_id']} stalled by {inner['failure_kind']}: {inner['error']}")
         elif inner["type"] == "step":
             action = inner.get("action", {}).get("name")
             observation = inner.get("observation")
