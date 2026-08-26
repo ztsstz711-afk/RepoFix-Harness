@@ -21,6 +21,11 @@ def test_parse_action_json_rejects_unknown_tool():
         parse_action_json('{"name":"delete_everything","arguments":{}}')
 
 
+def test_parse_action_json_rejects_unknown_envelope_fields():
+    with pytest.raises(ValueError, match="envelope fields"):
+        parse_action_json('{"name":"read","arguments":{"path":"a.py"},"end_line":10}')
+
+
 def test_retry_delay_uses_provider_hint():
     assert retry_delay_seconds("Please retry in 38.5s") == 39.5
 

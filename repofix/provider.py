@@ -60,7 +60,7 @@ Do not send a unified diff to apply_patch; it requires the complete file content
                     usage=total_usage,
                     model=self.model,
                 )
-            except (json.JSONDecodeError, ValueError) as exc:
+            except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 if attempt == self.max_format_retries:
                     raise ValueError(f"invalid model action after retries: {exc}; output={last_text[:500]!r}") from exc
                 prompt += (
@@ -94,6 +94,11 @@ def parse_action_json(text: str) -> dict:
     match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     payload = match.group(1) if match else text.strip()
     data = json.loads(payload)
+    if not isinstance(data, dict):
+        raise ValueError("action envelope must be an object")
+    unknown_fields = [key for key in data if key not in {"name", "arguments", "rationale"}]
+    if unknown_fields:
+        raise ValueError(f"unknown action envelope fields: {', '.join(unknown_fields)}")
     data.setdefault("arguments", {})
     data.setdefault("rationale", "")
     error = validate_action(data.get("name", ""), data["arguments"])
