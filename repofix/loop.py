@@ -1,10 +1,10 @@
-import json
 from dataclasses import asdict
 from pathlib import Path
 from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
 from .schemas import RunState
+from .storage import RunStore
 from .tools import ToolRuntime
 
 class AgentLoop:
@@ -12,6 +12,7 @@ class AgentLoop:
         self.provider, self.runtime, self.max_steps = provider, ToolRuntime(repo), max_steps
         self.evaluator = RepairEvaluator(self.runtime)
         self.state = RunState("", str(Path(repo).resolve()))
+        self.store = RunStore(repo)
         self.max_context_chars = max_context_chars or Settings.from_env().max_context_chars
 
     def run(self, task: str, resume: bool = False) -> RunState:
@@ -59,18 +60,10 @@ class AgentLoop:
         return self.state
 
     def _save_checkpoint(self) -> None:
-        Path(self.state.repo, ".repofix").mkdir(exist_ok=True)
-        Path(self.state.repo, ".repofix", "trace.json").write_text(json.dumps(self.state.to_dict(), indent=2), encoding="utf-8")
-        if self.state.status != "running":
-            Path(self.state.repo, ".repofix", "result.json").write_text(
-                json.dumps(self.state.to_dict(), indent=2), encoding="utf-8"
-            )
+        self.store.save(self.state)
 
     def _load_checkpoint(self, task: str) -> RunState:
-        path = Path(self.state.repo, ".repofix", "trace.json")
-        if not path.exists():
-            raise FileNotFoundError(f"checkpoint not found: {path}")
-        state = RunState.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        state = self.store.load_latest()
         if Path(state.repo).resolve() != self.runtime.repo:
             raise ValueError("checkpoint repository does not match the requested repository")
         if state.task != task:

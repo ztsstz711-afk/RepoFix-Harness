@@ -38,6 +38,8 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")
     assert (tmp_path / ".repofix" / "trace.json").exists()
     assert (tmp_path / ".repofix" / "result.json").exists()
+    assert (tmp_path / ".repofix" / "runs" / state.run_id / "trace.json").exists()
+    assert (tmp_path / ".repofix" / "runs" / state.run_id / "result.json").exists()
 
 
 class FailingProvider:
