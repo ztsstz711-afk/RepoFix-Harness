@@ -6,6 +6,7 @@ import time
 from hashlib import sha256
 from pathlib import Path
 from .permissions import PermissionPolicy
+from .execution import create_pytest_executor
 from .registry import validate_action
 from .schemas import Observation
 from .text import compact_text
@@ -28,11 +29,16 @@ class ToolRuntime:
         repo: str,
         max_output_chars: int = 12_000,
         journal: WorkspaceJournal | None = None,
+        execution_backend: str = "local",
+        docker_image: str = "repofix-pytest:latest",
+        command_timeout_seconds: int = 30,
     ):
         self.repo = Path(repo).resolve()
         self.permissions = PermissionPolicy(self.repo)
         self.max_output_chars = max_output_chars
         self.journal = journal
+        self.pytest_executor = create_pytest_executor(execution_backend, docker_image)
+        self.command_timeout_seconds = command_timeout_seconds
 
     def execute(self, name: str, args: dict) -> Observation:
         try:
@@ -115,13 +121,17 @@ class ToolRuntime:
         if name in {"git_diff", "git_status"}:
             return self._command(name, ["git", "diff"] if name == "git_diff" else ["git", "status", "--short"])
         if name == "run_command":
-            return self._command(name, self.pytest_command(args["command"]))
+            arguments = self.pytest_arguments(args["command"])
+            return self.pytest_executor.run(self.repo, arguments, self.command_timeout_seconds)
         return Observation(name, f"unknown tool: {name}", False)
 
-    def pytest_command(self, command: str) -> list[str]:
+    def pytest_arguments(self, command: str) -> list[str]:
         arguments = parse_pytest_invocation(command)
         self.permissions.ensure_pytest_arguments(arguments)
-        return [sys.executable, "-m", "pytest", *arguments]
+        return arguments
+
+    def pytest_command(self, command: str) -> list[str]:
+        return [sys.executable, "-m", "pytest", *self.pytest_arguments(command)]
 
     def _command(self, tool_name: str, command: list[str]) -> Observation:
         env = os.environ.copy()

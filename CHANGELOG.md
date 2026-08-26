@@ -17,6 +17,8 @@
 - Add `repofix-doctor` so environment problems can be diagnosed without an API key or model request.
 - Add a package-style order pipeline scenario with `src/` layout, Decimal business logic, and cross-module data flow.
 - Validate the package scenario with DeepSeek: 1/1 success, exact change scope, 7 requests, 13,743 tokens, and an estimated $0.00503 cost.
+- Add local and Docker pytest execution backends with a minimal pinned sandbox image.
+- Restrict Docker test runs with no network, a read-only repository/root filesystem, dropped capabilities, no-new-privileges, tmpfs, and CPU/memory/PID limits.
 
 ## 1.0.0
 

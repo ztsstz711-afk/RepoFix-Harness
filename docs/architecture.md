@@ -41,6 +41,7 @@ flowchart LR
 | `suite.py` | 隔离复制、顺序评测和聚合报告 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
 | `preflight.py` | 模型调用前检查解释器、pytest、命令和仓库形态 |
+| `execution.py` | 本地或受限 Docker pytest 执行后端 |
 
 ## State transitions
 
