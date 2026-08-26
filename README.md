@@ -26,6 +26,16 @@ python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests"
 默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
 如果使用其他兼容服务，同时设置 `REPOFIX_BASE_URL`。可参考 `.env.example`，但不要把真实密钥写入 Git。
 
+### Gemini 配置
+
+在 Google AI Studio 创建并复制 API Key 后运行：
+
+```powershell
+.\scripts\setup_gemini.ps1
+```
+
+脚本会隐藏密钥输入，并将 Gemini 的 API Key、兼容接口地址和模型保存到当前 Windows 用户环境变量；密钥不会写入项目文件或 Git。
+
 ## 目录
 
 `repofix/` 是 harness 核心；`examples/toy_repo/` 是被修复的目标仓库；`tests/` 验证工具、provider 和 loop。
