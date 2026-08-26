@@ -8,6 +8,9 @@
 - Validate the localized path with a real DeepSeek repair: 1/1 success, 6 requests, 6,450 tokens, and no full-file content sent.
 - Add a configurable Harness-owned pytest command across CLI, checkpoints, evaluation suites, and post-rollback verification.
 - Reject non-pytest verification commands before the first model request, and reject resume when the verification contract changed.
+- Include the bounded independent baseline command and pytest output in every model context, avoiding a mandatory duplicate test run.
+- Mark repository content, pytest output, and tool observations as untrusted prompt data.
+- Real-model validation completed the demo in five requests with localized editing and persisted baseline/final commands.
 
 ## 1.0.0
 

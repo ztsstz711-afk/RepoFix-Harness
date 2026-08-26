@@ -1,23 +1,36 @@
 import json
 
+from .schemas import TestSnapshot
 from .text import compact_text
 
 
 class ContextBuilder:
     """Build a bounded prompt from the task and the most recent agent events."""
 
-    def __init__(self, repo: str, task: str, max_chars: int = 24_000, max_observation_chars: int = 6_000):
+    def __init__(
+        self,
+        repo: str,
+        task: str,
+        max_chars: int = 24_000,
+        max_observation_chars: int = 6_000,
+        baseline: TestSnapshot | None = None,
+        max_baseline_chars: int = 4_000,
+    ):
         self.repo = repo
         self.task = task
         self.max_chars = max_chars
         self.max_observation_chars = max_observation_chars
+        self.baseline = baseline
+        self.max_baseline_chars = max_baseline_chars
 
     def build(self, history: list[dict]) -> str:
         progress = self._progress_summary(history)
+        baseline = self._baseline_section()
         fixed = (
             f"Repository: {self.repo}\n"
             "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"{baseline}"
         )
         task_budget = max(self.max_chars - len(fixed) - len("Task: \n") - 100, 0)
         bounded_task = compact_text(self.task, task_budget)[0]
@@ -26,6 +39,7 @@ class ContextBuilder:
             f"Task: {bounded_task}\n"
             "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"{baseline}"
         )
         budget = max(self.max_chars - len(header) - 100, 0)
         selected: list[str] = []
@@ -46,6 +60,18 @@ class ContextBuilder:
         note = f"\nEarlier events omitted: {omitted}" if omitted else ""
         context = header + note + ("\nRecent trace:\n" + "\n".join(selected) if selected else "")
         return compact_text(context, self.max_chars)[0]
+
+    def _baseline_section(self) -> str:
+        if self.baseline is None:
+            return ""
+        output_budget = min(self.max_baseline_chars, max(self.max_chars // 3, 0))
+        output = compact_text(self.baseline.output, output_budget)[0]
+        status = "passed" if self.baseline.success else "failed"
+        return (
+            f"\nIndependent baseline: {status}\n"
+            f"Baseline command: {self.baseline.command}\n"
+            f"Baseline output:\n{output}"
+        )
 
     @staticmethod
     def _progress_summary(history: list[dict]) -> str:

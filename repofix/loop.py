@@ -76,7 +76,12 @@ class AgentLoop:
             self.state.evaluation.baseline = self.evaluator.run_tests()
             self._save_checkpoint()
             self._notify({"type": "baseline", "success": self.state.evaluation.baseline.success})
-        context_builder = ContextBuilder(self.state.repo, task, self.max_context_chars)
+        context_builder = ContextBuilder(
+            self.state.repo,
+            task,
+            self.max_context_chars,
+            baseline=self.state.evaluation.baseline,
+        )
         for step in range(self.state.step, self.max_steps):
             exceeded = self.budget.exceeded(self.state.usage)
             if exceeded:

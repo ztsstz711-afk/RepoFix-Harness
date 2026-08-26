@@ -28,6 +28,7 @@
 - `apply_patch` 优先执行唯一匹配的局部替换，避免小改动重传整个文件；创建文件时仍支持完整内容
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
+- baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
 - 有界 context、工具输出头尾压缩、最近进度摘要
 - step/request/token 预算、成本估算、限流与超时重试
 - 重复动作检测，阻止无进展循环持续消耗 API

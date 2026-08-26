@@ -1,4 +1,5 @@
 from repofix.context import ContextBuilder
+from repofix.schemas import TestSnapshot as Snapshot
 
 
 def test_context_is_bounded_and_keeps_latest_event():
@@ -38,3 +39,25 @@ def test_context_remains_bounded_with_oversized_task():
     assert len(context) <= 500
     assert "chars omitted" in context
     assert "Progress summary" in context
+
+
+def test_context_includes_bounded_independent_baseline():
+    baseline = Snapshot(
+        False,
+        "TRACEBACK-START\n" + "x" * 1_000 + "\n1 failed SUMMARY-END",
+        command="pytest -q tests/unit",
+    )
+    context = ContextBuilder(
+        "repo",
+        "fix tests",
+        max_chars=1_200,
+        baseline=baseline,
+        max_baseline_chars=300,
+    ).build([])
+
+    assert len(context) <= 1_200
+    assert "Independent baseline: failed" in context
+    assert "Baseline command: pytest -q tests/unit" in context
+    assert "TRACEBACK-START" in context
+    assert "SUMMARY-END" in context
+    assert "chars omitted" in context

@@ -28,7 +28,7 @@ $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $output = Join-Path $projectRoot "eval-results\demo-$stamp"
 $suite = Join-Path $projectRoot "evals\demo.json"
 
-Write-Host "RepoFix V1.0 isolated demo"
+Write-Host "RepoFix isolated demo"
 Write-Host "Model: $env:REPOFIX_MODEL"
 Write-Host "Output: $output"
 

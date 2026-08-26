@@ -66,6 +66,26 @@ class FinishProvider:
         )
 
 
+class CapturingFinishProvider(FinishProvider):
+    def __init__(self):
+        self.context = ""
+
+    def next_action(self, context):
+        self.context = context
+        return super().next_action(context)
+
+
+def test_loop_gives_independent_baseline_to_first_model_request(tmp_path):
+    (tmp_path / "test_bad.py").write_text("def test_bad(): assert False\n", encoding="utf-8")
+    provider = CapturingFinishProvider()
+
+    AgentLoop(provider, str(tmp_path), 2, test_command="pytest -q test_bad.py").run("fix test")
+
+    assert "Independent baseline: failed" in provider.context
+    assert "Baseline command: pytest -q test_bad.py" in provider.context
+    assert "1 failed" in provider.context
+
+
 def test_loop_resumes_same_run_from_checkpoint(tmp_path):
     (tmp_path / "test_ok.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
     failed = AgentLoop(FailingProvider(), str(tmp_path), 3).run("fix tests")
