@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -20,6 +21,18 @@ class SuiteMockProvider:
 
     def next_action(self, context):
         return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock-model")
+
+
+def test_release_demo_manifest_is_small_and_bounded():
+    project_root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(project_root / "evals" / "demo.json"))
+
+    assert suite.name == "demo"
+    assert len(suite.tasks) == 1
+    task = suite.tasks[0]
+    assert task.max_requests == 8
+    assert task.max_tokens == 12_000
+    assert task.expected_changed_files == ("calculator.py",)
 
 
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):

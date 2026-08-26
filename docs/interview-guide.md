@@ -1,0 +1,58 @@
+# 面试讲解指南
+
+## 30 秒版本
+
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主决定查看文件、搜索代码、运行 pytest 和修改实现；我负责实现模型之外的工程系统，包括有界上下文、工具权限、预算、checkpoint、重复循环检测、写前快照、安全回滚和独立评测。项目在五类自建 Bug 上使用 DeepSeek 完成 5/5 修复和 5/5 改动范围命中，总成本上界约 1.7 美分。
+
+## 3 分钟版本
+
+1. **问题**：LLM 会写代码，但直接让它调用 shell 不可靠——可能越权、循环、浪费 token，或者只口头宣称修复。
+2. **边界**：我把目标限制为 Python repository repair，而不是复刻通用 Codex。
+3. **核心循环**：Harness 构造上下文，模型返回一个 JSON action，工具执行后把 observation 写入 trace，再进入下一轮。
+4. **可信验证**：运行前后 pytest 都由 Harness 独立执行；模型的 `finish` 只是请求结束，不代表成功。
+5. **安全与恢复**：路径和命令有白名单，写入前保存原始字节，回滚前比较结束哈希，避免覆盖用户后续编辑。
+6. **成本与稳定性**：限制 step/request/token，统计缓存和成本，对限流/超时退避重试，并阻止第三次相同动作。
+7. **评测**：五任务在临时副本运行，同时检查 pytest 和隐藏的期望改动文件。真实 DeepSeek 结果是 5/5、33 次请求、41,299 tokens。
+
+## 最值得展开的技术点
+
+### 为什么不能相信模型的 finish？
+
+模型可能误判测试结果，甚至没有运行完整测试。RepoFix 把状态判定权放在 Harness：收到 finish 后重新运行独立 pytest，只有通过才是 `success`。
+
+### checkpoint/resume 难在哪里？
+
+不只是保存聊天历史，还要保存 task、repo、run ID、步骤、usage、evaluation 和工具 observation；resume 时必须校验仓库和任务一致，并重新绑定同一个 workspace journal。
+
+### 回滚为什么要 before hash 和 after hash？
+
+before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是否又编辑了文件。如果当前 hash 不等于 Agent 最后写入 hash，默认拒绝恢复，避免覆盖用户工作。
+
+### 为什么限制成 pytest，而不是任意 shell？
+
+V1.0 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入和环境破坏风险。完整容器 sandbox 是后续独立问题。
+
+### 为什么不用 LangGraph？
+
+当前只有线性单 Agent loop，自定义状态机约束清楚、依赖少、容易测试。框架应该解决真实复杂度，而不是成为简历关键词。
+
+## 如何诚实描述结果
+
+可以说：
+
+> 在五类自建 deterministic Python Bug 上完成 5/5 真实模型修复，并同时验证改动文件范围。
+
+不要说：
+
+> 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
+
+五任务结果证明 Harness 闭环可运行，不证明对大型未知仓库的泛化能力。
+
+## 常见追问
+
+- **如果模型一直重复 read？** 同一真实写入阶段内第三次完全相同 action 会触发 stalled。
+- **如果请求中断？** 每个 event 原子保存，使用相同 task 和 repo 执行 `--resume`。
+- **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
+- **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
+- **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
+- **下一步是什么？** Docker/Windows sandbox、真实开源 issue 集和更大规模 benchmark，而不是先做 multi-agent。

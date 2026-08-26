@@ -1,0 +1,66 @@
+# Architecture
+
+## End-to-end flow
+
+```mermaid
+flowchart LR
+    U[Repo + task] --> E[Independent baseline pytest]
+    E --> C[Context Builder]
+    C --> P[OpenAI-compatible Provider]
+    P --> A[Structured Action]
+    A --> G{Policy and guards}
+    G -->|allowed| T[Tool Runtime]
+    T --> O[Observation]
+    O --> S[Checkpoint + trace]
+    S --> C
+    G -->|blocked| S
+    A -->|finish| F[Independent final pytest]
+    F --> R[result.json]
+    T --> J[Workspace Journal]
+    J --> B[Snapshots / rollback]
+```
+
+模型只负责选择 action 和生成完整文件内容。Harness 决定模型能看到什么、动作是否合法、工具如何执行、何时停止，以及结果是否可信。
+
+## Module map
+
+| Module | Responsibility |
+|---|---|
+| `loop.py` | Agent 状态机、终止条件、checkpoint 和事件流 |
+| `provider.py` | OpenAI-compatible API、JSON action 解析、格式/网络重试 |
+| `context.py` | 有界 prompt、最近 trace 和稳定进度摘要 |
+| `registry.py` | 单一 action schema 来源和参数验证 |
+| `permissions.py` | 仓库路径、控制目录和 pytest 参数边界 |
+| `tools.py` | 文件、搜索、patch、pytest 和 Git 工具执行 |
+| `workspace.py` | 写前快照、结束哈希、冲突检测和恢复 |
+| `budget.py` | request/token 预算、价格估算和 provider 错误分类 |
+| `evaluation.py` | Harness 独立运行 baseline/final pytest |
+| `storage.py` | 原子保存 latest 与 per-run trace/result |
+| `suite.py` | 隔离复制、顺序评测和聚合报告 |
+| `run_manager.py` | 历史 run 查询和事后安全回滚 |
+
+## State transitions
+
+```text
+running
+├── success               final pytest passed after finish
+├── verification_failed   model finished but final pytest failed
+├── budget_exhausted      step/request/token limit reached
+├── stalled               repeated action guard triggered
+└── error                 provider or unexpected model failure
+```
+
+所有非运行状态都会生成 `result.json`。启用自动回滚时，失败状态保持不变，同时额外记录恢复文件和 post-rollback pytest，避免把“工作区恢复成功”误报成“Bug 修复成功”。
+
+## Trust boundaries
+
+1. 模型输出永远先经过 action schema 验证。
+2. 所有路径必须解析到目标仓库内部，`.git/.repofix/.venv` 等控制目录不可访问。
+3. 命令工具只接受 pytest；不向模型开放任意 shell。
+4. `finish` 不能决定成功，最终状态由独立 pytest 决定。
+5. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
+6. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
+
+## Why a custom loop
+
+V1.0 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

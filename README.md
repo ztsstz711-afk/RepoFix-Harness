@@ -1,136 +1,128 @@
 # RepoFix-Harness
 
-面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
+面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个代码仓库和修复任务，真实 LLM 自主选择工具完成 `inspect → pytest → read/search → patch → pytest → finish`；Harness 负责上下文、权限、预算、状态、恢复、追踪和独立评测。
 
-## V0.9 当前能力
+项目刻意聚焦 Python 仓库修复，不做通用聊天助手、multi-agent 或“小型 Codex 全复刻”。
 
-- Agent loop：模型选择下一步 action，直到完成或达到步数预算
-- 基础工具：list/search/read/apply_patch/run_command/git diff/status
-- 有界 context、逐步 trace、checkpoint/resume
-- 请求、token、格式/网络重试用量统计，支持 429/5xx/超时退避重试
-- request/token/step 三层运行预算，达到预算后保留 checkpoint 和最终测试结果
-- 按输入、输出、缓存输入单价估算单次运行与评测套件成本
-- 统一失败分类：预算、验证、限流、超时、认证、连接、模型格式和 provider 错误
-- 工具输出统一限制长度，超长内容保留头尾并标注省略字符数
-- Context 始终保持字符预算，同时固定保留改动文件与最近 pytest 状态摘要
-- 同一文件改动阶段内第三次完全相同动作自动停止，避免无效循环继续消耗 API
-- 每个 run 首次写文件前保存原始字节快照，新建文件也记录在变更日志中
-- 默认限制单次运行最多涉及 5 个真实改动文件，空修改不占额度
-- 可选失败回滚：已有文件原子恢复，新建文件删除，并记录回滚后 pytest
-- `repofix-runs` 可列出历史 run、查看完整结果，并在运行结束后手动回滚
-- 快照记录 Agent 最后写入哈希；检测到用户后续编辑时拒绝覆盖
-- 多文件回滚先完成路径、哈希和备份完整性预检，避免半回滚
-- 五任务 regression suite，覆盖错误运算符、字符串规范化、`None` 语义、分页边界和跨模块库存判断
-- 评测任务支持 tags 与期望改动文件，报告同时统计测试成功率和改动范围命中率
-- 五个 buggy repo 都有独立失败基线和通过测试，防止只针对单一断言硬编码
-- 单一工具注册表与参数校验
-- 仓库边界、控制目录和 pytest 命令权限
-- Harness 独立执行 baseline/final pytest
-- 生成 `.repofix/trace.json` 与 `.repofix/result.json`
-- 每个 run 独立保存在 `.repofix/runs/<run_id>/`
-- apply_patch 前后内容哈希与 Agent 改动文件账本
-- CLI 实时输出 baseline、模型请求和工具步骤
-- 模型 JSON 格式错误自动纠正重试
-- JSON evaluation suite 与隔离临时仓库
-- 顺序批量评测、成功率/步骤/token/耗时聚合
-- 每个评测任务保留独立 trace/result artifacts
-- OpenAI-compatible provider：环境变量 `REPOFIX_BASE_URL`、`REPOFIX_API_KEY`、`REPOFIX_MODEL`
-- 可运行 toy buggy repo 与 mock provider 单测
+## 实测结果
 
-暂不包含 LangGraph、multi-agent、MCP、Docker sandbox、SWE-bench/BugsInPy。
+2026-08-26 使用 `deepseek-v4-flash` 运行五任务隔离回归集：
+
+| 指标 | 结果 |
+|---|---:|
+| 修复成功率 | 5/5 |
+| 期望改动范围命中 | 5/5 |
+| Agent 步骤 / API 请求 | 33 / 33 |
+| 总 tokens | 41,299 |
+| 重试 | 0 |
+| 峰值价格保守估算 | $0.01693 |
+
+其中配置合并任务第一次补丁仍然失败，Agent 根据 pytest 反馈再次修改并通过，形成了真实迭代闭环。完整数据见 [DeepSeek benchmark](docs/v0.9-deepseek-results.md)。
+
+五任务是项目自建的小型 deterministic regression suite，用来验证 Harness 闭环和改动范围，不等同于 SWE-bench 或生产级泛化结论。
+
+## 核心能力
+
+- 自主 Agent Loop：模型每轮选择一个结构化 action
+- 工具运行时：`list/search/read/apply_patch/run_command/git_diff/git_status`
+- 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
+- 独立 baseline/final pytest，不接受模型口头宣称“已修复”
+- 有界 context、工具输出头尾压缩、最近进度摘要
+- step/request/token 预算、成本估算、限流与超时重试
+- 重复动作检测，阻止无进展循环持续消耗 API
+- 仓库路径、控制目录、pytest 参数和改动文件数权限
+- 每次写入前保存 run 级原始快照，支持失败或事后回滚
+- 回滚前进行路径、备份和结束哈希预检，保护用户后续修改
+- checkpoint/resume、逐步 trace、独立 run artifacts
+- 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
+
+架构与模块职责见 [Architecture](docs/architecture.md)。
 
 ## 快速开始
 
 ```powershell
+cd <project-path>\RepoFix-Harness
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
-$env:REPOFIX_API_KEY="your-key"
-$env:REPOFIX_MODEL="your-model"
-python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests"
 ```
 
-中断后可使用相同任务继续：
-
-```powershell
-python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests" --resume
-```
-
-运行两任务 smoke 评测：
-
-```powershell
-repofix-eval --suite evals/smoke.json
-```
-
-评测在临时副本中顺序执行，不修改 `examples/` 下的源仓库；输出默认写入 `eval-results/`。
-
-运行完整五任务回归套件：
-
-```powershell
-repofix-eval --suite evals/regression.json
-```
-
-真实评测仍使用配置的 API 模型。测试目录中的 scripted provider 只验证案例标准答案、隔离执行和报告聚合，不替代真实 Agent 主路径。
-
-2026-08-26 的真实 `deepseek-v4-flash` 回归结果为：修复成功 5/5、改动范围命中 5/5、33 次请求、41,299 tokens、零重试，按峰值单价保守估算约 `$0.01693`。详见 `docs/v0.9-deepseek-results.md`。
-
-限制一次运行最多使用 8 次模型请求或 20,000 tokens：
-
-```powershell
-repofix --repo examples/toy_repo --task "Fix the failing tests" --max-requests 8 --max-tokens 20000
-```
-
-环境变量中的 `REPOFIX_MAX_REQUESTS`、`REPOFIX_MAX_TOKENS` 可设置全局预算；值为 `0` 表示不限制。付费模型还可通过 `.env.example` 中的三个每百万 token 单价变量启用成本估算。密钥和价格都不应硬编码进源码。
-
-默认允许同一个 action 完整执行两次；第三次仍未发生真实文件变化时，运行会以 `stalled/repeated_action` 停止。可通过 `--max-identical-actions` 或 `REPOFIX_MAX_IDENTICAL_ACTIONS` 调整。
-
-启用失败回滚并限制最多修改 3 个文件：
-
-```powershell
-repofix --repo examples/toy_repo --task "Fix the failing tests" --max-changed-files 3 --rollback-on-failure
-```
-
-回滚默认关闭，避免用户未明确选择时撤销 Agent 的调试现场。快照和清单保存在 `.repofix/runs/<run_id>/workspace/`，Agent 工具无权访问该目录。
-
-运行结束后查看和恢复：
-
-```powershell
-repofix-runs --repo examples/toy_repo list
-repofix-runs --repo examples/toy_repo show latest
-repofix-runs --repo examples/toy_repo rollback latest
-```
-
-如果文件在 Agent 结束后又被修改，普通回滚会拒绝覆盖。确认放弃这些后续修改时才使用 `rollback <run_id> --force`。机器读取可在子命令前增加 `--json`。
-
-默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
-如果使用其他兼容服务，同时设置 `REPOFIX_BASE_URL`。可参考 `.env.example`，但不要把真实密钥写入 Git。
-
-### Gemini 配置
-
-在 Google AI Studio 创建并复制 API Key 后运行：
-
-```powershell
-.\scripts\setup_gemini.ps1
-```
-
-脚本会隐藏密钥输入，并将 Gemini 的 API Key、兼容接口地址和模型保存到当前 Windows 用户环境变量；密钥不会写入项目文件或 Git。
-V0.4 已使用 `gemini-3.5-flash-lite` 完成 2/2 smoke suite 验证，后续可仅通过环境变量切换到 DeepSeek。Gemini 2.5 Flash 系列已经不再向新用户提供生成请求。
-V0.6 再次完成单任务真实回归：5 个 Agent 步骤修复成功，重复动作保护未误触发；两次接口瞬时失败由重试机制自动恢复。
-
-### DeepSeek 配置
-
-当前完整 regression suite 推荐使用 DeepSeek。在 PowerShell 中运行：
+配置 DeepSeek（Key 隐藏输入，不写入项目）：
 
 ```powershell
 .\scripts\setup_deepseek.ps1
 ```
 
-脚本使用隐藏输入保存 API Key，并配置当前官方的 `deepseek-v4-flash` 和 OpenAI-compatible 地址。成本估算采用峰值单价作为保守上界；实际账单可能因缓存和非峰时段更低。配置后请打开新终端。
+运行隔离单任务演示：
 
-## 目录
+```powershell
+.\scripts\run_demo.ps1
+```
 
-`repofix/` 是 Harness 核心；`examples/` 包含五种 Bug 场景；`evals/` 保存 smoke 和 regression 清单；`tests/` 验证工具、provider、Agent Loop、恢复机制和 evaluator。
+直接修复指定仓库：
 
-## V0.1 技术判断
+```powershell
+repofix --repo <python-repo> --task "Fix the failing tests" --max-requests 8 --max-tokens 20000
+```
 
-可行性高：工具调用和状态机都是本地 Python 能力，真实 LLM 只负责选择动作和生成 patch。风险集中在模型输出格式、命令权限和上下文增长，第一版通过 JSON schema、允许命令白名单、步数预算和 trace 缓解。
+启用失败自动回滚：
+
+```powershell
+repofix --repo <python-repo> --task "Fix the failing tests" --rollback-on-failure
+```
+
+## 三个命令行入口
+
+```text
+repofix       运行单个真实 Agent 修复任务
+repofix-eval  在隔离副本中顺序执行 JSON evaluation suite
+repofix-runs  列出、查看或安全回滚历史 run
+```
+
+常用操作：
+
+```powershell
+repofix-eval --suite evals/regression.json
+repofix-runs --repo <repo> list
+repofix-runs --repo <repo> show latest
+repofix-runs --repo <repo> rollback latest
+```
+
+如果文件在 Agent 结束后又被修改，普通回滚会拒绝覆盖；只有明确放弃后续修改时才使用 `rollback <run-id> --force`。
+
+## 运行产物
+
+```text
+<repo>/.repofix/
+├── trace.json                   # latest checkpoint
+├── result.json                  # latest terminal result
+└── runs/<run_id>/
+    ├── trace.json
+    ├── result.json
+    └── workspace/
+        ├── manifest.json        # before/after hash ledger
+        └── backups/*.bin        # original file bytes
+```
+
+`result.json` 包含任务状态、模型、步骤、token、成本、失败分类、baseline/final pytest、改动文件以及回滚结果。
+
+## 评测场景
+
+`evals/regression.json` 包含五种 Bug：错误运算符、字符串规范化、`None` 配置语义、分页边界和跨模块库存判断。每个任务声明隐藏的期望改动范围，但该信息不会进入模型 prompt。
+
+单元测试使用 mock/scripted provider，因此不会产生 API 费用；项目主路径和 `repofix-eval` 始终使用真实 API provider。
+
+## 安全边界与非目标
+
+V1.0 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。它不是完整 OS sandbox，因此不要对不可信仓库授予高权限环境。
+
+当前不包含 LangGraph、multi-agent、MCP、完整 Docker sandbox、SWE-bench/BugsInPy。选择标准库状态机和小模块，是为了让控制流、安全边界和失败行为可以直接审查与面试讲解。
+
+## 文档
+
+- [架构与数据流](docs/architecture.md)
+- [演示流程](docs/demo.md)
+- [面试讲解指南](docs/interview-guide.md)
+- [DeepSeek 配置](docs/deepseek-setup.md)
+- [V0.9 回归集设计](docs/v0.9-regression-suite.md)
+- [真实 benchmark 结果](docs/v0.9-deepseek-results.md)

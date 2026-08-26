@@ -1,1 +1,1 @@
-"""RepoFix-Harness V0.1."""
+"""RepoFix-Harness: a Python repository repair agent harness."""

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0
+
+- Freeze the Python repository repair scope after a successful real five-task benchmark.
+- Restructure the README around outcomes, architecture, safety, and reproducible usage.
+- Add architecture and interview guides with explicit claims and limitations.
+- Add a budgeted one-command real-model demo that always uses an isolated repository copy.
+- Document the three CLIs, run artifact layout, trust boundaries, and V1.0 non-goals.
+
 ## 0.9.0
 
 - Expand evaluation from two toy tasks to five complementary Python bug scenarios.
