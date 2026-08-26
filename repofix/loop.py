@@ -44,7 +44,7 @@ class AgentLoop:
             if action.name == "finish":
                 self.state.summary = action.arguments.get("summary", "")
                 self.state.evaluation.final = self.evaluator.run_tests()
-                self.state.evaluation.changed_files = self.evaluator.changed_files()
+                self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
                 self.state.status = "success" if self.state.evaluation.final.success else "verification_failed"
                 self.state.record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
                 self._save_checkpoint()
@@ -55,7 +55,7 @@ class AgentLoop:
         else:
             self.state.status = "budget_exhausted"
             self.state.evaluation.final = self.evaluator.run_tests()
-            self.state.evaluation.changed_files = self.evaluator.changed_files()
+            self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
             self._save_checkpoint()
         return self.state
 

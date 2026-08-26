@@ -32,6 +32,7 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert state.usage.total_tokens == 720
     assert state.evaluation.baseline.success is False
     assert state.evaluation.final.success is True
+    assert state.evaluation.changed_files == ["calculator.py"]
     assert len(state.history) == 6
     assert state.history[1]["observation"]["success"] is False
     assert state.history[4]["observation"]["success"] is True

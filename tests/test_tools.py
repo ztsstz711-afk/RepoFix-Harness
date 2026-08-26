@@ -36,6 +36,17 @@ def test_write_to_control_directory_is_denied(tmp_path):
     assert "control directories" in result.output
 
 
+def test_apply_patch_records_content_hashes(tmp_path):
+    path = tmp_path / "a.py"
+    path.write_text("old\n", encoding="utf-8")
+    result = ToolRuntime(str(tmp_path)).execute(
+        "apply_patch", {"path": "a.py", "content": "new\n"}
+    )
+    assert result.success
+    assert result.metadata["changed"] is True
+    assert result.metadata["before_sha256"] != result.metadata["after_sha256"]
+
+
 def test_non_pytest_command_is_denied(tmp_path):
     result = ToolRuntime(str(tmp_path)).execute(
         "run_command", {"command": "python dangerous.py"}

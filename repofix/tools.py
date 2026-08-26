@@ -2,6 +2,7 @@ import subprocess
 import sys
 import os
 import time
+from hashlib import sha256
 from pathlib import Path
 from .permissions import PermissionPolicy
 from .registry import validate_action
@@ -39,9 +40,22 @@ class ToolRuntime:
                 return Observation(name, "\n".join(lines[start - 1 : end]))
             if name == "apply_patch":
                 p = self.permissions.ensure_writable(args["path"])
+                before_hash = sha256(p.read_bytes()).hexdigest() if p.exists() else None
+                encoded = args["content"].encode("utf-8")
+                after_hash = sha256(encoded).hexdigest()
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(args["content"], encoding="utf-8")
-                return Observation(name, f"updated {args['path']}")
+                p.write_bytes(encoded)
+                changed = before_hash != after_hash
+                return Observation(
+                    name,
+                    f"{'updated' if changed else 'unchanged'} {args['path']}",
+                    metadata={
+                        "path": args["path"],
+                        "before_sha256": before_hash,
+                        "after_sha256": after_hash,
+                        "changed": changed,
+                    },
+                )
             if name in {"git_diff", "git_status"}:
                 return self._command(name, ["git", "diff"] if name == "git_diff" else ["git", "status", "--short"])
             if name == "run_command":

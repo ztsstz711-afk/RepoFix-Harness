@@ -42,6 +42,7 @@ class Observation:
     output: str
     success: bool = True
     duration_ms: int = 0
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

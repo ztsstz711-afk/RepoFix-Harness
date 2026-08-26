@@ -14,12 +14,12 @@ class RepairEvaluator:
             duration_ms=observation.duration_ms,
         )
 
-    def changed_files(self) -> list[str]:
-        observation = self.runtime.execute("git_status", {})
-        if not observation.success:
-            return []
-        files = []
-        for line in observation.output.splitlines():
-            if len(line) >= 4:
-                files.append(line[3:].strip())
-        return files
+    @staticmethod
+    def changed_files(history: list[dict]) -> list[str]:
+        files = set()
+        for event in history:
+            observation = event.get("observation", {})
+            metadata = observation.get("metadata", {})
+            if event.get("action", {}).get("name") == "apply_patch" and metadata.get("changed"):
+                files.add(metadata["path"])
+        return sorted(files)
