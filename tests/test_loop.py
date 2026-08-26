@@ -23,7 +23,8 @@ def test_loop_completes_repair_cycle(tmp_path):
     )
     state = AgentLoop(MockProvider(), str(tmp_path), 8).run("fix the failing tests")
     assert state.status == "success"
-    assert len(state.history) == 5
+    assert len(state.history) == 6
     assert state.history[1]["observation"]["success"] is False
     assert state.history[4]["observation"]["success"] is True
     assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")
+    assert (tmp_path / ".repofix" / "trace.json").exists()

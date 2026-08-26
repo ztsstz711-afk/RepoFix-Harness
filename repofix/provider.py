@@ -1,5 +1,6 @@
 import json
 import re
+import time
 from typing import Protocol
 
 from .config import Settings
@@ -13,7 +14,7 @@ class ModelProvider(Protocol):
 class OpenAICompatibleProvider:
     """真实模型入口；兼容 OpenAI 风格 chat completions API。"""
 
-    def __init__(self, base_url: str | None = None, api_key: str | None = None, model: str | None = None):
+    def __init__(self, base_url: str | None = None, api_key: str | None = None, model: str | None = None, max_rate_limit_retries: int = 2):
         from openai import OpenAI
 
         settings = Settings.from_env()
@@ -21,9 +22,11 @@ class OpenAICompatibleProvider:
         if not resolved_key:
             raise ValueError("Missing REPOFIX_API_KEY. Set it in the environment before running RepoFix.")
         self.model = model or settings.model
+        self.max_rate_limit_retries = max_rate_limit_retries
         self.client = OpenAI(
             base_url=base_url or settings.base_url,
             api_key=resolved_key,
+            max_retries=0,
         )
 
     def next_action(self, context: str) -> Action:
@@ -41,9 +44,25 @@ Allowed tools and exact arguments:
 Do not send a unified diff to apply_patch; it requires the complete file content.
 
 """ + context
-        response = self.client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": prompt}], temperature=0)
+        response = self._create_completion(prompt)
         data = parse_action_json(response.choices[0].message.content or "")
         return Action(**data)
+
+    def _create_completion(self, prompt: str):
+        from openai import RateLimitError
+
+        for attempt in range(self.max_rate_limit_retries + 1):
+            try:
+                return self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0,
+                )
+            except RateLimitError as exc:
+                if attempt == self.max_rate_limit_retries:
+                    raise
+                time.sleep(retry_delay_seconds(str(exc)))
+        raise RuntimeError("unreachable")
 
 
 def parse_action_json(text: str) -> dict:
@@ -57,3 +76,8 @@ def parse_action_json(text: str) -> dict:
     data.setdefault("arguments", {})
     data.setdefault("rationale", "")
     return data
+
+
+def retry_delay_seconds(error_text: str) -> float:
+    match = re.search(r"retry in ([0-9.]+)s", error_text, re.IGNORECASE)
+    return min(max(float(match.group(1)) + 1, 1), 60) if match else 30
