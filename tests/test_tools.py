@@ -9,3 +9,36 @@ def test_path_cannot_escape(tmp_path):
     t = ToolRuntime(str(tmp_path))
     result = t.execute("read", {"path": "../outside.txt"})
     assert not result.success
+
+
+def test_list_hides_control_directories(tmp_path):
+    (tmp_path / "visible.py").write_text("pass\n", encoding="utf-8")
+    (tmp_path / ".repofix").mkdir()
+    (tmp_path / ".repofix" / "trace.json").write_text("{}", encoding="utf-8")
+    output = ToolRuntime(str(tmp_path)).execute("list", {}).output
+    assert "visible.py" in output
+    assert ".repofix" not in output
+
+
+def test_read_supports_line_ranges(tmp_path):
+    (tmp_path / "a.py").write_text("one\ntwo\nthree\n", encoding="utf-8")
+    result = ToolRuntime(str(tmp_path)).execute(
+        "read", {"path": "a.py", "start_line": 2, "end_line": 3}
+    )
+    assert result.output == "two\nthree"
+
+
+def test_write_to_control_directory_is_denied(tmp_path):
+    result = ToolRuntime(str(tmp_path)).execute(
+        "apply_patch", {"path": ".git/config", "content": "unsafe"}
+    )
+    assert not result.success
+    assert "control directories" in result.output
+
+
+def test_non_pytest_command_is_denied(tmp_path):
+    result = ToolRuntime(str(tmp_path)).execute(
+        "run_command", {"command": "python dangerous.py"}
+    )
+    assert not result.success
+    assert "only pytest" in result.output

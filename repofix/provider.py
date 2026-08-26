@@ -4,6 +4,7 @@ import time
 from typing import Protocol
 
 from .config import Settings
+from .registry import render_action_instructions, validate_action
 from .schemas import Action, ModelDecision, TokenUsage
 
 
@@ -31,17 +32,10 @@ class OpenAICompatibleProvider:
         )
 
     def next_action(self, context: str) -> ModelDecision:
-        prompt = """Choose exactly one JSON action and return no other text.
-Action envelope: {"name": string, "arguments": object, "rationale": string}
+        prompt = f"""Choose exactly one JSON action and return no other text.
+Action envelope: {{"name": string, "arguments": object, "rationale": string}}
 Allowed tools and exact arguments:
-- list: {}
-- search: {"query": "text"}
-- read: {"path": "relative/path.py"}
-- apply_patch: {"path": "relative/path.py", "content": "complete replacement file content"}
-- run_command: {"command": "pytest -q"}
-- git_diff: {}
-- git_status: {}
-- finish: {"summary": "what was fixed and how it was verified"}
+{render_action_instructions()}
 Do not send a unified diff to apply_patch; it requires the complete file content.
 
 """ + context
@@ -77,11 +71,11 @@ def parse_action_json(text: str) -> dict:
     match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
     payload = match.group(1) if match else text.strip()
     data = json.loads(payload)
-    allowed = {"list", "search", "read", "apply_patch", "run_command", "git_diff", "git_status", "finish"}
-    if data.get("name") not in allowed or not isinstance(data.get("arguments", {}), dict):
-        raise ValueError("Model returned an invalid action")
     data.setdefault("arguments", {})
     data.setdefault("rationale", "")
+    error = validate_action(data.get("name", ""), data["arguments"])
+    if error:
+        raise ValueError(f"Model returned an invalid action: {error}")
     return data
 
 
