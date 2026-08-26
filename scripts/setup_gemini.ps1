@@ -1,5 +1,5 @@
 param(
-    [string]$Model = "gemini-3.7-flash"
+    [string]$Model = "gemini-3.5-flash-lite"
 )
 
 $secureKey = Read-Host "Paste your Gemini API key (input is hidden)" -AsSecureString

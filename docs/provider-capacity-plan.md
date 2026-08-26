@@ -7,8 +7,9 @@ Use the Gemini free tier for V0.1 development and milestone smoke tests. Use Dee
 ## Evidence and definitions
 
 - One RepoFix agent step currently equals one model API request.
-- The verified toy repair used 7 model decisions and completed the full fail-read-edit-pass loop.
-- The configured Gemini model returned a project/model quota of 5 requests per minute.
+- The verified toy repair completed the full fail-read-edit-pass loop and produced a successful final summary.
+- `gemini-3.7-flash` returned verified free-tier limits of 5 requests per minute and 20 requests per day for this project/model.
+- `gemini-3.5-flash-lite` successfully completed the resumed repair and is the V0.1 default.
 - Mock-provider unit tests do not call an external model and therefore consume no API quota.
 - Token volumes below are planning estimates, not billing records. They assume the current cumulative-context implementation and no cache discount.
 
@@ -21,7 +22,7 @@ Use the Gemini free tier for V0.1 development and milestone smoke tests. Use Dee
 | Medium repository bug | 25-40 | 5-8 min | 10-20 min | Poor for iteration |
 | Evaluation batch: 20 small tasks | 240-400 | 48-80 min | 2-4 hours | Not suitable |
 
-Practical time includes model latency, test execution, and rate-limit window alignment. Daily quotas are account/model-specific and must be checked in Google AI Studio; only the observed 5 RPM limit is treated as verified here.
+Practical time includes model latency, test execution, and rate-limit window alignment. Quotas are account/model-specific and must be checked in Google AI Studio. The 5 RPM and 20 RPD values above were observed for `gemini-3.7-flash`; Flash Lite may have different limits.
 
 ## Conservative DeepSeek cost simulation
 
