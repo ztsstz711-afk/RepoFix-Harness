@@ -78,6 +78,7 @@ repofix --repo examples/toy_repo --task "Fix the failing tests" --max-requests 8
 
 脚本会隐藏密钥输入，并将 Gemini 的 API Key、兼容接口地址和模型保存到当前 Windows 用户环境变量；密钥不会写入项目文件或 Git。
 V0.4 已使用 `gemini-3.5-flash-lite` 完成 2/2 smoke suite 验证，后续可仅通过环境变量切换到 DeepSeek。Gemini 2.5 Flash 系列已经不再向新用户提供生成请求。
+V0.6 再次完成单任务真实回归：5 个 Agent 步骤修复成功，重复动作保护未误触发；两次接口瞬时失败由重试机制自动恢复。
 
 ## 目录
 

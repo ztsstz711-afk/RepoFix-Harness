@@ -7,6 +7,7 @@
 - Bound every tool observation while preserving both diagnostic headers and summaries.
 - Add compact context progress summaries for changed files and the latest agent pytest result.
 - Guarantee the final model context stays within its configured character budget.
+- Validate the complete V0.6 loop with a successful real Gemini repair.
 
 ## 0.5.0
 
