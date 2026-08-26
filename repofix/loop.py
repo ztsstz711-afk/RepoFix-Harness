@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from pathlib import Path
 from .schemas import RunState
 from .tools import ToolRuntime
@@ -12,16 +13,20 @@ class AgentLoop:
         context = f"Repository: {self.state.repo}\nTask: {task}\nStart by inspecting the repository."
         for step in range(self.max_steps):
             self.state.step = step + 1
-            action = self.provider.next_action(context)
+            decision = self.provider.next_action(context)
+            action = decision.action
+            self.state.model = decision.model or self.state.model
+            self.state.usage.add(decision.usage)
             if action.name == "finish":
                 self.state.status = "success"
-                self.state.record({"step": self.state.step, "action": action.__dict__})
+                self.state.summary = action.arguments.get("summary", "")
+                self.state.record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
                 self._save_checkpoint()
                 break
             obs = self.runtime.execute(action.name, action.arguments)
-            self.state.record({"step": self.state.step, "action": action.__dict__, "observation": obs.__dict__})
+            self.state.record({"step": self.state.step, "action": asdict(action), "observation": asdict(obs), "usage": asdict(decision.usage)})
             self._save_checkpoint()
-            context += f"\nAction: {json.dumps(action.__dict__)}\nObservation: {json.dumps(obs.__dict__)}"
+            context += f"\nAction: {json.dumps(asdict(action))}\nObservation: {json.dumps(asdict(obs))}"
         else:
             self.state.status = "budget_exhausted"
             self._save_checkpoint()
@@ -29,4 +34,4 @@ class AgentLoop:
 
     def _save_checkpoint(self) -> None:
         Path(self.state.repo, ".repofix").mkdir(exist_ok=True)
-        Path(self.state.repo, ".repofix", "trace.json").write_text(json.dumps(self.state.__dict__, indent=2), encoding="utf-8")
+        Path(self.state.repo, ".repofix", "trace.json").write_text(json.dumps(self.state.to_dict(), indent=2), encoding="utf-8")

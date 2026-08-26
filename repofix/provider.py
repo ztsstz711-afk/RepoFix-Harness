@@ -4,11 +4,11 @@ import time
 from typing import Protocol
 
 from .config import Settings
-from .schemas import Action
+from .schemas import Action, ModelDecision, TokenUsage
 
 
 class ModelProvider(Protocol):
-    def next_action(self, context: str) -> Action: ...
+    def next_action(self, context: str) -> ModelDecision: ...
 
 
 class OpenAICompatibleProvider:
@@ -29,7 +29,7 @@ class OpenAICompatibleProvider:
             max_retries=0,
         )
 
-    def next_action(self, context: str) -> Action:
+    def next_action(self, context: str) -> ModelDecision:
         prompt = """Choose exactly one JSON action and return no other text.
 Action envelope: {"name": string, "arguments": object, "rationale": string}
 Allowed tools and exact arguments:
@@ -46,7 +46,11 @@ Do not send a unified diff to apply_patch; it requires the complete file content
 """ + context
         response = self._create_completion(prompt)
         data = parse_action_json(response.choices[0].message.content or "")
-        return Action(**data)
+        return ModelDecision(
+            action=Action(**data),
+            usage=extract_usage(response),
+            model=self.model,
+        )
 
     def _create_completion(self, prompt: str):
         from openai import RateLimitError
@@ -81,3 +85,17 @@ def parse_action_json(text: str) -> dict:
 def retry_delay_seconds(error_text: str) -> float:
     match = re.search(r"retry in ([0-9.]+)s", error_text, re.IGNORECASE)
     return min(max(float(match.group(1)) + 1, 1), 60) if match else 30
+
+
+def extract_usage(response) -> TokenUsage:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return TokenUsage(requests=1)
+    details = getattr(usage, "prompt_tokens_details", None)
+    return TokenUsage(
+        input_tokens=getattr(usage, "prompt_tokens", 0) or 0,
+        output_tokens=getattr(usage, "completion_tokens", 0) or 0,
+        total_tokens=getattr(usage, "total_tokens", 0) or 0,
+        cached_input_tokens=getattr(details, "cached_tokens", 0) or 0,
+        requests=1,
+    )

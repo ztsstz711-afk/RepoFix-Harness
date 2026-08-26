@@ -1,5 +1,5 @@
 from repofix.loop import AgentLoop
-from repofix.schemas import Action
+from repofix.schemas import Action, ModelDecision, TokenUsage
 
 class MockProvider:
     def __init__(self):
@@ -12,7 +12,8 @@ class MockProvider:
             Action("finish", {"summary": "fixed add"}),
         ])
 
-    def next_action(self, context): return next(self.actions)
+    def next_action(self, context):
+        return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock-model")
 
 
 def test_loop_completes_repair_cycle(tmp_path):
@@ -23,6 +24,10 @@ def test_loop_completes_repair_cycle(tmp_path):
     )
     state = AgentLoop(MockProvider(), str(tmp_path), 8).run("fix the failing tests")
     assert state.status == "success"
+    assert state.model == "mock-model"
+    assert state.summary == "fixed add"
+    assert state.usage.requests == 6
+    assert state.usage.total_tokens == 720
     assert len(state.history) == 6
     assert state.history[1]["observation"]["success"] is False
     assert state.history[4]["observation"]["success"] is True

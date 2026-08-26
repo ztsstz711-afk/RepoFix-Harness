@@ -11,7 +11,10 @@ def main():
     p.add_argument("--task", required=True)
     p.add_argument("--max-steps", type=int, default=settings.max_steps)
     a = p.parse_args(); state = AgentLoop(OpenAICompatibleProvider(), a.repo, a.max_steps).run(a.task)
-    print(f"status={state.status} steps={state.step} trace={state.repo}/.repofix/trace.json")
+    print(
+        f"status={state.status} steps={state.step} requests={state.usage.requests} "
+        f"tokens={state.usage.total_tokens} trace={state.repo}/.repofix/trace.json"
+    )
 
 
 if __name__ == "__main__":
