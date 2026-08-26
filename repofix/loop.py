@@ -12,10 +12,17 @@ class AgentLoop:
         self.state = RunState("", str(Path(repo).resolve()))
         self.max_context_chars = max_context_chars or Settings.from_env().max_context_chars
 
-    def run(self, task: str) -> RunState:
-        self.state.task = task
+    def run(self, task: str, resume: bool = False) -> RunState:
+        if resume:
+            self.state = self._load_checkpoint(task)
+            if self.state.status == "success":
+                return self.state
+            self.state.status = "running"
+            self.state.error = ""
+        else:
+            self.state.task = task
         context_builder = ContextBuilder(self.state.repo, task, self.max_context_chars)
-        for step in range(self.max_steps):
+        for step in range(self.state.step, self.max_steps):
             self.state.step = step + 1
             context = context_builder.build(self.state.history)
             try:
@@ -46,3 +53,14 @@ class AgentLoop:
     def _save_checkpoint(self) -> None:
         Path(self.state.repo, ".repofix").mkdir(exist_ok=True)
         Path(self.state.repo, ".repofix", "trace.json").write_text(json.dumps(self.state.to_dict(), indent=2), encoding="utf-8")
+
+    def _load_checkpoint(self, task: str) -> RunState:
+        path = Path(self.state.repo, ".repofix", "trace.json")
+        if not path.exists():
+            raise FileNotFoundError(f"checkpoint not found: {path}")
+        state = RunState.from_dict(json.loads(path.read_text(encoding="utf-8")))
+        if Path(state.repo).resolve() != self.runtime.repo:
+            raise ValueError("checkpoint repository does not match the requested repository")
+        if state.task != task:
+            raise ValueError("checkpoint task does not match --task")
+        return state

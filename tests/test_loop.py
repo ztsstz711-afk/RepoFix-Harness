@@ -1,3 +1,5 @@
+import pytest
+
 from repofix.loop import AgentLoop
 from repofix.schemas import Action, ModelDecision, TokenUsage
 
@@ -45,3 +47,27 @@ def test_loop_checkpoints_provider_errors(tmp_path):
     assert state.status == "error"
     assert "provider unavailable" in state.error
     assert (tmp_path / ".repofix" / "trace.json").exists()
+
+
+class FinishProvider:
+    def next_action(self, context):
+        return ModelDecision(
+            Action("finish", {"summary": "resumed successfully"}),
+            TokenUsage(50, 10, 60, requests=1),
+            "mock-model",
+        )
+
+
+def test_loop_resumes_same_run_from_checkpoint(tmp_path):
+    failed = AgentLoop(FailingProvider(), str(tmp_path), 3).run("fix tests")
+    resumed = AgentLoop(FinishProvider(), str(tmp_path), 3).run("fix tests", resume=True)
+    assert resumed.run_id == failed.run_id
+    assert resumed.status == "success"
+    assert resumed.step == 2
+    assert resumed.summary == "resumed successfully"
+
+
+def test_resume_rejects_different_task(tmp_path):
+    AgentLoop(FailingProvider(), str(tmp_path), 3).run("first task")
+    with pytest.raises(ValueError, match="does not match"):
+        AgentLoop(FinishProvider(), str(tmp_path), 3).run("different task", resume=True)
