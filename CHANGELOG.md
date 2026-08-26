@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add localized `old_text`/`new_text` editing to `apply_patch` while preserving full-file creation and replacement.
+- Reject missing and ambiguous localized matches before writing, so the model must provide enough surrounding context.
+- Keep workspace journaling, hashes, file-count limits, and rollback behavior identical across both edit modes.
+- Validate the localized path with a real DeepSeek repair: 1/1 success, 6 requests, 6,450 tokens, and no full-file content sent.
+
 ## 1.0.0
 
 - Freeze the Python repository repair scope after a successful real five-task benchmark.

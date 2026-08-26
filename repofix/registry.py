@@ -26,9 +26,14 @@ ACTION_SPECS = {
         ),
         ActionSpec(
             "apply_patch",
-            "Replace one text file with complete content.",
-            {"path": '"relative/path.py"', "content": '"complete file content"'},
-            ("path", "content"),
+            "Edit one text file. Prefer an exact, unique old_text/new_text replacement; content remains available for creating or replacing a complete file.",
+            {
+                "path": '"relative/path.py"',
+                "old_text": '"exact existing text (localized mode)"',
+                "new_text": '"replacement text (localized mode)"',
+                "content": '"complete file content (full-file mode)"',
+            },
+            ("path",),
         ),
         ActionSpec("run_command", "Run pytest only.", {"command": '"pytest -q"'}, ("command",)),
         ActionSpec("git_diff", "Show the current repository diff.", {}),
@@ -50,6 +55,22 @@ def validate_action(name: str, arguments: dict) -> str | None:
     unknown = [key for key in arguments if key not in spec.arguments]
     if unknown:
         return f"unknown arguments for {name}: {', '.join(unknown)}"
+    if name == "apply_patch":
+        has_content = "content" in arguments
+        has_old = "old_text" in arguments
+        has_new = "new_text" in arguments
+        if has_content and (has_old or has_new):
+            return "apply_patch must use either content or old_text/new_text, not both"
+        if not has_content and not (has_old and has_new):
+            return "apply_patch requires content or both old_text and new_text"
+        if has_old and not isinstance(arguments["old_text"], str):
+            return "apply_patch old_text must be a string"
+        if has_new and not isinstance(arguments["new_text"], str):
+            return "apply_patch new_text must be a string"
+        if has_content and not isinstance(arguments["content"], str):
+            return "apply_patch content must be a string"
+        if has_old and arguments["old_text"] == "":
+            return "apply_patch old_text must not be empty"
     return None
 
 

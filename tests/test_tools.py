@@ -45,6 +45,45 @@ def test_apply_patch_records_content_hashes(tmp_path):
     assert result.success
     assert result.metadata["changed"] is True
     assert result.metadata["before_sha256"] != result.metadata["after_sha256"]
+    assert result.metadata["mode"] == "full_file"
+
+
+def test_apply_patch_replaces_one_unique_block(tmp_path):
+    path = tmp_path / "a.py"
+    path.write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+
+    result = ToolRuntime(str(tmp_path)).execute(
+        "apply_patch",
+        {
+            "path": "a.py",
+            "old_text": "    return a - b",
+            "new_text": "    return a + b",
+        },
+    )
+
+    assert result.success
+    assert result.metadata["mode"] == "localized"
+    assert path.read_text(encoding="utf-8") == "def add(a, b):\n    return a + b\n"
+
+
+def test_apply_patch_rejects_missing_or_ambiguous_old_text_without_writing(tmp_path):
+    path = tmp_path / "a.py"
+    original = "value = 1\nvalue = 1\n"
+    path.write_text(original, encoding="utf-8")
+    runtime = ToolRuntime(str(tmp_path))
+
+    missing = runtime.execute(
+        "apply_patch", {"path": "a.py", "old_text": "value = 2", "new_text": "value = 3"}
+    )
+    ambiguous = runtime.execute(
+        "apply_patch", {"path": "a.py", "old_text": "value = 1", "new_text": "value = 3"}
+    )
+
+    assert not missing.success
+    assert "not found" in missing.output
+    assert not ambiguous.success
+    assert "ambiguous" in ambiguous.output
+    assert path.read_text(encoding="utf-8") == original
 
 
 def test_non_pytest_command_is_denied(tmp_path):

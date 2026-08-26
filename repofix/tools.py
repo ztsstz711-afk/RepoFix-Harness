@@ -61,8 +61,26 @@ class ToolRuntime:
             return Observation(name, "\n".join(lines[start - 1 : end]))
         if name == "apply_patch":
             path = self.permissions.ensure_writable(args["path"])
-            before_hash = sha256(path.read_bytes()).hexdigest() if path.exists() else None
-            encoded = args["content"].encode("utf-8")
+            before_bytes = path.read_bytes() if path.exists() else None
+            before_hash = sha256(before_bytes).hexdigest() if before_bytes is not None else None
+            if "content" in args:
+                content = args["content"]
+                mode = "full_file"
+            else:
+                if before_bytes is None:
+                    raise FileNotFoundError("localized patch requires an existing file")
+                current = before_bytes.decode("utf-8")
+                old_text = args["old_text"]
+                matches = current.count(old_text)
+                if matches == 0:
+                    raise ValueError("localized patch old_text was not found")
+                if matches > 1:
+                    raise ValueError(
+                        f"localized patch old_text is ambiguous ({matches} matches); include more context"
+                    )
+                content = current.replace(old_text, args["new_text"], 1)
+                mode = "localized"
+            encoded = content.encode("utf-8")
             after_hash = sha256(encoded).hexdigest()
             changed = before_hash != after_hash
             if self.journal and changed:
@@ -79,6 +97,7 @@ class ToolRuntime:
                     "before_sha256": before_hash,
                     "after_sha256": after_hash,
                     "changed": changed,
+                    "mode": mode,
                 },
             )
         if name in {"git_diff", "git_status"}:

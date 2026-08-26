@@ -44,7 +44,9 @@ class OpenAICompatibleProvider:
 Action envelope: {{"name": string, "arguments": object, "rationale": string}}
 Allowed tools and exact arguments:
 {render_action_instructions()}
-Do not send a unified diff to apply_patch; it requires the complete file content.
+For existing files, prefer apply_patch with an exact unique old_text and new_text block.
+Use apply_patch content only when creating a file or when a complete-file replacement is necessary.
+Do not send a unified diff.
 
 """ + context
         total_usage = TokenUsage()

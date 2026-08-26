@@ -31,7 +31,7 @@ flowchart LR
 | `context.py` | 有界 prompt、最近 trace 和稳定进度摘要 |
 | `registry.py` | 单一 action schema 来源和参数验证 |
 | `permissions.py` | 仓库路径、控制目录和 pytest 参数边界 |
-| `tools.py` | 文件、搜索、patch、pytest 和 Git 工具执行 |
+| `tools.py` | 文件、搜索、局部/整文件 patch、pytest 和 Git 工具执行 |
 | `workspace.py` | 写前快照、结束哈希、冲突检测和恢复 |
 | `budget.py` | request/token 预算、价格估算和 provider 错误分类 |
 | `evaluation.py` | Harness 独立运行 baseline/final pytest |
@@ -60,6 +60,8 @@ running
 4. `finish` 不能决定成功，最终状态由独立 pytest 决定。
 5. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
 6. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
+
+局部 patch 使用精确 `old_text`/`new_text` 协议。只有旧文本在目标文件中唯一出现时才写入；零匹配或多匹配都会作为 observation 返回给模型继续修正。这样不依赖 Git 仓库，也不会让模糊替换静默改错位置。
 
 ## Why a custom loop
 

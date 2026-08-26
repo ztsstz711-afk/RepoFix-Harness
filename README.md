@@ -25,6 +25,7 @@
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
 - 工具运行时：`list/search/read/apply_patch/run_command/git_diff/git_status`
+- `apply_patch` 优先执行唯一匹配的局部替换，避免小改动重传整个文件；创建文件时仍支持完整内容
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
 - 有界 context、工具输出头尾压缩、最近进度摘要
