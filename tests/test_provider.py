@@ -36,3 +36,26 @@ def test_extract_usage_from_compatible_response():
     assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (120, 30, 150)
     assert usage.cached_input_tokens == 40
     assert usage.requests == 1
+
+
+def test_provider_retries_malformed_action_and_accumulates_usage():
+    responses = iter(
+        [
+            SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"name" "list"}'))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2, total_tokens=12),
+            ),
+            SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"name":"list","arguments":{}}'))],
+                usage=SimpleNamespace(prompt_tokens=20, completion_tokens=3, total_tokens=23),
+            ),
+        ]
+    )
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_format_retries = 2
+    provider._create_completion = lambda prompt: next(responses)
+    decision = provider.next_action("context")
+    assert decision.action.name == "list"
+    assert decision.usage.requests == 2
+    assert decision.usage.total_tokens == 35

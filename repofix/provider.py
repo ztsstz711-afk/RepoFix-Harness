@@ -15,7 +15,14 @@ class ModelProvider(Protocol):
 class OpenAICompatibleProvider:
     """真实模型入口；兼容 OpenAI 风格 chat completions API。"""
 
-    def __init__(self, base_url: str | None = None, api_key: str | None = None, model: str | None = None, max_transient_retries: int = 3):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        model: str | None = None,
+        max_transient_retries: int = 3,
+        max_format_retries: int = 2,
+    ):
         from openai import OpenAI
 
         settings = Settings.from_env()
@@ -24,6 +31,7 @@ class OpenAICompatibleProvider:
             raise ValueError("Missing REPOFIX_API_KEY. Set it in the environment before running RepoFix.")
         self.model = model or settings.model
         self.max_transient_retries = max_transient_retries
+        self.max_format_retries = max_format_retries
         self.client = OpenAI(
             base_url=base_url or settings.base_url,
             api_key=resolved_key,
@@ -39,13 +47,28 @@ Allowed tools and exact arguments:
 Do not send a unified diff to apply_patch; it requires the complete file content.
 
 """ + context
-        response = self._create_completion(prompt)
-        data = parse_action_json(response.choices[0].message.content or "")
-        return ModelDecision(
-            action=Action(**data),
-            usage=extract_usage(response),
-            model=self.model,
-        )
+        total_usage = TokenUsage()
+        last_text = ""
+        for attempt in range(self.max_format_retries + 1):
+            response = self._create_completion(prompt)
+            total_usage.add(extract_usage(response))
+            last_text = response.choices[0].message.content or ""
+            try:
+                data = parse_action_json(last_text)
+                return ModelDecision(
+                    action=Action(**data),
+                    usage=total_usage,
+                    model=self.model,
+                )
+            except (json.JSONDecodeError, ValueError) as exc:
+                if attempt == self.max_format_retries:
+                    raise ValueError(f"invalid model action after retries: {exc}; output={last_text[:500]!r}") from exc
+                prompt += (
+                    "\nYour previous response was invalid JSON or violated the action schema. "
+                    f"Error: {exc}. Return one corrected JSON action only.\n"
+                    f"Previous response: {last_text[:1000]}\n"
+                )
+        raise RuntimeError("unreachable")
 
     def _create_completion(self, prompt: str):
         from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
