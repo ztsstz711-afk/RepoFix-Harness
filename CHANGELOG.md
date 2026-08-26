@@ -7,6 +7,7 @@
 - Add task tags and hidden expected-change scopes to evaluation manifests and reports.
 - Report both test success rate and changed-file scope accuracy.
 - Validate every fixture starts with a failing baseline and passes through isolated scripted repairs.
+- Add a hidden-input DeepSeek V4 Flash setup script with conservative cost-estimation rates.
 
 ## 0.8.0
 

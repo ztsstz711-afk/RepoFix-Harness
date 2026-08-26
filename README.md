@@ -115,6 +115,16 @@ repofix-runs --repo examples/toy_repo rollback latest
 V0.4 已使用 `gemini-3.5-flash-lite` 完成 2/2 smoke suite 验证，后续可仅通过环境变量切换到 DeepSeek。Gemini 2.5 Flash 系列已经不再向新用户提供生成请求。
 V0.6 再次完成单任务真实回归：5 个 Agent 步骤修复成功，重复动作保护未误触发；两次接口瞬时失败由重试机制自动恢复。
 
+### DeepSeek 配置
+
+当前完整 regression suite 推荐使用 DeepSeek。在 PowerShell 中运行：
+
+```powershell
+.\scripts\setup_deepseek.ps1
+```
+
+脚本使用隐藏输入保存 API Key，并配置当前官方的 `deepseek-v4-flash` 和 OpenAI-compatible 地址。成本估算采用峰值单价作为保守上界；实际账单可能因缓存和非峰时段更低。配置后请打开新终端。
+
 ## 目录
 
 `repofix/` 是 Harness 核心；`examples/` 包含五种 Bug 场景；`evals/` 保存 smoke 和 regression 清单；`tests/` 验证工具、provider、Agent Loop、恢复机制和 evaluator。
