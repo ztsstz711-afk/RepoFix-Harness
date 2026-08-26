@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from repofix.execution import DockerPytestExecutor, create_pytest_executor
+from repofix.execution import (
+    DockerPytestExecutor,
+    LocalPytestExecutor,
+    create_pytest_executor,
+    sanitized_subprocess_environment,
+)
 from repofix.schemas import Observation
 
 
@@ -55,3 +60,30 @@ def test_docker_executor_force_removes_a_timed_out_container(monkeypatch, tmp_pa
 
     assert cleanup["command"][:3] == ["docker", "rm", "--force"]
     assert cleanup["command"][-1] == result.metadata["container_name"]
+
+
+def test_subprocess_environment_removes_provider_and_common_secrets(monkeypatch):
+    monkeypatch.setenv("REPOFIX_API_KEY", "provider-secret")
+    monkeypatch.setenv("GITHUB_TOKEN", "github-secret")
+    monkeypatch.setenv("DATABASE_PASSWORD", "database-secret")
+    monkeypatch.setenv("SAFE_TEST_VALUE", "visible")
+
+    environment = sanitized_subprocess_environment()
+
+    assert "REPOFIX_API_KEY" not in environment
+    assert "GITHUB_TOKEN" not in environment
+    assert "DATABASE_PASSWORD" not in environment
+    assert environment["SAFE_TEST_VALUE"] == "visible"
+
+
+def test_local_pytest_cannot_read_repofix_api_key(monkeypatch, tmp_path):
+    monkeypatch.setenv("REPOFIX_API_KEY", "must-not-leak")
+    (tmp_path / "test_environment.py").write_text(
+        "import os\n\ndef test_secret_is_absent():\n    assert 'REPOFIX_API_KEY' not in os.environ\n",
+        encoding="utf-8",
+    )
+
+    result = LocalPytestExecutor().run(tmp_path, ["-q"], 20)
+
+    assert result.success is True
+    assert "1 passed" in result.output

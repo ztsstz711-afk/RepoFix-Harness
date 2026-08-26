@@ -86,6 +86,8 @@ repofix --repo <python-repo> --task "Fix the failing tests" --execution-backend 
 
 Docker backend 默认禁用网络、只读挂载仓库、丢弃 capabilities、禁止提权，并限制 CPU、内存和进程数。模型仍在 Harness 中决策，只有测试代码进入容器执行。
 
+Local backend 仅用于可信仓库；它会移除 `REPOFIX_*` 以及常见 key/token/password/credential 环境变量，但无法提供文件系统隔离。外部仓库应使用 Docker backend。单次模型响应默认限制为 2,048 output tokens，可通过 `REPOFIX_MAX_OUTPUT_TOKENS` 调整。
+
 启用失败自动回滚：
 
 ```powershell

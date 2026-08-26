@@ -10,6 +10,28 @@ from uuid import uuid4
 from .schemas import Observation
 
 
+SENSITIVE_ENV_MARKERS = (
+    "API_KEY",
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "CREDENTIAL",
+    "PRIVATE_KEY",
+    "ACCESS_KEY",
+)
+
+
+def sanitized_subprocess_environment() -> dict[str, str]:
+    safe = {}
+    for name, value in os.environ.items():
+        upper = name.upper()
+        if upper.startswith("REPOFIX_") or any(marker in upper for marker in SENSITIVE_ENV_MARKERS):
+            continue
+        safe[name] = value
+    safe["PYTHONDONTWRITEBYTECODE"] = "1"
+    return safe
+
+
 class PytestExecutor(Protocol):
     name: str
 
@@ -20,8 +42,7 @@ class LocalPytestExecutor:
     name = "local"
 
     def run(self, repo: Path, arguments: list[str], timeout_seconds: int) -> Observation:
-        env = os.environ.copy()
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        env = sanitized_subprocess_environment()
         observation = _run(
             "run_command",
             [sys.executable, "-m", "pytest", *arguments],
@@ -30,6 +51,7 @@ class LocalPytestExecutor:
             env,
         )
         observation.metadata["execution_backend"] = self.name
+        observation.metadata["environment_scrubbed"] = True
         return observation
 
 
@@ -93,6 +115,7 @@ class DockerPytestExecutor:
                 "network": "none",
                 "workspace_mount": "readonly",
                 "container_name": container_name,
+                "environment_scrubbed": True,
             }
         )
         return observation

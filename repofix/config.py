@@ -22,6 +22,7 @@ class Settings:
     execution_backend: str
     docker_image: str
     command_timeout_seconds: int
+    max_output_tokens: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,4 +46,5 @@ class Settings:
             execution_backend=os.getenv("REPOFIX_EXECUTION_BACKEND", "local"),
             docker_image=os.getenv("REPOFIX_DOCKER_IMAGE", "repofix-pytest:latest"),
             command_timeout_seconds=int(os.getenv("REPOFIX_COMMAND_TIMEOUT_SECONDS", "30")),
+            max_output_tokens=int(os.getenv("REPOFIX_MAX_OUTPUT_TOKENS", "2048")),
         )

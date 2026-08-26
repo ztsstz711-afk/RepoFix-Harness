@@ -70,6 +70,8 @@ Preflight 不执行仓库代码，也不调用模型。它只检查本地运行�
 
 Docker backend 的 preflight 会实际连接 daemon、检查指定镜像并在禁网容器中执行 `pytest --version`。测试容器使用只读仓库与根文件系统、临时 `/tmp`、无 capabilities、禁止提权以及 CPU/内存/PID 限制；超时后 Harness 会按唯一容器名强制清理。
 
+Local pytest 和 Git 子进程会从环境中移除 provider 配置及常见凭据变量。Git diff/status 另外禁用 external diff、textconv、fsmonitor、global/system config 和 optional locks。Local backend 仍不是 OS sandbox，只应运行可信仓库；外部源码默认走 Docker。
+
 Token 预算除了检查累计用量，还会根据当前 context 与历史请求估算下一次请求成本。剩余额度不足时不发送请求；如果已有真实文件改动、baseline 失败且独立 final pytest 通过，Harness 可以在预算边界判定成功，而不额外购买一次仅用于 `finish` 的模型请求。
 
 验证命令属于 Harness 状态而不是模型状态。CLI 或 suite 可以选择仓库所需的 pytest 目标；命令会写入 checkpoint，resume 时必须保持一致，并在 baseline、final 和 post-rollback 三个阶段复用。命令解析后以参数数组执行，不经过 shell，且非 pytest 入口会在调用模型前被拒绝。

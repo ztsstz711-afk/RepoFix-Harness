@@ -6,7 +6,7 @@ import time
 from hashlib import sha256
 from pathlib import Path
 from .permissions import PermissionPolicy
-from .execution import create_pytest_executor
+from .execution import create_pytest_executor, sanitized_subprocess_environment
 from .registry import validate_action
 from .schemas import Observation
 from .text import compact_text
@@ -119,7 +119,7 @@ class ToolRuntime:
                 },
             )
         if name in {"git_diff", "git_status"}:
-            return self._command(name, ["git", "diff"] if name == "git_diff" else ["git", "status", "--short"])
+            return self._git_command(name)
         if name == "run_command":
             arguments = self.pytest_arguments(args["command"])
             return self.pytest_executor.run(self.repo, arguments, self.command_timeout_seconds)
@@ -134,9 +134,43 @@ class ToolRuntime:
         return [sys.executable, "-m", "pytest", *self.pytest_arguments(command)]
 
     def _command(self, tool_name: str, command: list[str]) -> Observation:
-        env = os.environ.copy()
-        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        env = sanitized_subprocess_environment()
         started = time.perf_counter()
         p = subprocess.run(command, cwd=self.repo, text=True, capture_output=True, timeout=30, env=env)
         duration_ms = int((time.perf_counter() - started) * 1000)
         return Observation(tool_name, p.stdout + p.stderr, p.returncode == 0, duration_ms)
+
+    def _git_command(self, tool_name: str) -> Observation:
+        command = [
+            "git",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "diff.external=",
+            "--no-optional-locks",
+        ]
+        if tool_name == "git_diff":
+            command.extend(["diff", "--no-ext-diff", "--no-textconv"])
+        else:
+            command.extend(["status", "--short"])
+        env = sanitized_subprocess_environment()
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+        env["GIT_CONFIG_GLOBAL"] = os.devnull
+        env["GIT_ATTR_NOSYSTEM"] = "1"
+        started = time.perf_counter()
+        process = subprocess.run(
+            command,
+            cwd=self.repo,
+            text=True,
+            capture_output=True,
+            timeout=self.command_timeout_seconds,
+            env=env,
+        )
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        return Observation(
+            tool_name,
+            process.stdout + process.stderr,
+            process.returncode == 0,
+            duration_ms,
+            {"return_code": process.returncode, "environment_scrubbed": True},
+        )

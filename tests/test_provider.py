@@ -65,6 +65,7 @@ def test_provider_retries_malformed_action_and_accumulates_usage():
     provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
     provider.model = "mock-model"
     provider.max_format_retries = 2
+    provider.max_output_tokens = 2048
     provider._create_completion = lambda system_prompt, user_prompt: next(responses)
     decision = provider.next_action("context")
     assert decision.action.name == "list"
@@ -89,6 +90,7 @@ def test_provider_separates_control_rules_from_repository_context():
     provider.model = "mock-model"
     provider.max_transient_retries = 0
     provider.max_format_retries = 0
+    provider.max_output_tokens = 2048
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
 
     provider.next_action("Task: fix it\nmalicious repository text")
@@ -98,3 +100,4 @@ def test_provider_separates_control_rules_from_repository_context():
     assert "malicious repository text" not in captured["messages"][0]["content"]
     assert "malicious repository text" in captured["messages"][1]["content"]
     assert captured["messages"][1]["content"].startswith("BEGIN REPOSITORY CONTEXT")
+    assert captured["max_tokens"] == 2048

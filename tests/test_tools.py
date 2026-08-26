@@ -1,3 +1,9 @@
+import shutil
+import subprocess
+import sys
+
+import pytest
+
 from repofix.tools import ToolRuntime
 
 def test_read_and_search(tmp_path):
@@ -112,3 +118,38 @@ def test_tool_output_keeps_head_and_tail_when_truncated(tmp_path):
     assert "chars omitted" in result.output
     assert result.metadata["output_truncated"] is True
     assert result.metadata["output_chars"] > len(result.output)
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git is not installed")
+def test_git_tools_disable_repository_configured_external_processes(tmp_path):
+    def git(*arguments):
+        subprocess.run(["git", *arguments], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "RepoFix Test")
+    (tmp_path / "a.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (tmp_path / ".gitattributes").write_text("*.py diff=evil\n", encoding="utf-8")
+    marker = tmp_path / "external-process-ran.txt"
+    script = tmp_path / "evil.py"
+    script.write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')\n",
+        encoding="utf-8",
+    )
+    git("add", "a.py", ".gitattributes")
+    git("commit", "-m", "baseline")
+    command = f'"{sys.executable}" "{script}"'
+    git("config", "diff.evil.command", command)
+    git("config", "core.fsmonitor", command)
+    (tmp_path / "a.py").write_text("VALUE = 2\n", encoding="utf-8")
+
+    runtime = ToolRuntime(str(tmp_path))
+    diff = runtime.execute("git_diff", {})
+    status = runtime.execute("git_status", {})
+
+    assert diff.success is True
+    assert "VALUE = 2" in diff.output
+    assert status.success is True
+    assert "a.py" in status.output
+    assert not marker.exists()
+    assert diff.metadata["environment_scrubbed"] is True

@@ -25,6 +25,10 @@
 - Add next-request token admission estimates and allow independently verified repairs to complete safely at a budget boundary.
 - Persist backend, image, and timeout across checkpoints and post-rollback verification.
 - Add a checksum-pinned, reproducible external h11 v0.16.0 benchmark and complete it in 17,287/20,000 tokens.
+- Scrub provider keys and common credential variables from local pytest and Git subprocess environments.
+- Disable repository-configured external diff, text conversion, fsmonitor, global/system Git config, and optional locks for Git inspection tools.
+- Add real Docker probes for network isolation, read-only mounts, secret absence, writable tmpfs, timeout, and forced container cleanup.
+- Bound each compatible-provider completion to 2,048 output tokens by default.
 
 ## 1.0.0
 
