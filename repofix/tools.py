@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import os
 from pathlib import Path
 from .schemas import Observation
 
@@ -33,5 +34,7 @@ class ToolRuntime:
             return Observation(name, f"unknown tool: {name}", False)
         except Exception as e: return Observation(name, str(e), False)
     def _command(self, command: list[str]) -> Observation:
-        p = subprocess.run(command, cwd=self.repo, text=True, capture_output=True, timeout=30)
+        env = os.environ.copy()
+        env["PYTHONDONTWRITEBYTECODE"] = "1"
+        p = subprocess.run(command, cwd=self.repo, text=True, capture_output=True, timeout=30, env=env)
         return Observation("command", (p.stdout + p.stderr)[-12000:], p.returncode == 0)

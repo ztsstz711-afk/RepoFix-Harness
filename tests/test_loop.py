@@ -7,7 +7,7 @@ class MockProvider:
             Action("list"),
             Action("run_command", {"command": "pytest -q"}),
             Action("read", {"path": "calculator.py"}),
-            Action("apply_patch", {"path": "calculator.py", "content": "def add(a, b):\n    return a + b\n"}),
+            Action("apply_patch", {"path": "calculator.py", "content": "def add(a, b):\n    \"\"\"Return the sum.\"\"\"\n    return a + b\n"}),
             Action("run_command", {"command": "pytest -q"}),
             Action("finish", {"summary": "fixed add"}),
         ])
