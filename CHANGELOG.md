@@ -8,6 +8,7 @@
 - Report both test success rate and changed-file scope accuracy.
 - Validate every fixture starts with a failing baseline and passes through isolated scripted repairs.
 - Add a hidden-input DeepSeek V4 Flash setup script with conservative cost-estimation rates.
+- Validate the real five-task DeepSeek benchmark with 5/5 repairs and 5/5 change-scope matches.
 
 ## 0.8.0
 

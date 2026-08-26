@@ -72,6 +72,8 @@ repofix-eval --suite evals/regression.json
 
 真实评测仍使用配置的 API 模型。测试目录中的 scripted provider 只验证案例标准答案、隔离执行和报告聚合，不替代真实 Agent 主路径。
 
+2026-08-26 的真实 `deepseek-v4-flash` 回归结果为：修复成功 5/5、改动范围命中 5/5、33 次请求、41,299 tokens、零重试，按峰值单价保守估算约 `$0.01693`。详见 `docs/v0.9-deepseek-results.md`。
+
 限制一次运行最多使用 8 次模型请求或 20,000 tokens：
 
 ```powershell
