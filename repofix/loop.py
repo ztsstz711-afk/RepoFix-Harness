@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from pathlib import Path
+from typing import Callable
 from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
@@ -8,12 +9,20 @@ from .storage import RunStore
 from .tools import ToolRuntime
 
 class AgentLoop:
-    def __init__(self, provider, repo: str, max_steps: int = 12, max_context_chars: int | None = None):
+    def __init__(
+        self,
+        provider,
+        repo: str,
+        max_steps: int = 12,
+        max_context_chars: int | None = None,
+        on_event: Callable[[RunState, dict], None] | None = None,
+    ):
         self.provider, self.runtime, self.max_steps = provider, ToolRuntime(repo), max_steps
         self.evaluator = RepairEvaluator(self.runtime)
         self.state = RunState("", str(Path(repo).resolve()))
         self.store = RunStore(repo)
         self.max_context_chars = max_context_chars or Settings.from_env().max_context_chars
+        self.on_event = on_event
 
     def run(self, task: str, resume: bool = False) -> RunState:
         if resume:
@@ -26,17 +35,18 @@ class AgentLoop:
             self.state.task = task
             self.state.evaluation.baseline = self.evaluator.run_tests()
             self._save_checkpoint()
+            self._notify({"type": "baseline", "success": self.state.evaluation.baseline.success})
         context_builder = ContextBuilder(self.state.repo, task, self.max_context_chars)
         for step in range(self.state.step, self.max_steps):
             self.state.step = step + 1
             context = context_builder.build(self.state.history)
+            self._notify({"type": "model_request", "step": self.state.step})
             try:
                 decision = self.provider.next_action(context)
             except Exception as exc:
                 self.state.status = "error"
                 self.state.error = f"{type(exc).__name__}: {exc}"[:2000]
-                self.state.record({"step": self.state.step, "error": self.state.error})
-                self._save_checkpoint()
+                self._record({"step": self.state.step, "error": self.state.error})
                 break
             action = decision.action
             self.state.model = decision.model or self.state.model
@@ -46,12 +56,10 @@ class AgentLoop:
                 self.state.evaluation.final = self.evaluator.run_tests()
                 self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
                 self.state.status = "success" if self.state.evaluation.final.success else "verification_failed"
-                self.state.record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
-                self._save_checkpoint()
+                self._record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
                 break
             obs = self.runtime.execute(action.name, action.arguments)
-            self.state.record({"step": self.state.step, "action": asdict(action), "observation": asdict(obs), "usage": asdict(decision.usage)})
-            self._save_checkpoint()
+            self._record({"step": self.state.step, "action": asdict(action), "observation": asdict(obs), "usage": asdict(decision.usage)})
         else:
             self.state.status = "budget_exhausted"
             self.state.evaluation.final = self.evaluator.run_tests()
@@ -61,6 +69,15 @@ class AgentLoop:
 
     def _save_checkpoint(self) -> None:
         self.store.save(self.state)
+
+    def _record(self, event: dict) -> None:
+        self.state.record(event)
+        self._save_checkpoint()
+        self._notify({"type": "step", **event})
+
+    def _notify(self, event: dict) -> None:
+        if self.on_event:
+            self.on_event(self.state, event)
 
     def _load_checkpoint(self, task: str) -> RunState:
         state = self.store.load_latest()

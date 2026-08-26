@@ -86,3 +86,11 @@ def test_finish_does_not_override_failed_verification(tmp_path):
     assert state.status == "verification_failed"
     assert state.evaluation.baseline.success is False
     assert state.evaluation.final.success is False
+
+
+def test_loop_emits_progress_events(tmp_path):
+    (tmp_path / "test_ok.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
+    events = []
+    AgentLoop(FinishProvider(), str(tmp_path), 2, on_event=lambda state, event: events.append(event)).run("verify")
+    assert [event["type"] for event in events] == ["baseline", "model_request", "step"]
+    assert events[-1]["action"]["name"] == "finish"
