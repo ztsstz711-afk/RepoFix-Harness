@@ -27,7 +27,20 @@ class OpenAICompatibleProvider:
         )
 
     def next_action(self, context: str) -> Action:
-        prompt = "Choose exactly one JSON action. Allowed names: list, search, read, apply_patch, run_command, git_diff, git_status, finish. Schema: {name:string, arguments:object, rationale:string}. For finish arguments use {summary:string}.\n\n" + context
+        prompt = """Choose exactly one JSON action and return no other text.
+Action envelope: {"name": string, "arguments": object, "rationale": string}
+Allowed tools and exact arguments:
+- list: {}
+- search: {"query": "text"}
+- read: {"path": "relative/path.py"}
+- apply_patch: {"path": "relative/path.py", "content": "complete replacement file content"}
+- run_command: {"command": "pytest -q"}
+- git_diff: {}
+- git_status: {}
+- finish: {"summary": "what was fixed and how it was verified"}
+Do not send a unified diff to apply_patch; it requires the complete file content.
+
+""" + context
         response = self.client.chat.completions.create(model=self.model, messages=[{"role": "user", "content": prompt}], temperature=0)
         data = parse_action_json(response.choices[0].message.content or "")
         return Action(**data)
