@@ -17,13 +17,14 @@
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e .
+pip install -e ".[dev]"
 $env:REPOFIX_API_KEY="your-key"
 $env:REPOFIX_MODEL="your-model"
 python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests"
 ```
 
 默认 provider 是真实 OpenAI-compatible provider；单测使用 mock provider，不会发起网络请求。
+如果使用其他兼容服务，同时设置 `REPOFIX_BASE_URL`。可参考 `.env.example`，但不要把真实密钥写入 Git。
 
 ## 目录
 

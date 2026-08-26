@@ -1,4 +1,5 @@
 import subprocess
+import sys
 from pathlib import Path
 from .schemas import Observation
 
@@ -23,8 +24,12 @@ class ToolRuntime:
             if name in {"git_diff", "git_status"}: return self._command(["git", "diff"] if name == "git_diff" else ["git", "status", "--short"])
             if name == "run_command":
                 command = args["command"]
-                if not command.startswith("pytest") and command not in {"python -m pytest", "python -m pytest -q"}: raise ValueError("command not allowed in V0.1")
-                return self._command(command.split())
+                parts = command.split()
+                if parts[:1] == ["pytest"]:
+                    return self._command([sys.executable, "-m", "pytest", *parts[1:]])
+                if parts[:3] == ["python", "-m", "pytest"]:
+                    return self._command([sys.executable, "-m", "pytest", *parts[3:]])
+                raise ValueError("command not allowed in V0.1; only pytest is permitted")
             return Observation(name, f"unknown tool: {name}", False)
         except Exception as e: return Observation(name, str(e), False)
     def _command(self, command: list[str]) -> Observation:
