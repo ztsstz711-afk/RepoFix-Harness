@@ -16,6 +16,8 @@ class Settings:
     output_cost_per_million: float
     cached_input_cost_per_million: float
     max_identical_actions: int
+    max_changed_files: int
+    rollback_on_failure: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -32,4 +34,7 @@ class Settings:
             output_cost_per_million=float(os.getenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")),
             cached_input_cost_per_million=float(os.getenv("REPOFIX_CACHED_INPUT_COST_PER_MILLION", "0")),
             max_identical_actions=int(os.getenv("REPOFIX_MAX_IDENTICAL_ACTIONS", "2")),
+            max_changed_files=int(os.getenv("REPOFIX_MAX_CHANGED_FILES", "5")),
+            rollback_on_failure=os.getenv("REPOFIX_ROLLBACK_ON_FAILURE", "0").lower()
+            in {"1", "true", "yes"},
         )

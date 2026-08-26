@@ -13,6 +13,10 @@ def print_progress(state, event):
         print(f"stopped by {event['failure_kind']}: {event['error']}")
     elif event["type"] == "stalled":
         print(f"stalled by {event['failure_kind']}: {event['error']}")
+    elif event["type"] == "rollback":
+        print(f"rolled back files={','.join(event['files'])}")
+    elif event["type"] == "rollback_error":
+        print(f"rollback failed: {event['error']}")
     elif event["type"] == "step":
         action = event.get("action", {}).get("name")
         observation = event.get("observation")
@@ -37,6 +41,13 @@ def main():
         default=settings.max_identical_actions,
         help="allowed repeats before the loop is stopped",
     )
+    p.add_argument("--max-changed-files", type=int, default=settings.max_changed_files, help="0 means unlimited")
+    p.add_argument(
+        "--rollback-on-failure",
+        action="store_true",
+        default=settings.rollback_on_failure,
+        help="restore Agent-written files when the run does not succeed",
+    )
     p.add_argument("--resume", action="store_true", help="continue from repo/.repofix/trace.json")
     p.add_argument("--quiet", action="store_true", help="only print the final result")
     a = p.parse_args()
@@ -49,12 +60,16 @@ def main():
         max_requests=a.max_requests,
         max_tokens=a.max_tokens,
         max_identical_actions=a.max_identical_actions,
+        max_changed_files=a.max_changed_files,
+        rollback_on_failure=a.rollback_on_failure,
     ).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "
         f"tokens={state.usage.total_tokens} "
         f"retries={state.usage.retries} cost_usd={state.estimated_cost_usd:.6f} "
         f"failure={state.failure_kind or 'none'} "
+        f"rollback={state.evaluation.rollback_performed} "
+        f"rollback_error={state.evaluation.rollback_error or 'none'} "
         f"baseline={getattr(state.evaluation.baseline, 'success', None)} "
         f"final={getattr(state.evaluation.final, 'success', None)} "
         f"result={state.repo}/.repofix/result.json"

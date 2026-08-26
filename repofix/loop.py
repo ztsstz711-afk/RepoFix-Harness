@@ -9,6 +9,7 @@ from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
 from .tools import ToolRuntime
+from .workspace import WorkspaceJournal
 
 class AgentLoop:
     def __init__(
@@ -22,12 +23,21 @@ class AgentLoop:
         max_tokens: int | None = None,
         pricing: ModelPricing | None = None,
         max_identical_actions: int | None = None,
+        max_changed_files: int | None = None,
+        rollback_on_failure: bool | None = None,
     ):
         settings = Settings.from_env()
-        self.provider, self.runtime, self.max_steps = provider, ToolRuntime(repo), max_steps
-        self.evaluator = RepairEvaluator(self.runtime)
-        self.state = RunState("", str(Path(repo).resolve()))
+        self.provider, self.max_steps = provider, max_steps
+        self.repo = Path(repo).resolve()
+        self.state = RunState("", str(self.repo))
         self.store = RunStore(repo)
+        self.max_changed_files = (
+            settings.max_changed_files if max_changed_files is None else max_changed_files
+        )
+        self.rollback_on_failure = (
+            settings.rollback_on_failure if rollback_on_failure is None else rollback_on_failure
+        )
+        self._configure_runtime()
         self.max_context_chars = max_context_chars or settings.max_context_chars
         self.on_event = on_event
         self.budget = BudgetLimits(
@@ -48,11 +58,16 @@ class AgentLoop:
     def run(self, task: str, resume: bool = False) -> RunState:
         if resume:
             self.state = self._load_checkpoint(task)
+            self._configure_runtime()
             if self.state.status == "success":
                 return self.state
             self.state.status = "running"
             self.state.error = ""
             self.state.failure_kind = ""
+            self.state.evaluation.rollback_performed = False
+            self.state.evaluation.rollback_files = []
+            self.state.evaluation.post_rollback = None
+            self.state.evaluation.rollback_error = ""
         else:
             self.state.task = task
             self.state.evaluation.baseline = self.evaluator.run_tests()
@@ -106,7 +121,36 @@ class AgentLoop:
             self.state.evaluation.final = self.evaluator.run_tests()
             self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
             self._save_checkpoint()
+        self._maybe_rollback()
         return self.state
+
+    def _configure_runtime(self) -> None:
+        artifact_dir = self.store.root / "runs" / self.state.run_id / "workspace"
+        self.journal = WorkspaceJournal(
+            str(self.repo), artifact_dir, self.max_changed_files
+        )
+        self.runtime = ToolRuntime(str(self.repo), journal=self.journal)
+        self.evaluator = RepairEvaluator(self.runtime)
+
+    def _maybe_rollback(self) -> None:
+        if self.state.status == "success" or not self.rollback_on_failure:
+            return
+        tracked = self.journal.tracked_files()
+        if not tracked:
+            return
+        try:
+            restored = self.journal.rollback()
+        except Exception as exc:
+            self.state.evaluation.rollback_error = f"{type(exc).__name__}: {exc}"[:2000]
+            self._save_checkpoint()
+            self._notify({"type": "rollback_error", "error": self.state.evaluation.rollback_error})
+            return
+        self.state.evaluation.rollback_performed = True
+        self.state.evaluation.rollback_files = restored
+        self.state.evaluation.post_rollback = self.evaluator.run_tests()
+        self.state.evaluation.rollback_error = ""
+        self._save_checkpoint()
+        self._notify({"type": "rollback", "files": restored})
 
     def _finish_budget(self, failure_kind: str, message: str) -> None:
         self.state.status = "budget_exhausted"
@@ -140,7 +184,7 @@ class AgentLoop:
 
     def _load_checkpoint(self, task: str) -> RunState:
         state = self.store.load_latest()
-        if Path(state.repo).resolve() != self.runtime.repo:
+        if Path(state.repo).resolve() != self.repo:
             raise ValueError("checkpoint repository does not match the requested repository")
         if state.task != task:
             raise ValueError("checkpoint task does not match --task")

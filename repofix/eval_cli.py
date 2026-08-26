@@ -21,6 +21,10 @@ def print_suite_progress(event: dict) -> None:
             print(f"task={event['task_id']} stopped by {inner['failure_kind']}: {inner['error']}")
         elif inner["type"] == "stalled":
             print(f"task={event['task_id']} stalled by {inner['failure_kind']}: {inner['error']}")
+        elif inner["type"] == "rollback":
+            print(f"task={event['task_id']} rolled back files={','.join(inner['files'])}")
+        elif inner["type"] == "rollback_error":
+            print(f"task={event['task_id']} rollback failed: {inner['error']}")
         elif inner["type"] == "step":
             action = inner.get("action", {}).get("name")
             observation = inner.get("observation")

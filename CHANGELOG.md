@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0
+
+- Snapshot original file bytes before the first real Agent write in each run.
+- Restore existing files atomically and remove Agent-created files on optional failure rollback.
+- Limit the number of distinct changed files without counting no-op writes.
+- Persist rollback files, rollback errors, and post-rollback pytest results.
+- Reuse the same workspace journal when a checkpoint is resumed.
+
 ## 0.6.0
 
 - Stop repeated identical actions before they create an unbounded agent loop.

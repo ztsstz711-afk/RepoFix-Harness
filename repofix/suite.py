@@ -20,6 +20,8 @@ class SuiteTask:
     max_requests: int | None = None
     max_tokens: int | None = None
     max_identical_actions: int | None = None
+    max_changed_files: int | None = None
+    rollback_on_failure: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -44,6 +46,9 @@ def load_suite(path: str) -> EvaluationSuite:
         repo = (manifest.parent / item["repo"]).resolve()
         if not repo.is_dir():
             raise FileNotFoundError(f"task repository not found: {repo}")
+        rollback_on_failure = item.get("rollback_on_failure")
+        if rollback_on_failure is not None and not isinstance(rollback_on_failure, bool):
+            raise ValueError("rollback_on_failure must be a JSON boolean")
         tasks.append(SuiteTask(
             task_id,
             str(repo),
@@ -52,6 +57,8 @@ def load_suite(path: str) -> EvaluationSuite:
             int(item["max_requests"]) if "max_requests" in item else None,
             int(item["max_tokens"]) if "max_tokens" in item else None,
             int(item["max_identical_actions"]) if "max_identical_actions" in item else None,
+            int(item["max_changed_files"]) if "max_changed_files" in item else None,
+            rollback_on_failure,
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
@@ -120,6 +127,8 @@ class EvaluationRunner:
                 max_requests=task.max_requests,
                 max_tokens=task.max_tokens,
                 max_identical_actions=task.max_identical_actions,
+                max_changed_files=task.max_changed_files,
+                rollback_on_failure=task.rollback_on_failure,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
@@ -142,6 +151,10 @@ class EvaluationRunner:
             "error": state.error,
             "failure_kind": state.failure_kind,
             "estimated_cost_usd": state.estimated_cost_usd,
+            "rollback_performed": state.evaluation.rollback_performed,
+            "rollback_files": state.evaluation.rollback_files,
+            "post_rollback_success": getattr(state.evaluation.post_rollback, "success", None),
+            "rollback_error": state.evaluation.rollback_error,
         }
 
     def _notify(self, event: dict) -> None:

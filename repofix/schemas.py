@@ -63,6 +63,10 @@ class EvaluationState:
     baseline: TestSnapshot | None = None
     final: TestSnapshot | None = None
     changed_files: list[str] = field(default_factory=list)
+    rollback_performed: bool = False
+    rollback_files: list[str] = field(default_factory=list)
+    post_rollback: TestSnapshot | None = None
+    rollback_error: str = ""
 
 @dataclass
 class RunState:
@@ -97,9 +101,14 @@ class RunState:
         if isinstance(evaluation, dict):
             baseline = evaluation.get("baseline")
             final = evaluation.get("final")
+            post_rollback = evaluation.get("post_rollback")
             values["evaluation"] = EvaluationState(
                 baseline=TestSnapshot(**baseline) if baseline else None,
                 final=TestSnapshot(**final) if final else None,
                 changed_files=evaluation.get("changed_files", []),
+                rollback_performed=evaluation.get("rollback_performed", False),
+                rollback_files=evaluation.get("rollback_files", []),
+                post_rollback=TestSnapshot(**post_rollback) if post_rollback else None,
+                rollback_error=evaluation.get("rollback_error", ""),
             )
         return cls(**values)

@@ -147,3 +147,73 @@ def test_loop_stops_third_identical_action(tmp_path):
     assert len(state.history) == 3
     assert state.history[-1]["guard"] == "repeated_action"
     assert events[-1]["type"] == "stalled"
+
+
+class BadPatchProvider:
+    def __init__(self):
+        self.actions = iter(
+            [
+                Action("apply_patch", {"path": "calculator.py", "content": "def add(a, b):\n    return 0\n"}),
+                Action("finish", {"summary": "incorrect fix"}),
+            ]
+        )
+
+    def next_action(self, context):
+        return ModelDecision(next(self.actions), TokenUsage(requests=1), "mock-model")
+
+
+def test_failed_run_can_restore_workspace_snapshot(tmp_path):
+    original = "def add(a, b):\n    return a - b\n"
+    (tmp_path / "calculator.py").write_text(original, encoding="utf-8")
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    events = []
+    state = AgentLoop(
+        BadPatchProvider(),
+        str(tmp_path),
+        max_steps=3,
+        rollback_on_failure=True,
+        on_event=lambda state, event: events.append(event),
+    ).run("fix add")
+
+    assert state.status == "verification_failed"
+    assert state.evaluation.final.success is False
+    assert state.evaluation.rollback_performed is True
+    assert state.evaluation.rollback_files == ["calculator.py"]
+    assert state.evaluation.post_rollback.success is False
+    assert (tmp_path / "calculator.py").read_text(encoding="utf-8") == original
+    assert events[-1]["type"] == "rollback"
+    manifest = tmp_path / ".repofix" / "runs" / state.run_id / "workspace" / "manifest.json"
+    assert manifest.exists()
+
+
+def test_successful_run_is_not_rolled_back(tmp_path):
+    (tmp_path / "calculator.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    state = AgentLoop(
+        MockProvider(), str(tmp_path), max_steps=8, rollback_on_failure=True
+    ).run("fix add")
+    assert state.status == "success"
+    assert state.evaluation.rollback_performed is False
+    assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")
+
+
+def test_rollback_failure_is_recorded_without_crashing(tmp_path):
+    path = tmp_path / "a.py"
+    path.write_bytes(b"original\n")
+    loop = AgentLoop(FinishProvider(), str(tmp_path), rollback_on_failure=True)
+    loop.runtime.execute("apply_patch", {"path": "a.py", "content": "changed\n"})
+    for backup in loop.journal.backup_dir.iterdir():
+        backup.unlink()
+    loop.state.status = "error"
+
+    loop._maybe_rollback()
+
+    assert loop.state.evaluation.rollback_performed is False
+    assert "FileNotFoundError" in loop.state.evaluation.rollback_error
+    assert (tmp_path / ".repofix" / "result.json").exists()

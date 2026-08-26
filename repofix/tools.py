@@ -8,12 +8,19 @@ from .permissions import PermissionPolicy
 from .registry import validate_action
 from .schemas import Observation
 from .text import compact_text
+from .workspace import WorkspaceJournal
 
 class ToolRuntime:
-    def __init__(self, repo: str, max_output_chars: int = 12_000):
+    def __init__(
+        self,
+        repo: str,
+        max_output_chars: int = 12_000,
+        journal: WorkspaceJournal | None = None,
+    ):
         self.repo = Path(repo).resolve()
         self.permissions = PermissionPolicy(self.repo)
         self.max_output_chars = max_output_chars
+        self.journal = journal
 
     def execute(self, name: str, args: dict) -> Observation:
         try:
@@ -57,9 +64,11 @@ class ToolRuntime:
             before_hash = sha256(path.read_bytes()).hexdigest() if path.exists() else None
             encoded = args["content"].encode("utf-8")
             after_hash = sha256(encoded).hexdigest()
+            changed = before_hash != after_hash
+            if self.journal and changed:
+                self.journal.capture(path)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(encoded)
-            changed = before_hash != after_hash
             return Observation(
                 name,
                 f"{'updated' if changed else 'unchanged'} {args['path']}",

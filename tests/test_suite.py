@@ -50,6 +50,7 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["failure_counts"] == {}
     assert report["estimated_cost_usd"] == 0
     assert report["tasks"][0]["changed_files"] == ["calculator.py"]
+    assert report["tasks"][0]["rollback_performed"] is False
     assert (output / "report.json").exists()
     assert (output / "runs" / "addition" / "result.json").exists()
     assert "a - b" in (repo / "calculator.py").read_text(encoding="utf-8")
@@ -67,3 +68,26 @@ def test_suite_rejects_nonempty_output_directory(tmp_path):
     (output / "existing.txt").write_text("keep", encoding="utf-8")
     with pytest.raises(FileExistsError, match="not empty"):
         EvaluationRunner(SuiteMockProvider).run(load_suite(str(manifest)), str(output))
+
+
+def test_suite_requires_boolean_rollback_setting(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [
+                    {
+                        "id": "task",
+                        "repo": "repo",
+                        "task": "test",
+                        "rollback_on_failure": "false",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="JSON boolean"):
+        load_suite(str(manifest))
