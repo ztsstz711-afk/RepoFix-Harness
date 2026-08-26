@@ -92,7 +92,12 @@ class EvaluationRunner:
                 workspace,
                 ignore=shutil.ignore_patterns(".git", ".repofix", ".venv", "__pycache__", ".pytest_cache"),
             )
-            state = AgentLoop(self.provider_factory(), str(workspace), task.max_steps).run(task.task)
+            def forward_agent_event(state, event):
+                self._notify({"type": "agent_event", "task_id": task.id, "event": event})
+
+            state = AgentLoop(
+                self.provider_factory(), str(workspace), task.max_steps, on_event=forward_agent_event
+            ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
             if source_artifacts.exists():

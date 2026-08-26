@@ -11,6 +11,20 @@ def print_suite_progress(event: dict) -> None:
         print(f"[{event['index']}/{event['total']}] task={event['task_id']} starting")
     elif event["type"] == "task_end":
         print(f"task={event['task_id']} status={event['status']}")
+    elif event["type"] == "agent_event":
+        inner = event["event"]
+        if inner["type"] == "baseline":
+            print(f"task={event['task_id']} baseline={inner['success']}")
+        elif inner["type"] == "model_request":
+            print(f"task={event['task_id']} step={inner['step']} requesting model...")
+        elif inner["type"] == "step":
+            action = inner.get("action", {}).get("name")
+            observation = inner.get("observation")
+            if action:
+                suffix = f" success={observation['success']}" if observation else ""
+                print(f"task={event['task_id']} step={inner['step']} action={action}{suffix}")
+            elif inner.get("error"):
+                print(f"task={event['task_id']} step={inner['step']} error={inner['error']}")
 
 
 def main() -> int:
