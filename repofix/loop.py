@@ -25,11 +25,13 @@ class AgentLoop:
         max_identical_actions: int | None = None,
         max_changed_files: int | None = None,
         rollback_on_failure: bool | None = None,
+        test_command: str | None = None,
     ):
         settings = Settings.from_env()
         self.provider, self.max_steps = provider, max_steps
         self.repo = Path(repo).resolve()
-        self.state = RunState("", str(self.repo))
+        self.test_command = test_command or settings.test_command
+        self.state = RunState("", str(self.repo), test_command=self.test_command)
         self.store = RunStore(repo)
         self.max_changed_files = (
             settings.max_changed_files if max_changed_files is None else max_changed_files
@@ -38,6 +40,7 @@ class AgentLoop:
             settings.rollback_on_failure if rollback_on_failure is None else rollback_on_failure
         )
         self._configure_runtime()
+        self.runtime.pytest_command(self.test_command)
         self.max_context_chars = max_context_chars or settings.max_context_chars
         self.on_event = on_event
         self.budget = BudgetLimits(
@@ -130,7 +133,7 @@ class AgentLoop:
             str(self.repo), artifact_dir, self.max_changed_files
         )
         self.runtime = ToolRuntime(str(self.repo), journal=self.journal)
-        self.evaluator = RepairEvaluator(self.runtime)
+        self.evaluator = RepairEvaluator(self.runtime, self.test_command)
 
     def _maybe_rollback(self) -> None:
         if self.state.status == "success" or not self.rollback_on_failure:
@@ -187,4 +190,6 @@ class AgentLoop:
             raise ValueError("checkpoint repository does not match the requested repository")
         if state.task != task:
             raise ValueError("checkpoint task does not match --task")
+        if state.test_command != self.test_command:
+            raise ValueError("checkpoint test command does not match --test-command")
         return state

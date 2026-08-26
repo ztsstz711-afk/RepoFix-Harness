@@ -66,6 +66,14 @@ pip install -e ".[dev]"
 repofix --repo <python-repo> --task "Fix the failing tests" --max-requests 8 --max-tokens 20000
 ```
 
+为采用特定测试入口的仓库指定 Harness 独立验证命令：
+
+```powershell
+repofix --repo <python-repo> --task "Fix the parser bug" --test-command "pytest -q tests/parser"
+```
+
+`--test-command` 只接受 pytest 调用，且同一命令会用于 baseline、最终验证和回滚后验证。它也可以通过 `REPOFIX_TEST_COMMAND` 或 evaluation task 的 `test_command` 配置。
+
 启用失败自动回滚：
 
 ```powershell

@@ -34,7 +34,7 @@ flowchart LR
 | `tools.py` | 文件、搜索、局部/整文件 patch、pytest 和 Git 工具执行 |
 | `workspace.py` | 写前快照、结束哈希、冲突检测和恢复 |
 | `budget.py` | request/token 预算、价格估算和 provider 错误分类 |
-| `evaluation.py` | Harness 独立运行 baseline/final pytest |
+| `evaluation.py` | 使用持久化验证命令独立运行 baseline/final/post-rollback pytest |
 | `storage.py` | 原子保存 latest 与 per-run trace/result |
 | `suite.py` | 隔离复制、顺序评测和聚合报告 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
@@ -60,6 +60,8 @@ running
 4. `finish` 不能决定成功，最终状态由独立 pytest 决定。
 5. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
 6. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
+
+验证命令属于 Harness 状态而不是模型状态。CLI 或 suite 可以选择仓库所需的 pytest 目标；命令会写入 checkpoint，resume 时必须保持一致，并在 baseline、final 和 post-rollback 三个阶段复用。命令解析后以参数数组执行，不经过 shell，且非 pytest 入口会在调用模型前被拒绝。
 
 局部 patch 使用精确 `old_text`/`new_text` 协议。只有旧文本在目标文件中唯一出现时才写入；零匹配或多匹配都会作为 observation 返回给模型继续修正。这样不依赖 Git 仓库，也不会让模糊替换静默改错位置。
 

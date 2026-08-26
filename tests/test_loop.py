@@ -82,6 +82,20 @@ def test_resume_rejects_different_task(tmp_path):
         AgentLoop(FinishProvider(), str(tmp_path), 3).run("different task", resume=True)
 
 
+def test_resume_rejects_different_test_command(tmp_path):
+    (tmp_path / "test_ok.py").write_text("def test_ok(): assert True\n", encoding="utf-8")
+    AgentLoop(FailingProvider(), str(tmp_path), 3, test_command="pytest -q").run("fix tests")
+    with pytest.raises(ValueError, match="test command"):
+        AgentLoop(
+            FinishProvider(), str(tmp_path), 3, test_command="pytest -q test_ok.py"
+        ).run("fix tests", resume=True)
+
+
+def test_loop_rejects_unsafe_harness_test_command_before_running(tmp_path):
+    with pytest.raises(PermissionError, match="only pytest"):
+        AgentLoop(FinishProvider(), str(tmp_path), test_command="python dangerous.py")
+
+
 def test_finish_does_not_override_failed_verification(tmp_path):
     (tmp_path / "test_bad.py").write_text("def test_bad(): assert False\n", encoding="utf-8")
     state = AgentLoop(FinishProvider(), str(tmp_path), 2).run("fix tests")

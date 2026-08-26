@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import shlex
 import time
 from hashlib import sha256
 from pathlib import Path
@@ -9,6 +10,17 @@ from .registry import validate_action
 from .schemas import Observation
 from .text import compact_text
 from .workspace import WorkspaceJournal
+
+
+def parse_pytest_invocation(command: str) -> list[str]:
+    if not isinstance(command, str) or not command.strip():
+        raise ValueError("pytest command must be a non-empty string")
+    parts = shlex.split(command)
+    if parts[:1] == ["pytest"]:
+        return parts[1:]
+    if parts[:3] == ["python", "-m", "pytest"]:
+        return parts[3:]
+    raise PermissionError("command denied; only pytest is permitted")
 
 class ToolRuntime:
     def __init__(
@@ -103,16 +115,13 @@ class ToolRuntime:
         if name in {"git_diff", "git_status"}:
             return self._command(name, ["git", "diff"] if name == "git_diff" else ["git", "status", "--short"])
         if name == "run_command":
-            command = args["command"]
-            parts = command.split()
-            if parts[:1] == ["pytest"]:
-                self.permissions.ensure_pytest_arguments(parts[1:])
-                return self._command(name, [sys.executable, "-m", "pytest", *parts[1:]])
-            if parts[:3] == ["python", "-m", "pytest"]:
-                self.permissions.ensure_pytest_arguments(parts[3:])
-                return self._command(name, [sys.executable, "-m", "pytest", *parts[3:]])
-            raise PermissionError("command denied; only pytest is permitted")
+            return self._command(name, self.pytest_command(args["command"]))
         return Observation(name, f"unknown tool: {name}", False)
+
+    def pytest_command(self, command: str) -> list[str]:
+        arguments = parse_pytest_invocation(command)
+        self.permissions.ensure_pytest_arguments(arguments)
+        return [sys.executable, "-m", "pytest", *arguments]
 
     def _command(self, tool_name: str, command: list[str]) -> Observation:
         env = os.environ.copy()

@@ -6,6 +6,8 @@
 - Reject missing and ambiguous localized matches before writing, so the model must provide enough surrounding context.
 - Keep workspace journaling, hashes, file-count limits, and rollback behavior identical across both edit modes.
 - Validate the localized path with a real DeepSeek repair: 1/1 success, 6 requests, 6,450 tokens, and no full-file content sent.
+- Add a configurable Harness-owned pytest command across CLI, checkpoints, evaluation suites, and post-rollback verification.
+- Reject non-pytest verification commands before the first model request, and reject resume when the verification contract changed.
 
 ## 1.0.0
 

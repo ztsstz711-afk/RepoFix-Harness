@@ -3,15 +3,17 @@ from .tools import ToolRuntime
 
 
 class RepairEvaluator:
-    def __init__(self, runtime: ToolRuntime):
+    def __init__(self, runtime: ToolRuntime, test_command: str = "pytest -q"):
         self.runtime = runtime
+        self.test_command = test_command
 
     def run_tests(self) -> TestSnapshot:
-        observation = self.runtime.execute("run_command", {"command": "pytest -q"})
+        observation = self.runtime.execute("run_command", {"command": self.test_command})
         return TestSnapshot(
             success=observation.success,
             output=observation.output,
             duration_ms=observation.duration_ms,
+            command=self.test_command,
         )
 
     @staticmethod

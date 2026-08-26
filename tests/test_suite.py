@@ -116,6 +116,32 @@ def test_suite_requires_boolean_rollback_setting(tmp_path):
         load_suite(str(manifest))
 
 
+def test_suite_loads_safe_test_command_and_rejects_shell_commands(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [{
+                    "id": "task",
+                    "repo": "repo",
+                    "task": "test",
+                    "test_command": "pytest -q tests/unit",
+                }]
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert load_suite(str(manifest)).tasks[0].test_command == "pytest -q tests/unit"
+
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["tasks"][0]["test_command"] = "python setup.py clean"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(PermissionError, match="only pytest"):
+        load_suite(str(manifest))
+
+
 def test_suite_rejects_unsafe_expected_changed_file(tmp_path):
     repo = tmp_path / "repo"
     repo.mkdir()

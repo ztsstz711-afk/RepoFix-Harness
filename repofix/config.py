@@ -18,6 +18,7 @@ class Settings:
     max_identical_actions: int
     max_changed_files: int
     rollback_on_failure: bool
+    test_command: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -37,4 +38,5 @@ class Settings:
             max_changed_files=int(os.getenv("REPOFIX_MAX_CHANGED_FILES", "5")),
             rollback_on_failure=os.getenv("REPOFIX_ROLLBACK_ON_FAILURE", "0").lower()
             in {"1", "true", "yes"},
+            test_command=os.getenv("REPOFIX_TEST_COMMAND", "pytest -q"),
         )

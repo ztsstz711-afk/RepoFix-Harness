@@ -9,6 +9,7 @@ from typing import Callable
 
 from .loop import AgentLoop
 from .schemas import TokenUsage, utc_now
+from .tools import parse_pytest_invocation
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class SuiteTask:
     max_identical_actions: int | None = None
     max_changed_files: int | None = None
     rollback_on_failure: bool | None = None
+    test_command: str = "pytest -q"
     tags: tuple[str, ...] = ()
     expected_changed_files: tuple[str, ...] = ()
 
@@ -53,22 +55,29 @@ def load_suite(path: str) -> EvaluationSuite:
             raise ValueError("rollback_on_failure must be a JSON boolean")
         tags = _string_list(item, "tags")
         expected_changed_files = _string_list(item, "expected_changed_files")
+        test_command = item.get("test_command", "pytest -q")
+        parse_pytest_invocation(test_command)
         for expected_path in expected_changed_files:
             path = Path(expected_path)
             if path.is_absolute() or ".." in path.parts:
                 raise ValueError(f"unsafe expected changed file: {expected_path}")
         tasks.append(SuiteTask(
-            task_id,
-            str(repo),
-            item["task"],
-            int(item.get("max_steps", 12)),
-            int(item["max_requests"]) if "max_requests" in item else None,
-            int(item["max_tokens"]) if "max_tokens" in item else None,
-            int(item["max_identical_actions"]) if "max_identical_actions" in item else None,
-            int(item["max_changed_files"]) if "max_changed_files" in item else None,
-            rollback_on_failure,
-            tags,
-            tuple(sorted(expected_changed_files)),
+            id=task_id,
+            repo=str(repo),
+            task=item["task"],
+            max_steps=int(item.get("max_steps", 12)),
+            max_requests=int(item["max_requests"]) if "max_requests" in item else None,
+            max_tokens=int(item["max_tokens"]) if "max_tokens" in item else None,
+            max_identical_actions=(
+                int(item["max_identical_actions"]) if "max_identical_actions" in item else None
+            ),
+            max_changed_files=(
+                int(item["max_changed_files"]) if "max_changed_files" in item else None
+            ),
+            rollback_on_failure=rollback_on_failure,
+            test_command=test_command,
+            tags=tags,
+            expected_changed_files=tuple(sorted(expected_changed_files)),
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
@@ -153,6 +162,7 @@ class EvaluationRunner:
                 max_identical_actions=task.max_identical_actions,
                 max_changed_files=task.max_changed_files,
                 rollback_on_failure=task.rollback_on_failure,
+                test_command=task.test_command,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / task.id
@@ -175,6 +185,7 @@ class EvaluationRunner:
             "usage": asdict(state.usage),
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
+            "test_command": state.test_command,
             "changed_files": state.evaluation.changed_files,
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),

@@ -32,6 +32,11 @@ def main():
     p = argparse.ArgumentParser(description="Repair a Python repository with an LLM agent")
     p.add_argument("--repo", required=True)
     p.add_argument("--task", required=True)
+    p.add_argument(
+        "--test-command",
+        default=settings.test_command,
+        help='Harness-owned verification command; pytest only (default: "pytest -q")',
+    )
     p.add_argument("--max-steps", type=int, default=settings.max_steps)
     p.add_argument("--max-requests", type=int, default=settings.max_requests, help="0 means unlimited")
     p.add_argument("--max-tokens", type=int, default=settings.max_tokens, help="0 means unlimited")
@@ -62,6 +67,7 @@ def main():
         max_identical_actions=a.max_identical_actions,
         max_changed_files=a.max_changed_files,
         rollback_on_failure=a.rollback_on_failure,
+        test_command=a.test_command,
     ).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "
@@ -72,6 +78,7 @@ def main():
         f"rollback_error={state.evaluation.rollback_error or 'none'} "
         f"baseline={getattr(state.evaluation.baseline, 'success', None)} "
         f"final={getattr(state.evaluation.final, 'success', None)} "
+        f"test_command={state.test_command!r} "
         f"result={state.repo}/.repofix/result.json"
     )
     return 0 if state.status == "success" else 1

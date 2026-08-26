@@ -56,6 +56,7 @@ class TestSnapshot:
     success: bool
     output: str
     duration_ms: int = 0
+    command: str = "pytest -q"
 
 
 @dataclass
@@ -72,6 +73,7 @@ class EvaluationState:
 class RunState:
     task: str
     repo: str
+    test_command: str = "pytest -q"
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     model: str = ""
     step: int = 0
