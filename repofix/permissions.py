@@ -27,8 +27,20 @@ class PermissionPolicy:
         return path
 
     def is_visible(self, path: Path) -> bool:
-        relative = path.resolve().relative_to(self.repo)
+        try:
+            relative = path.resolve().relative_to(self.repo)
+        except ValueError:
+            return False
         return not any(part in CONTROL_DIRECTORIES for part in relative.parts)
+
+    def ensure_pytest_arguments(self, arguments: list[str]) -> None:
+        denied_options = {"-p", "--rootdir", "--confcutdir"}
+        for argument in arguments:
+            value = argument.split("=", 1)[-1]
+            if argument.split("=", 1)[0] in denied_options:
+                raise PermissionError(f"pytest option denied: {argument}")
+            if ".." in Path(value).parts or Path(value).is_absolute():
+                raise PermissionError("pytest path must stay inside the repository")
 
     def _deny_control_path(self, path: Path) -> None:
         relative = path.relative_to(self.repo)

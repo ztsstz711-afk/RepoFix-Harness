@@ -42,3 +42,11 @@ def test_non_pytest_command_is_denied(tmp_path):
     )
     assert not result.success
     assert "only pytest" in result.output
+
+
+def test_pytest_cannot_target_parent_directory(tmp_path):
+    result = ToolRuntime(str(tmp_path)).execute(
+        "run_command", {"command": "pytest ../other_repo"}
+    )
+    assert not result.success
+    assert "inside the repository" in result.output

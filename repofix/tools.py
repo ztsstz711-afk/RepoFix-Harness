@@ -48,8 +48,10 @@ class ToolRuntime:
                 command = args["command"]
                 parts = command.split()
                 if parts[:1] == ["pytest"]:
+                    self.permissions.ensure_pytest_arguments(parts[1:])
                     return self._command(name, [sys.executable, "-m", "pytest", *parts[1:]])
                 if parts[:3] == ["python", "-m", "pytest"]:
+                    self.permissions.ensure_pytest_arguments(parts[3:])
                     return self._command(name, [sys.executable, "-m", "pytest", *parts[3:]])
                 raise PermissionError("command denied; only pytest is permitted")
             return Observation(name, f"unknown tool: {name}", False)

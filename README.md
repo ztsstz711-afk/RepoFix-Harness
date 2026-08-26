@@ -2,12 +2,16 @@
 
 面向 Python Repository Bug Repair 的 Coding Agent Harness。输入一个仓库和修复任务，Agent 通过真实 LLM 自主 inspect、运行测试、读取代码、修改代码并验证结果。
 
-## V0.1 范围
+## V0.2 当前能力
 
 - Agent loop：模型选择下一步 action，直到完成或达到步数预算
 - 基础工具：list/search/read/apply_patch/run_command/git diff/status
 - 有界 context、逐步 trace、checkpoint/resume
 - 请求与 token 用量统计、429/5xx/超时重试
+- 单一工具注册表与参数校验
+- 仓库边界、控制目录和 pytest 命令权限
+- Harness 独立执行 baseline/final pytest
+- 生成 `.repofix/trace.json` 与 `.repofix/result.json`
 - OpenAI-compatible provider：环境变量 `REPOFIX_BASE_URL`、`REPOFIX_API_KEY`、`REPOFIX_MODEL`
 - 可运行 toy buggy repo 与 mock provider 单测
 
@@ -42,7 +46,7 @@ python -m repofix.cli --repo examples/toy_repo --task "Fix the failing tests" --
 ```
 
 脚本会隐藏密钥输入，并将 Gemini 的 API Key、兼容接口地址和模型保存到当前 Windows 用户环境变量；密钥不会写入项目文件或 Git。
-V0.1 已使用 `gemini-3.5-flash-lite` 完成真实样例验证，后续可仅通过环境变量切换到 DeepSeek。Gemini 2.5 Flash 系列已经不再向新用户提供生成请求。
+V0.2 已使用 `gemini-3.5-flash-lite` 完成真实样例验证，后续可仅通过环境变量切换到 DeepSeek。Gemini 2.5 Flash 系列已经不再向新用户提供生成请求。
 
 ## 目录
 
