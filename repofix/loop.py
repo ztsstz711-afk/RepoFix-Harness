@@ -7,7 +7,7 @@ from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
 from .preflight import RepositoryPreflight
-from .provider import ModelRequestLimitReached
+from .provider import InvalidModelActionError, ModelRequestLimitReached
 from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
@@ -166,6 +166,18 @@ class AgentLoop:
                     f"({self.state.usage.requests}/{self.budget.max_requests})",
                 )
                 break
+            except InvalidModelActionError as exc:
+                self.state.usage.add(exc.usage)
+                self.state.estimated_cost_usd = self.pricing.estimate_usd(self.state.usage)
+                self.state.error = f"{type(exc).__name__}: {exc}"[:2000]
+                self.state.failure_kind = "invalid_model_output"
+                self._record({
+                    "step": self.state.step,
+                    "error": self.state.error,
+                    "usage": asdict(exc.usage),
+                })
+                self._finish_after_provider_error()
+                break
             except Exception as exc:
                 self.state.status = "error"
                 self.state.error = f"{type(exc).__name__}: {exc}"[:2000]
@@ -237,6 +249,29 @@ class AgentLoop:
         self.state.evaluation.rollback_error = ""
         self._save_checkpoint()
         self._notify({"type": "rollback", "files": restored})
+
+    def _finish_after_provider_error(self) -> None:
+        changed_files = self.evaluator.changed_files(self.state.history)
+        self.state.evaluation.changed_files = changed_files
+        if changed_files:
+            self.state.evaluation.final = self.evaluator.run_tests()
+        repair_verified = (
+            self.state.evaluation.final is not None
+            and self.state.evaluation.final.success
+            and bool(changed_files)
+            and self.state.evaluation.baseline is not None
+            and not self.state.evaluation.baseline.success
+        )
+        if repair_verified:
+            self.state.status = "success"
+            self.state.failure_kind = ""
+            self.state.error = ""
+            self.state.summary = (
+                "Repair independently verified after malformed provider output."
+            )
+        else:
+            self.state.status = "error"
+        self._save_checkpoint()
 
     def _finish_budget(self, failure_kind: str, message: str) -> None:
         self.state.evaluation.final = self.evaluator.run_tests()

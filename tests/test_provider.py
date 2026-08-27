@@ -3,6 +3,7 @@ import pytest
 from types import SimpleNamespace
 
 from repofix.provider import (
+    InvalidModelActionError,
     ModelRequestLimitReached,
     OpenAICompatibleProvider,
     extract_usage,
@@ -74,6 +75,26 @@ def test_provider_retries_malformed_action_and_accumulates_usage():
     assert decision.usage.total_tokens == 35
     assert decision.usage.retries == 1
     assert decision.usage.format_retries == 1
+
+
+def test_provider_exposes_usage_when_all_format_attempts_fail():
+    response = SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=""))],
+        usage=SimpleNamespace(prompt_tokens=10, completion_tokens=1, total_tokens=11),
+    )
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_format_retries = 2
+    provider.max_output_tokens = 2048
+    provider._create_completion = lambda system_prompt, user_prompt: response
+
+    with pytest.raises(InvalidModelActionError) as raised:
+        provider.next_action("context")
+
+    assert raised.value.usage.requests == 3
+    assert raised.value.usage.total_tokens == 33
+    assert raised.value.usage.retries == 2
+    assert raised.value.usage.format_retries == 2
 
 
 def test_provider_separates_control_rules_from_repository_context():

@@ -112,6 +112,8 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 `list` 会先按目录深度再按路径排序，并把单次输出限制在 4,000 字符。这样 `src/`、顶层测试和项目元数据会出现在大型 fixture/data 子树之前；被省略的深层文件数量写入 observation，模型仍可通过 `search` 或已知路径 `read` 精确访问。该策略只减少导航噪声，不隐藏普通仓库文件的后续读取能力。
 
+Provider 对无效 action JSON 最多执行四次格式纠错重试，每一次都占用同一个 run 的 request/token 预算。若全部失败，异常会携带累计 usage 回到 Agent Loop 并写入 trace/report，避免失败请求被漏计；如果失败前已经产生文件修改，Harness 会执行一次独立 final pytest，只有真实通过才将任务恢复为成功。
+
 ## Why a custom loop
 
 V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

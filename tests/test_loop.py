@@ -2,7 +2,7 @@ import pytest
 
 from repofix.budget import ModelPricing
 from repofix.loop import AgentLoop
-from repofix.provider import ModelRequestLimitReached
+from repofix.provider import InvalidModelActionError, ModelRequestLimitReached
 from repofix.schemas import Action, ModelDecision, TokenUsage
 
 class MockProvider:
@@ -84,6 +84,73 @@ def test_loop_checkpoints_provider_errors(tmp_path):
     assert "provider unavailable" in state.error
     assert state.failure_kind == "provider_error"
     assert (tmp_path / ".repofix" / "trace.json").exists()
+
+
+class InvalidActionProvider:
+    def next_action(self, context):
+        raise InvalidModelActionError(
+            "invalid model action after retries",
+            TokenUsage(300, 30, 330, requests=3, retries=2, format_retries=2),
+        )
+
+
+def test_loop_accounts_for_exhausted_format_retries(tmp_path):
+    state = AgentLoop(InvalidActionProvider(), str(tmp_path), max_requests=8).run(
+        "fix tests"
+    )
+
+    assert state.status == "error"
+    assert state.failure_kind == "invalid_model_output"
+    assert state.usage.requests == 3
+    assert state.usage.total_tokens == 330
+    assert state.usage.format_retries == 2
+    assert state.estimated_cost_usd == 0
+
+
+class PatchThenInvalidProvider:
+    def __init__(self):
+        self.calls = 0
+
+    def next_action(self, context):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelDecision(
+                Action(
+                    "apply_patch",
+                    {
+                        "path": "calculator.py",
+                        "old_text": "return a - b",
+                        "new_text": "return a + b",
+                    },
+                ),
+                TokenUsage(100, 20, 120, requests=1),
+                "mock-model",
+            )
+        raise InvalidModelActionError(
+            "invalid model action after retries",
+            TokenUsage(300, 30, 330, requests=3, retries=2, format_retries=2),
+        )
+
+
+def test_loop_verifies_existing_patch_after_exhausted_format_retries(tmp_path):
+    (tmp_path / "calculator.py").write_text(
+        "def add(a, b):\n    return a - b\n", encoding="utf-8"
+    )
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+
+    state = AgentLoop(PatchThenInvalidProvider(), str(tmp_path), max_requests=8).run(
+        "fix add"
+    )
+
+    assert state.status == "success"
+    assert state.evaluation.final.success is True
+    assert state.evaluation.changed_files == ["calculator.py"]
+    assert state.usage.requests == 4
+    assert state.usage.total_tokens == 450
+    assert state.summary == "Repair independently verified after malformed provider output."
 
 
 class FinishProvider:
