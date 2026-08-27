@@ -33,7 +33,7 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 ### 为什么限制成 pytest，而不是任意 shell？
 
-V1.3 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
+V1.4 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
 
 ### 为什么不用 LangGraph？
 
@@ -53,6 +53,8 @@ V1.3 的目标是可解释的 repair Harness。pytest 已足够形成执行反�
 
 V1.3 的 30 次实验进一步证明 context 机制在这组 fixture 上能降低平均资源消耗，但成功率已经饱和、每格只有三次且只使用一个模型。最诚实的结论是“定位准确时通常缩短 action path，跨文件归因不准时可能增加噪声”，不能表述为普遍提升 22.8%。
 
+V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函数真正调用的一跳本地 helper，三组配对中请求和 tokens 都更少。不过每组仍只有三次，双侧符号检验 p=0.25；它证明机制按设计工作，不构成统计显著或跨项目泛化结论。
+
 ## 常见追问
 
 - **如果模型一直重复 read？** 同一真实写入阶段内第三次完全相同 action 会触发 stalled。
@@ -60,4 +62,4 @@ V1.3 的 30 次实验进一步证明 context 机制在这组 fixture 上能降�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** 在固定版本的真实开源 issue 集上验证泛化，并改进跨文件 context relevance；不是先堆 multi-agent。
+- **下一步是什么？** 在固定版本的真实开源 issue 集上验证调用感知 context 的泛化；不是先堆 multi-agent。

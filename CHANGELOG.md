@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-08-27
+
 - Expand a traceback-selected test's imported facade by one additional local call edge, attaching only repository functions actually called by the selected implementation function.
 - Keep call-aware context extraction AST-only, bounded by the existing file/character limits, and non-recursive.
+- Validate the targeted change over six interleaved DeepSeek Docker trials: both variants repaired 3/3 with exact scope, while call-aware context used 50% fewer requests and 52.8% fewer tokens on average.
 
 ## 1.3.0 - 2026-08-27
 

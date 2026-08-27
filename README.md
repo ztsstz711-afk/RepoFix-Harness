@@ -33,6 +33,8 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 
 V1.3 把单场景验证扩展为五类 Bug、context-on/off 各三次的 30-trial 配对矩阵。两组均完成 15/15 修复与 15/15 范围命中；context-on 平均请求减少 23.81%、平均 tokens 减少 22.80%，但跨文件间接定位也出现 token 增加反例。V1.3 同时加入 trial 失败隔离、断点续跑、逐对统计、suite 请求授权、manifest/source/model/Docker 指纹、聚合完整性校验以及自动 Markdown 报告。V1.4 针对这个反例增加了受限的调用感知扩展：当测试导入的入口函数继续调用本地 helper 时，只补充该函数体内真正调用到的一跳实现，不递归遍历整个依赖图。
 
+V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 修复成功且 3/3 只改预期文件；context-on 三次都在首个 action 直接修改真正的 helper，平均请求从 6 降至 3（-50%），平均 tokens 从 8,360 降至 3,946（-52.8%）。这是针对单一 fixture、每组三次的机制验证，不是普遍性能结论。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
@@ -193,6 +195,14 @@ manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明
 
 最终 V1.3 代码又执行一次六 trial release gate：6/6 修复和范围命中，实际使用 26/36 授权请求、40,977 tokens，聚合完整性校验通过，并生成带模型与 Docker 镜像 SHA-256 的 JSON/Markdown 报告。
 
+运行 V1.4 调用感知 context 的定向 A/B：
+
+```powershell
+.\scripts\run_demo.ps1 -Suite evals\call-context-ab.json
+```
+
+该 manifest 只复测 V1.3 矩阵中的跨文件反例，6/6 修复和范围命中，实际使用 27/48 授权请求、36,918 tokens，保守估算成本 $0.01350462。详见 [V1.4 call-aware context A/B](docs/v1.4-call-context-results.md)。
+
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
@@ -206,7 +216,7 @@ manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明
 
 ## 安全边界与非目标
 
-V1.3 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
+V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
 
 当前不包含 LangGraph、multi-agent、MCP、完整 Docker sandbox、SWE-bench/BugsInPy。选择标准库状态机和小模块，是为了让控制流、安全边界和失败行为可以直接审查与面试讲解。
 
@@ -221,3 +231,4 @@ V1.3 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [Package-style 真实验证](docs/package-scenario-results.md)
 - [外部 h11 v0.16.0 隔离修复](docs/external-h11-results.md)
 - [V1.3 五场景 context 配对实验](docs/v1.3-context-matrix-results.md)
+- [V1.4 调用感知 context 定向 A/B](docs/v1.4-call-context-results.md)
