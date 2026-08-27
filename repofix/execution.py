@@ -100,14 +100,31 @@ class DockerPytestExecutor:
             "no:cacheprovider",
             *arguments,
         ]
-        observation = _run("run_command", command, repo, timeout_seconds, os.environ.copy())
+        observation = _run(
+            "run_command",
+            command,
+            repo,
+            timeout_seconds,
+            sanitized_subprocess_environment(),
+        )
         if observation.metadata.get("timed_out"):
-            subprocess.run(
-                [self.docker, "rm", "--force", container_name],
-                text=True,
-                capture_output=True,
-                timeout=10,
-            )
+            try:
+                cleanup = subprocess.run(
+                    [self.docker, "rm", "--force", container_name],
+                    text=True,
+                    capture_output=True,
+                    timeout=10,
+                    env=sanitized_subprocess_environment(),
+                )
+                cleanup_detail = (cleanup.stderr or cleanup.stdout).strip()
+                observation.metadata["cleanup_success"] = (
+                    cleanup.returncode == 0 or "No such container" in cleanup_detail
+                )
+                if cleanup.returncode != 0:
+                    observation.metadata["cleanup_error"] = cleanup_detail[:500]
+            except (OSError, subprocess.SubprocessError) as exc:
+                observation.metadata["cleanup_success"] = False
+                observation.metadata["cleanup_error"] = f"{type(exc).__name__}: {exc}"[:500]
         observation.metadata.update(
             {
                 "execution_backend": self.name,
@@ -149,7 +166,7 @@ def find_docker_executable() -> str:
 
 def check_docker_ready(image: str, timeout_seconds: int = 15) -> str:
     docker = find_docker_executable()
-    env = os.environ.copy()
+    env = sanitized_subprocess_environment()
     env["PATH"] = str(Path(docker).parent) + os.pathsep + env.get("PATH", "")
     checks = (
         [docker, "version", "--format", "{{.Server.Version}}"],

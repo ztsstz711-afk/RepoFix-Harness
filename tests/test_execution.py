@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -53,13 +54,37 @@ def test_docker_executor_force_removes_a_timed_out_container(monkeypatch, tmp_pa
     )
     monkeypatch.setattr(
         "repofix.execution.subprocess.run",
-        lambda command, **kwargs: cleanup.update(command=command),
+        lambda command, **kwargs: (
+            cleanup.update(command=command)
+            or SimpleNamespace(returncode=0, stdout="container", stderr="")
+        ),
     )
 
     result = DockerPytestExecutor().run(tmp_path, ["-q"], 1)
 
     assert cleanup["command"][:3] == ["docker", "rm", "--force"]
     assert cleanup["command"][-1] == result.metadata["container_name"]
+    assert result.metadata["cleanup_success"] is True
+
+
+def test_docker_executor_preserves_timeout_when_cleanup_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr("repofix.execution.find_docker_executable", lambda: "docker")
+    monkeypatch.setattr(
+        "repofix.execution._run",
+        lambda *args: Observation("run_command", "timeout", False, metadata={"timed_out": True}),
+    )
+
+    def fail_cleanup(*args, **kwargs):
+        raise OSError("cleanup unavailable")
+
+    monkeypatch.setattr("repofix.execution.subprocess.run", fail_cleanup)
+
+    result = DockerPytestExecutor().run(tmp_path, ["-q"], 1)
+
+    assert result.output == "timeout"
+    assert result.metadata["timed_out"] is True
+    assert result.metadata["cleanup_success"] is False
+    assert "cleanup unavailable" in result.metadata["cleanup_error"]
 
 
 def test_subprocess_environment_removes_provider_and_common_secrets(monkeypatch):

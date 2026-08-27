@@ -12,7 +12,10 @@ def print_progress(state, event):
             if check.status == "fail":
                 print(f"preflight failed {check.name}: {check.message}")
     elif event["type"] == "baseline":
-        print(f"baseline pytest success={event['success']}")
+        print(
+            f"baseline pytest success={event['success']} "
+            f"backend={event['execution_backend']}"
+        )
     elif event["type"] == "model_request":
         print(f"step={event['step']} requesting model action...")
     elif event["type"] == "budget":

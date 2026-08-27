@@ -29,6 +29,10 @@
 - Disable repository-configured external diff, text conversion, fsmonitor, global/system Git config, and optional locks for Git inspection tools.
 - Add real Docker probes for network isolation, read-only mounts, secret absence, writable tmpfs, timeout, and forced container cleanup.
 - Bound each compatible-provider completion to 2,048 output tokens by default.
+- Enforce the remaining request allowance inside provider format/transient retries so internal retries cannot overspend the run budget.
+- Preserve Docker execution metadata in baseline/final snapshots and aggregate evaluation reports.
+- Reject explicit empty test commands and non-positive command timeouts instead of silently replacing them with defaults.
+- Preserve timeout observations when forced Docker cleanup fails and record cleanup diagnostics in execution metadata.
 
 ## 1.0.0
 

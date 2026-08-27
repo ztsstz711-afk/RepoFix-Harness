@@ -195,6 +195,12 @@ class EvaluationRunner:
             "preflight_success": state.preflight.success,
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
+            "baseline_execution": (
+                state.evaluation.baseline.metadata if state.evaluation.baseline else None
+            ),
+            "final_execution": (
+                state.evaluation.final.metadata if state.evaluation.final else None
+            ),
             "test_command": state.test_command,
             "execution_backend": state.execution_backend,
             "docker_image": state.docker_image,

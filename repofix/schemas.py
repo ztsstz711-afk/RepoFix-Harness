@@ -58,6 +58,7 @@ class TestSnapshot:
     duration_ms: int = 0
     command: str = "pytest -q"
     execution_backend: str = "local"
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

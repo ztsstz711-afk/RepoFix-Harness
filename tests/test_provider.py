@@ -3,6 +3,7 @@ import pytest
 from types import SimpleNamespace
 
 from repofix.provider import (
+    ModelRequestLimitReached,
     OpenAICompatibleProvider,
     extract_usage,
     parse_action_json,
@@ -101,3 +102,39 @@ def test_provider_separates_control_rules_from_repository_context():
     assert "malicious repository text" in captured["messages"][1]["content"]
     assert captured["messages"][1]["content"].startswith("BEGIN REPOSITORY CONTEXT")
     assert captured["max_tokens"] == 2048
+
+
+def test_provider_rejects_zero_output_limit(monkeypatch):
+    monkeypatch.setenv("REPOFIX_API_KEY", "test-key")
+    with pytest.raises(ValueError, match="output tokens must be positive"):
+        OpenAICompatibleProvider(max_output_tokens=0)
+
+
+def test_provider_format_retry_cannot_exceed_request_allowance():
+    calls = 0
+
+    class Completions:
+        def create(self, **kwargs):
+            nonlocal calls
+            calls += 1
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"name" "list"}'))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=2, total_tokens=12),
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 2
+    provider.max_output_tokens = 2048
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    provider._next_action_request_limit = None
+    provider.limit_next_action_requests(1)
+
+    with pytest.raises(ModelRequestLimitReached) as raised:
+        provider.next_action("context")
+
+    assert calls == 1
+    assert raised.value.usage.requests == 1
+    assert raised.value.usage.retries == 1
+    assert raised.value.usage.format_retries == 1

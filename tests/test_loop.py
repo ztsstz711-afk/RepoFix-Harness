@@ -2,6 +2,7 @@ import pytest
 
 from repofix.budget import ModelPricing
 from repofix.loop import AgentLoop
+from repofix.provider import ModelRequestLimitReached
 from repofix.schemas import Action, ModelDecision, TokenUsage
 
 class MockProvider:
@@ -17,6 +18,17 @@ class MockProvider:
 
     def next_action(self, context):
         return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock-model")
+
+
+class RequestLimitedProvider:
+    def __init__(self):
+        self.limit = None
+
+    def limit_next_action_requests(self, limit):
+        self.limit = limit
+
+    def next_action(self, context):
+        raise ModelRequestLimitReached(TokenUsage(total_tokens=12, requests=1))
 
 
 def test_loop_completes_repair_cycle(tmp_path):
@@ -42,6 +54,18 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert (tmp_path / ".repofix" / "result.json").exists()
     assert (tmp_path / ".repofix" / "runs" / state.run_id / "trace.json").exists()
     assert (tmp_path / ".repofix" / "runs" / state.run_id / "result.json").exists()
+
+
+def test_loop_accounts_for_provider_retry_request_limit(tmp_path):
+    provider = RequestLimitedProvider()
+    state = AgentLoop(provider, str(tmp_path), max_requests=1).run("fix tests")
+
+    assert provider.limit == 1
+    assert state.status == "budget_exhausted"
+    assert state.failure_kind == "request_budget"
+    assert state.usage.requests == 1
+    assert state.usage.total_tokens == 12
+    assert "1/1" in state.error
 
 
 class FailingProvider:
@@ -121,6 +145,18 @@ def test_loop_rejects_unsafe_harness_test_command_before_running(tmp_path):
     assert "only pytest" in state.error
     assert state.usage.requests == 0
     assert (tmp_path / ".repofix" / "result.json").exists()
+
+
+def test_loop_rejects_empty_test_command_as_preflight_result(tmp_path):
+    state = AgentLoop(FinishProvider(), str(tmp_path), test_command="").run("fix tests")
+    assert state.status == "preflight_failed"
+    assert "non-empty string" in state.error
+    assert state.usage.requests == 0
+
+
+def test_loop_rejects_nonpositive_command_timeout(tmp_path):
+    with pytest.raises(ValueError, match="timeout must be positive"):
+        AgentLoop(FinishProvider(), str(tmp_path), command_timeout_seconds=0)
 
 
 def test_loop_rejects_missing_repository_without_creating_it(tmp_path):

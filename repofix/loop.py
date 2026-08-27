@@ -7,6 +7,7 @@ from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
 from .preflight import RepositoryPreflight
+from .provider import ModelRequestLimitReached
 from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
@@ -37,10 +38,16 @@ class AgentLoop:
         self.repo = Path(repo).resolve()
         if not self.repo.is_dir():
             raise FileNotFoundError(f"repository directory not found: {self.repo}")
-        self.test_command = test_command or settings.test_command
-        self.execution_backend = execution_backend or settings.execution_backend
-        self.docker_image = docker_image or settings.docker_image
-        self.command_timeout_seconds = command_timeout_seconds or settings.command_timeout_seconds
+        self.test_command = settings.test_command if test_command is None else test_command
+        self.execution_backend = (
+            settings.execution_backend if execution_backend is None else execution_backend
+        )
+        self.docker_image = settings.docker_image if docker_image is None else docker_image
+        self.command_timeout_seconds = (
+            settings.command_timeout_seconds
+            if command_timeout_seconds is None
+            else command_timeout_seconds
+        )
         if self.command_timeout_seconds <= 0:
             raise ValueError("command timeout must be positive")
         self.state = RunState(
@@ -104,7 +111,11 @@ class AgentLoop:
         if not resume:
             self.state.evaluation.baseline = self.evaluator.run_tests()
             self._save_checkpoint()
-            self._notify({"type": "baseline", "success": self.state.evaluation.baseline.success})
+            self._notify({
+                "type": "baseline",
+                "success": self.state.evaluation.baseline.success,
+                "execution_backend": self.state.evaluation.baseline.execution_backend,
+            })
         context_builder = ContextBuilder(
             self.state.repo,
             task,
@@ -122,7 +133,19 @@ class AgentLoop:
             self.state.step = step + 1
             self._notify({"type": "model_request", "step": self.state.step})
             try:
+                request_limiter = getattr(self.provider, "limit_next_action_requests", None)
+                if request_limiter is not None:
+                    request_limiter(self.budget.remaining_requests(self.state.usage))
                 decision = self.provider.next_action(context)
+            except ModelRequestLimitReached as exc:
+                self.state.usage.add(exc.usage)
+                self.state.estimated_cost_usd = self.pricing.estimate_usd(self.state.usage)
+                self._finish_budget(
+                    "request_budget",
+                    f"model request budget reached during provider retry "
+                    f"({self.state.usage.requests}/{self.budget.max_requests})",
+                )
+                break
             except Exception as exc:
                 self.state.status = "error"
                 self.state.error = f"{type(exc).__name__}: {exc}"[:2000]

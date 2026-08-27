@@ -16,7 +16,10 @@ def print_suite_progress(event: dict) -> None:
         if inner["type"] == "preflight":
             print(f"task={event['task_id']} preflight={inner['success']}")
         elif inner["type"] == "baseline":
-            print(f"task={event['task_id']} baseline={inner['success']}")
+            print(
+                f"task={event['task_id']} baseline={inner['success']} "
+                f"backend={inner['execution_backend']}"
+            )
         elif inner["type"] == "model_request":
             print(f"task={event['task_id']} step={inner['step']} requesting model...")
         elif inner["type"] == "budget":

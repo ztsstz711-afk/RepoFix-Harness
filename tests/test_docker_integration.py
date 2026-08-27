@@ -42,6 +42,7 @@ def test_real_docker_timeout_removes_the_container(tmp_path):
 
     assert result.success is False
     assert result.metadata["timed_out"] is True
+    assert result.metadata["cleanup_success"] is True
     name = result.metadata["container_name"]
     process = subprocess.run(
         [find_docker_executable(), "ps", "--all", "--filter", f"name=^{name}$", "--format", "{{.Names}}"],

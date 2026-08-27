@@ -29,6 +29,13 @@ def test_first_request_is_admitted_without_usage_history():
     ) is None
 
 
+def test_remaining_request_allowance_is_bounded_at_zero():
+    limits = BudgetLimits(max_requests=3)
+    assert limits.remaining_requests(TokenUsage(requests=1)) == 2
+    assert limits.remaining_requests(TokenUsage(requests=5)) == 0
+    assert BudgetLimits().remaining_requests(TokenUsage(requests=5)) is None
+
+
 def test_negative_budget_is_rejected():
     with pytest.raises(ValueError, match="zero or positive"):
         BudgetLimits(max_requests=-1)
