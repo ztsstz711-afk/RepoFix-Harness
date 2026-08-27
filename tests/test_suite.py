@@ -97,7 +97,7 @@ def test_v15_upstream_bug_manifest_is_bounded_and_has_provenance_contract():
     assert [task["max_tokens"] for task in manifest["tasks"]] == [
         32_000,
         40_000,
-        40_000,
+        56_000,
     ]
     assert all("upstream-regression" in task["tags"] for task in manifest["tasks"])
     assert all(task["expected_changed_files"] for task in manifest["tasks"])

@@ -13,6 +13,9 @@ from .text import compact_text
 from .workspace import WorkspaceJournal
 
 
+LIST_OUTPUT_MAX_CHARS = 4_000
+
+
 def parse_pytest_invocation(command: str) -> list[str]:
     if not isinstance(command, str) or not command.strip():
         raise ValueError("pytest command must be a non-empty string")
@@ -56,8 +59,7 @@ class ToolRuntime:
         if error:
             raise ValueError(error)
         if name == "list":
-            files = (p for p in self.repo.rglob("*") if p.is_file() and self.permissions.is_visible(p))
-            return Observation(name, "\n".join(str(p.relative_to(self.repo)) for p in files))
+            return self._list_files()
         if name == "search":
             needle = args["query"]
             hits = []
@@ -124,6 +126,43 @@ class ToolRuntime:
             arguments = self.pytest_arguments(args["command"])
             return self.pytest_executor.run(self.repo, arguments, self.command_timeout_seconds)
         return Observation(name, f"unknown tool: {name}", False)
+
+    def _list_files(self) -> Observation:
+        paths = sorted(
+            (
+                path.relative_to(self.repo)
+                for path in self.repo.rglob("*")
+                if path.is_file() and self.permissions.is_visible(path)
+            ),
+            key=lambda path: (len(path.parts), path.as_posix()),
+        )
+        rendered = [str(path) for path in paths]
+        total_chars = sum(len(line) + 1 for line in rendered)
+        limit = min(self.max_output_chars, LIST_OUTPUT_MAX_CHARS)
+        selected: list[str] = []
+        used = 0
+        reserve = 100
+        for line in rendered:
+            if used + len(line) + 1 + reserve > limit:
+                break
+            selected.append(line)
+            used += len(line) + 1
+        omitted = len(rendered) - len(selected)
+        if omitted:
+            selected.append(
+                f"[{omitted} deeper files omitted; use search or read for a known path]"
+            )
+        return Observation(
+            "list",
+            "\n".join(selected),
+            metadata={
+                "total_files": len(rendered),
+                "shown_files": len(rendered) - omitted,
+                "output_chars": total_chars,
+                "output_truncated": omitted > 0,
+                "ordering": "shallow_paths_first",
+            },
+        )
 
     def pytest_arguments(self, command: str) -> list[str]:
         arguments = parse_pytest_invocation(command)

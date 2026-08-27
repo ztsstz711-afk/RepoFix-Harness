@@ -110,6 +110,8 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 局部 patch 使用精确 `old_text`/`new_text` 协议。只有旧文本在目标文件中唯一出现时才写入；零匹配或多匹配都会作为 observation 返回给模型继续修正。这样不依赖 Git 仓库，也不会让模糊替换静默改错位置。
 
+`list` 会先按目录深度再按路径排序，并把单次输出限制在 4,000 字符。这样 `src/`、顶层测试和项目元数据会出现在大型 fixture/data 子树之前；被省略的深层文件数量写入 observation，模型仍可通过 `search` 或已知路径 `read` 精确访问。该策略只减少导航噪声，不隐藏普通仓库文件的后续读取能力。
+
 ## Why a custom loop
 
 V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

@@ -26,6 +26,26 @@ def test_list_hides_control_directories(tmp_path):
     assert ".repofix" not in output
 
 
+def test_list_prioritizes_shallow_source_paths_and_bounds_large_trees(tmp_path):
+    source = tmp_path / "src" / "package" / "parser.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("def parse(): pass\n", encoding="utf-8")
+    data = tmp_path / "tests" / "data" / "external" / "fixtures"
+    data.mkdir(parents=True)
+    for number in range(300):
+        (data / f"fixture_{number:03}.toml").write_text("value = 1\n", encoding="utf-8")
+
+    result = ToolRuntime(str(tmp_path)).execute("list", {})
+
+    assert len(result.output) <= 4_000
+    assert "src\\package\\parser.py" in result.output or "src/package/parser.py" in result.output
+    assert "files omitted" in result.output
+    assert result.metadata["total_files"] == 301
+    assert result.metadata["shown_files"] < result.metadata["total_files"]
+    assert result.metadata["output_truncated"] is True
+    assert result.metadata["ordering"] == "shallow_paths_first"
+
+
 def test_read_supports_line_ranges(tmp_path):
     (tmp_path / "a.py").write_text("one\ntwo\nthree\n", encoding="utf-8")
     result = ToolRuntime(str(tmp_path)).execute(

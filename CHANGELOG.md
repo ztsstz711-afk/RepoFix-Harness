@@ -5,6 +5,7 @@
 - Add a checksum-pinned preparation workflow for three real upstream bug-fix commits from more-itertools and Tomli.
 - Build each V1.5 buggy workspace from the fix commit's parent implementation plus only the upstream regression test, never the upstream repair patch.
 - Add a Docker-only, 36-request-authorized external evaluation manifest with full upstream test commands and hidden expected file scope.
+- Bound repository listings to 4,000 characters and prioritize shallow source paths before deep fixture trees, preserving omitted-file counts in tool metadata.
 
 ## 1.4.0 - 2026-08-27
 
