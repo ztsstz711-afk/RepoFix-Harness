@@ -95,6 +95,7 @@ def main() -> int:
             "harness_source_sha256": harness_source_sha256(),
             "provider_model": settings.model,
             "max_output_tokens": settings.max_output_tokens,
+            "json_mode": settings.json_mode,
             "input_cost_per_million": settings.input_cost_per_million,
             "cached_input_cost_per_million": settings.cached_input_cost_per_million,
             "output_cost_per_million": settings.output_cost_per_million,

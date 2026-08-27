@@ -115,6 +115,8 @@ Docker backend 默认禁用网络、只读挂载仓库、丢弃 capabilities、�
 
 Local backend 仅用于可信仓库；它会移除 `REPOFIX_*` 以及常见 key/token/password/credential 环境变量，但无法提供文件系统隔离。外部仓库应使用 Docker backend。单次模型响应默认限制为 2,048 output tokens，可通过 `REPOFIX_MAX_OUTPUT_TOKENS` 调整。
 
+Provider 默认请求 OpenAI-compatible JSON mode，减少动作格式错误。若某个旧兼容端点不支持 `response_format: json_object`，可设置 `REPOFIX_JSON_MODE=0` 退回纯 prompt 约束。
+
 启用失败自动回滚：
 
 ```powershell

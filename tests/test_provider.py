@@ -123,6 +123,32 @@ def test_provider_separates_control_rules_from_repository_context():
     assert "malicious repository text" in captured["messages"][1]["content"]
     assert captured["messages"][1]["content"].startswith("BEGIN REPOSITORY CONTEXT")
     assert captured["max_tokens"] == 2048
+    assert captured["response_format"] == {"type": "json_object"}
+    assert "Example JSON action" in captured["messages"][0]["content"]
+
+
+def test_provider_can_disable_json_mode_for_older_compatible_endpoints():
+    captured = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"name":"list","arguments":{}}'))],
+                usage=None,
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 0
+    provider.max_output_tokens = 2048
+    provider.json_mode = False
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+    provider.next_action("context")
+
+    assert "response_format" not in captured
 
 
 def test_provider_rejects_zero_output_limit(monkeypatch):

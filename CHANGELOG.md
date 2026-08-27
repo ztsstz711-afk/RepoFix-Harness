@@ -9,6 +9,7 @@
 - Bound repository listings to 4,000 characters and prioritize shallow source paths before deep fixture trees, preserving omitted-file counts in tool metadata.
 - Account for every malformed-response attempt when provider format retries are exhausted, so request, token, retry, and cost reports cannot silently undercount failed calls.
 - Allow up to four bounded format-correction retries and independently verify an existing patch if the provider's next action remains malformed.
+- Request provider-native JSON output by default, include a valid action example, expose the mode in experiment metadata, and retain an environment-controlled fallback for older compatible endpoints.
 
 ## 1.4.0 - 2026-08-27
 
