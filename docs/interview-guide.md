@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主决定查看文件、搜索代码、运行 pytest 和修改实现；我负责实现模型之外的工程系统，包括有界上下文、工具权限、预算、checkpoint、重复循环检测、写前快照、安全回滚和独立评测。项目在五类自建 Bug 上使用 DeepSeek 完成 5/5 修复和 5/5 改动范围命中，总成本上界约 1.7 美分。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主决定查看文件、搜索代码、运行 pytest 和修改实现；我负责实现模型之外的工程系统，包括有界上下文、工具权限、预算、checkpoint、受限 Docker 测试、写前快照、安全回滚和独立评测。项目在五类自建 Bug 上使用 DeepSeek 完成 5/5 修复和 5/5 改动范围命中，并在真实 h11 源码的注入回归上完成受限容器闭环。
 
 ## 3 分钟版本
 
@@ -12,7 +12,7 @@ RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness
 4. **可信验证**：运行前后 pytest 都由 Harness 独立执行；模型的 `finish` 只是请求结束，不代表成功。
 5. **安全与恢复**：路径和命令有白名单，写入前保存原始字节，回滚前比较结束哈希，避免覆盖用户后续编辑。
 6. **成本与稳定性**：限制 step/request/token，统计缓存和成本，对限流/超时退避重试，并阻止第三次相同动作。
-7. **评测**：五任务在临时副本运行，同时检查 pytest 和隐藏的期望改动文件。真实 DeepSeek 结果是 5/5、33 次请求、41,299 tokens。
+7. **评测**：五任务在临时副本运行，同时检查 pytest 和隐藏的期望改动文件。真实 DeepSeek 结果是 5/5、33 次请求、41,299 tokens；h11 注入回归另以 5 次请求从 2 项失败修复到 78 项全通过。
 
 ## 最值得展开的技术点
 
@@ -30,7 +30,7 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 ### 为什么限制成 pytest，而不是任意 shell？
 
-V1.0 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入和环境破坏风险。完整容器 sandbox 是后续独立问题。
+V1.1 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
 
 ### 为什么不用 LangGraph？
 
@@ -55,4 +55,4 @@ V1.0 的目标是可解释的 repair Harness。pytest 已足够形成执行反�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** Docker/Windows sandbox、真实开源 issue 集和更大规模 benchmark，而不是先做 multi-agent。
+- **下一步是什么？** 基于 traceback 的相关源码上下文、更真实的开源 issue 集和更大规模 benchmark，而不是先做 multi-agent。
