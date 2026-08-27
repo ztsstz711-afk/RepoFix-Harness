@@ -203,6 +203,15 @@ manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明
 
 该 manifest 只复测 V1.3 矩阵中的跨文件反例，6/6 修复和范围命中，实际使用 27/48 授权请求、36,918 tokens，保守估算成本 $0.01350462。详见 [V1.4 call-aware context A/B](docs/v1.4-call-context-results.md)。
 
+V1.5 开始验证真实上游 Bug，而不是继续人工注入错误。准备脚本固定三个上游修复提交，以其父提交作为 buggy implementation，只复制修复提交中的回归测试，并校验下载归档与复制结果：
+
+```powershell
+.\scripts\prepare_upstream_bugs.ps1
+.\scripts\run_demo.ps1 -Suite evals\upstream-bugs-v1.5.json
+```
+
+三个案例来自 more-itertools 与 Tomli，覆盖参数边界、滑动窗口稳定性和解析器资源限制。评测最多授权 36 次请求，所有 baseline/final 都运行上游完整测试集。案例设计与 commit 来源见 [V1.5 upstream bug suite](docs/v1.5-upstream-bug-suite.md)。
+
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
@@ -232,3 +241,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [外部 h11 v0.16.0 隔离修复](docs/external-h11-results.md)
 - [V1.3 五场景 context 配对实验](docs/v1.3-context-matrix-results.md)
 - [V1.4 调用感知 context 定向 A/B](docs/v1.4-call-context-results.md)
+- [V1.5 真实上游 Bug 集](docs/v1.5-upstream-bug-suite.md)

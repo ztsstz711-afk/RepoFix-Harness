@@ -1,0 +1,51 @@
+{
+  "name": "upstream-bugs-v1.5",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "more-itertools-sliced-negative",
+      "case": "sliced_negative_size",
+      "variant": "upstream_parent_plus_regression_test",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/more-itertools-sliced-negative/buggy",
+      "task": "Fix sliced() so a negative slice size raises ValueError in both strict and non-strict modes, while preserving existing behavior for valid sizes. Run the full upstream test suite.",
+      "test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 90,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 24000,
+      "expected_changed_files": ["more_itertools/more.py"],
+      "tags": ["external", "upstream-regression", "more-itertools", "boundary", "validation"]
+    },
+    {
+      "id": "more-itertools-running-stability",
+      "case": "running_min_max_stability",
+      "variant": "upstream_parent_plus_regression_test",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/more-itertools-running-stability/buggy",
+      "task": "Fix sliding-window running_min() and running_max() stability so equal values preserve the first value just like built-in min() and max(), including equal values with different numeric types. Run the full upstream test suite.",
+      "test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 90,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 24000,
+      "expected_changed_files": ["more_itertools/recipes.py"],
+      "tags": ["external", "upstream-regression", "more-itertools", "algorithm", "stability"]
+    },
+    {
+      "id": "tomli-key-parts-limit",
+      "case": "tomli_key_parts_limit",
+      "variant": "upstream_parent_plus_regression_test",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/tomli-key-parts-limit/buggy",
+      "task": "Prevent pathologically excessive dotted key parts while preserving valid keys near the recursion limit. Raise RecursionError with a clear limit message when the allowed number of parts is exceeded, then run the full upstream test suite.",
+      "test_command": "pytest -q -o pythonpath=src tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 90,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 24000,
+      "expected_changed_files": ["src/tomli/_parser.py"],
+      "tags": ["external", "upstream-regression", "tomli", "parser", "resource-limit"]
+    }
+  ]
+}

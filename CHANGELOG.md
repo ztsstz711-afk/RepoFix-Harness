@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a checksum-pinned preparation workflow for three real upstream bug-fix commits from more-itertools and Tomli.
+- Build each V1.5 buggy workspace from the fix commit's parent implementation plus only the upstream regression test, never the upstream repair patch.
+- Add a Docker-only, 36-request-authorized external evaluation manifest with full upstream test commands and hidden expected file scope.
+
 ## 1.4.0 - 2026-08-27
 
 - Expand a traceback-selected test's imported facade by one additional local call edge, attaching only repository functions actually called by the selected implementation function.

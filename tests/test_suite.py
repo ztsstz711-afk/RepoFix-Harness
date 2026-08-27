@@ -77,6 +77,28 @@ def test_v14_call_context_ab_is_balanced_and_bounded():
     assert all(task.expected_changed_files == ("formatter.py",) for task in suite.tasks)
 
 
+def test_v15_upstream_bug_manifest_is_bounded_and_has_provenance_contract():
+    project_root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (project_root / "evals" / "upstream-bugs-v1.5.json").read_text(encoding="utf-8")
+    )
+
+    assert manifest["name"] == "upstream-bugs-v1.5"
+    assert manifest["max_total_requests"] == 36
+    assert len(manifest["tasks"]) == 3
+    assert sum(task["max_requests"] for task in manifest["tasks"]) == 36
+    assert {task["case"] for task in manifest["tasks"]} == {
+        "sliced_negative_size",
+        "running_min_max_stability",
+        "tomli_key_parts_limit",
+    }
+    assert all(task["execution_backend"] == "docker" for task in manifest["tasks"])
+    assert all(task["command_timeout_seconds"] == 90 for task in manifest["tasks"])
+    assert all(task["max_tokens"] == 24_000 for task in manifest["tasks"])
+    assert all("upstream-regression" in task["tags"] for task in manifest["tasks"])
+    assert all(task["expected_changed_files"] for task in manifest["tasks"])
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     repo = tmp_path / "source_repo"
     repo.mkdir()
