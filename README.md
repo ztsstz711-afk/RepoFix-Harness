@@ -29,6 +29,8 @@ V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取
 
 对于 traceback 只指向测试断言的场景，V1.2 会通过一跳本地 import 找到实现符号。一次同模型、同 fixture 的配对验证把动作路径从 6 请求缩短到 3 请求、tokens 从 9,820 降到 5,159；这是单场景工程验证而非统计性 benchmark，详见 [Import context result](docs/import-context-results.md)。
 
+V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并在 evaluation report 中持久化了三轮 context snapshot；首轮明确记录 `test_config_loader.py` 来自 traceback、`config_loader.py` 来自 local import。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
@@ -171,7 +173,7 @@ repofix-runs --repo <repo> rollback latest
 
 ## 安全边界与非目标
 
-V1.1 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
+V1.2 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
 
 当前不包含 LangGraph、multi-agent、MCP、完整 Docker sandbox、SWE-bench/BugsInPy。选择标准库状态机和小模块，是为了让控制流、安全边界和失败行为可以直接审查与面试讲解。
 

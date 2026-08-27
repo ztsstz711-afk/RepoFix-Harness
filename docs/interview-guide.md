@@ -31,7 +31,7 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 ### 为什么限制成 pytest，而不是任意 shell？
 
-V1.1 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
+V1.2 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
 
 ### 为什么不用 LangGraph？
 

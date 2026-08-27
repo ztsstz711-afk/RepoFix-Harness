@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-08-27
+
 - Seed the first model request with bounded, line-numbered repository snippets referenced by the independent pytest baseline.
 - Ignore traceback paths outside the target repository and all protected control directories, deduplicate files, and omit the snippets after the first model action.
 - Validate the traceback-aware path with DeepSeek in restricted Docker: 1/1 repair, exact file scope, 4 requests, and 6,701 tokens.
@@ -10,6 +12,7 @@
 - Treat supplied baseline/snippets as completed inspection evidence; in a paired DeepSeek Docker run this reduced the optional-config path from 6 to 3 requests and from 9,820 to 5,159 tokens.
 - Persist per-step context snapshots outside Agent history, including selected relative files, selection reasons, source lines, snippet sizes, history omission counts, and total character budget usage.
 - Surface context size and seeded-source counts in CLI progress and include the structured snapshots in evaluation task reports while retaining legacy checkpoint compatibility.
+- Complete the release regression with DeepSeek in restricted Docker: exact-scope repair in 3 requests and 4,663 tokens, with all three context snapshots persisted in the report.
 
 ## 1.1.0 - 2026-08-27
 
