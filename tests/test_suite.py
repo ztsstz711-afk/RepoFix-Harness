@@ -105,6 +105,23 @@ def test_v15_upstream_bug_manifest_is_bounded_and_has_provenance_contract():
     assert all(task["expected_changed_files"] for task in manifest["tasks"])
 
 
+def test_v16_navigation_memory_gate_is_single_case_and_bounded():
+    project_root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(project_root / "evals" / "navigation-memory-v1.6.json"))
+
+    assert suite.name == "navigation-memory-v1.6"
+    assert suite.max_total_requests == 12
+    assert len(suite.tasks) == 1
+    task = suite.tasks[0]
+    assert task.case == "tomli_key_parts_limit"
+    assert task.variant == "navigation_memory"
+    assert task.max_requests == 12
+    assert task.max_tokens == 68_000
+    assert task.execution_backend == "docker"
+    assert task.expected_changed_files == ("src/tomli/_parser.py",)
+    assert task.test_command != task.final_test_command
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     repo = tmp_path / "source_repo"
     repo.mkdir()

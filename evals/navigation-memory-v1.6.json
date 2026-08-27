@@ -1,0 +1,22 @@
+{
+  "name": "navigation-memory-v1.6",
+  "max_total_requests": 12,
+  "tasks": [
+    {
+      "id": "tomli-key-parts-navigation-memory",
+      "case": "tomli_key_parts_limit",
+      "variant": "navigation_memory",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/tomli-key-parts-limit/buggy",
+      "task": "Prevent pathologically excessive dotted key parts while preserving valid keys near the recursion limit. Raise RecursionError with a clear limit message when the allowed number of parts is exceeded. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q -o pythonpath=src tests/test_misc.py::TestMiscellaneous::test_key_recursion_limit",
+      "final_test_command": "pytest -q -o pythonpath=src tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 68000,
+      "expected_changed_files": ["src/tomli/_parser.py"],
+      "tags": ["external", "upstream-regression", "tomli", "parser", "navigation-memory"]
+    }
+  ]
+}

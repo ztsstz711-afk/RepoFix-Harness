@@ -8,8 +8,18 @@ from repofix.tools import ToolRuntime
 
 def test_read_and_search(tmp_path):
     (tmp_path / "a.py").write_text("def hello(): pass\n", encoding="utf-8")
-    t = ToolRuntime(str(tmp_path)); assert "hello" in t.execute("search", {"query": "hello"}).output
-    assert "def hello" in t.execute("read", {"path": "a.py"}).output
+    t = ToolRuntime(str(tmp_path))
+    search = t.execute("search", {"query": "hello"})
+    read = t.execute("read", {"path": "a.py"})
+    assert "hello" in search.output
+    assert search.metadata["query"] == "hello"
+    assert search.metadata["matches"] == 1
+    assert search.metadata["path"] == "."
+    assert "def hello" in read.output
+    assert read.metadata["path"] == "a.py"
+    assert read.metadata["start_line"] == 1
+    assert read.metadata["end_line"] == 1
+    assert read.metadata["total_lines"] == 1
 
 def test_path_cannot_escape(tmp_path):
     t = ToolRuntime(str(tmp_path))
@@ -52,6 +62,9 @@ def test_read_supports_line_ranges(tmp_path):
         "read", {"path": "a.py", "start_line": 2, "end_line": 3}
     )
     assert result.output == "two\nthree"
+    assert result.metadata["start_line"] == 2
+    assert result.metadata["end_line"] == 3
+    assert result.metadata["total_lines"] == 3
 
 
 def test_write_to_control_directory_is_denied(tmp_path):

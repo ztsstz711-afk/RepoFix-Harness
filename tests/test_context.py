@@ -115,3 +115,58 @@ def test_context_can_disable_failure_source_seeding(tmp_path):
     assert result.metadata["failure_context"]["enabled"] is False
     assert result.metadata["failure_context"]["included"] is False
     assert result.metadata["failure_context"]["sources"] == []
+
+
+def test_context_keeps_compact_navigation_memory():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "search", "arguments": {"query": "parse_key"}},
+            "observation": {
+                "output": "src/parser.py:463:def parse_key",
+                "metadata": {"query": "parse_key", "path": ".", "matches": 1},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "read", "arguments": {"path": "src/parser.py"}},
+            "observation": {
+                "output": "source",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": 440,
+                    "end_line": 485,
+                    "total_lines": 700,
+                },
+            },
+        },
+    ]
+
+    context = ContextBuilder("repo", "task").build(history)
+
+    assert "navigation_reads=[src/parser.py:440-485]" in context
+    assert "searches=[parse_key@.(1)]" in context
+
+    metadata = ContextBuilder("repo", "task").build_with_metadata(history).metadata
+    assert metadata["navigation_summary"] == (
+        "navigation_reads=[src/parser.py:440-485]; searches=[parse_key@.(1)]"
+    )
+
+
+def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():
+    history = [
+        {"step": 1, "action": {"name": "search"}, "observation": {"output": "EARLY-LANDMARK"}},
+        {"step": 2, "action": {"name": "read"}, "observation": {"output": "x" * 5_000}},
+        {"step": 3, "action": {"name": "search"}, "observation": {"output": "LATEST-LANDMARK"}},
+    ]
+
+    builder = ContextBuilder(
+        "repo", "task", max_chars=1_000, max_observation_chars=4_000
+    )
+    result = builder.build_with_metadata(history)
+    context = result.text
+
+    assert "LATEST-LANDMARK" in context
+    assert "EARLY-LANDMARK" in context
+    assert len(context) <= 1_000
+    assert result.metadata["history_events_skipped_oversized"] == 1

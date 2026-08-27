@@ -65,6 +65,7 @@ class ToolRuntime:
             hits = []
             root = self.permissions.ensure_readable(args.get("path", "."))
             candidates = [root] if root.is_file() else root.rglob("*.py")
+            truncated = False
             for p in candidates:
                 if not self.permissions.is_visible(p):
                     continue
@@ -72,13 +73,39 @@ class ToolRuntime:
                     if needle in line:
                         hits.append(f"{p.relative_to(self.repo)}:{i}: {line}")
                     if len(hits) >= 100:
-                        return Observation(name, "\n".join(hits) + "\n[results truncated at 100 matches]")
-            return Observation(name, "\n".join(hits))
+                        truncated = True
+                        break
+                if truncated:
+                    break
+            output = "\n".join(hits)
+            if truncated:
+                output += "\n[results truncated at 100 matches]"
+            return Observation(
+                name,
+                output,
+                metadata={
+                    "query": needle,
+                    "path": args.get("path", "."),
+                    "matches": len(hits),
+                    "results_truncated": truncated,
+                },
+            )
         if name == "read":
-            lines = self.permissions.ensure_readable(args["path"]).read_text(encoding="utf-8").splitlines()
+            path = self.permissions.ensure_readable(args["path"])
+            lines = path.read_text(encoding="utf-8").splitlines()
             start = max(int(args.get("start_line", 1)), 1)
             end = min(int(args.get("end_line", len(lines))), len(lines))
-            return Observation(name, "\n".join(lines[start - 1 : end]))
+            output = "\n".join(lines[start - 1 : end]) if start <= end else ""
+            return Observation(
+                name,
+                output,
+                metadata={
+                    "path": path.relative_to(self.repo).as_posix(),
+                    "start_line": start,
+                    "end_line": end,
+                    "total_lines": len(lines),
+                },
+            )
         if name == "apply_patch":
             path = self.permissions.ensure_writable(args["path"])
             before_bytes = path.read_bytes() if path.exists() else None

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Persist compact read-range and search-query navigation memory in every model context and context snapshot.
+- Skip oversized middle observations while selecting bounded history so smaller, older search and patch evidence can remain visible.
+- Add structured read/search telemetry for file ranges, total lines, query scope, match counts, and truncation.
+
 ## 1.5.0 - 2026-08-28
 
 - Add a checksum-pinned preparation workflow for three real upstream bug-fix commits from more-itertools and Tomli.

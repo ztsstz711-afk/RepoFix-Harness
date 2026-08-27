@@ -71,6 +71,7 @@ class ContextBuilder:
         budget = max(self.max_chars - len(header) - 100, 0)
         selected: list[str] = []
         used = 0
+        oversized_skipped = 0
 
         for event in reversed(history):
             compact = self._compact_event(event)
@@ -78,7 +79,9 @@ class ContextBuilder:
             if len(compact) > remaining:
                 if not selected and remaining >= 200:
                     selected.append(compact_text(compact, remaining)[0])
-                break
+                    break
+                oversized_skipped += 1
+                continue
             selected.append(compact)
             used += len(compact)
 
@@ -98,6 +101,8 @@ class ContextBuilder:
                 "history_events_total": len(history),
                 "history_events_included": len(selected),
                 "history_events_omitted": omitted,
+                "history_events_skipped_oversized": oversized_skipped,
+                "navigation_summary": self._navigation_summary(history),
                 "failure_context": {
                     "enabled": self.seed_failure_context,
                     "included": bool(failure_result.text),
@@ -154,7 +159,44 @@ class ContextBuilder:
             if action.get("name") == "run_command":
                 latest_pytest = "passed" if observation.get("success") else "failed"
         files = ", ".join(sorted(changed_files)) if changed_files else "none"
-        return f"changed_files={files}; latest_agent_pytest={latest_pytest}"
+        navigation = ContextBuilder._navigation_summary(history)
+        return (
+            f"changed_files={files}; latest_agent_pytest={latest_pytest}; "
+            f"{navigation}"
+        )
+
+    @staticmethod
+    def _navigation_summary(history: list[dict]) -> str:
+        reads: dict[str, list[tuple[int, int, bool]]] = {}
+        searches: list[str] = []
+        for event in history:
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            metadata = observation.get("metadata", {})
+            if action.get("name") == "read" and metadata.get("path"):
+                start = metadata.get("start_line")
+                end = metadata.get("end_line")
+                if isinstance(start, int) and isinstance(end, int):
+                    reads.setdefault(metadata["path"], []).append(
+                        (start, end, bool(metadata.get("output_truncated")))
+                    )
+            if action.get("name") == "search" and metadata.get("query") is not None:
+                location = metadata.get("path", ".")
+                marker = f"{metadata['query']}@{location}({metadata.get('matches', '?')})"
+                if marker not in searches:
+                    searches.append(marker)
+
+        read_parts = []
+        for path, ranges in reads.items():
+            rendered = ",".join(
+                f"{start}-{end}{'~' if truncated else ''}"
+                for start, end, truncated in ranges[-4:]
+            )
+            read_parts.append(f"{path}:{rendered}")
+        read_text = ";".join(read_parts[-6:]) or "none"
+        search_text = ",".join(searches[-8:]) or "none"
+        summary = f"navigation_reads=[{read_text}]; searches=[{search_text}]"
+        return compact_text(summary, 1_200)[0]
 
     def _compact_event(self, event: dict) -> str:
         event = dict(event)
