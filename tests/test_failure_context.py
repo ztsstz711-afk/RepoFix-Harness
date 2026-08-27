@@ -215,3 +215,40 @@ def test_extractor_keeps_call_expansion_within_file_limit(tmp_path):
         "local_import",
     ]
     assert "helper.py" not in result.text
+
+
+def test_extractor_follows_called_module_facade_reexports(tmp_path):
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tests / "test_parser.py").write_text(
+        "from . import tomllib\n\n"
+        "def test_file():\n    return tomllib.load(None)\n\n"
+        "def test_parse():\n    assert tomllib.loads('a=1')\n",
+        encoding="utf-8",
+    )
+    (tests / "__init__.py").write_text(
+        "import package as tomllib\n", encoding="utf-8"
+    )
+    package = tmp_path / "src" / "package"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text(
+        "from .parser import loads\n", encoding="utf-8"
+    )
+    (package / "parser.py").write_text(
+        "def loads(value):\n    return False\n", encoding="utf-8"
+    )
+
+    result = FailureContextExtractor(str(tmp_path), context_lines=1).build_result(
+        "tests/test_parser.py:7: AssertionError"
+    )
+
+    assert "imported tests/__init__.py" in result.text
+    assert "called src/package/parser.py:1" in result.text
+    assert "def loads" in result.text
+    assert [source.reason for source in result.sources] == [
+        "traceback",
+        "local_import",
+        "local_facade",
+    ]
+    assert result.sources[1].symbol == "tomllib.loads"
+    assert result.sources[2].symbol == "loads"

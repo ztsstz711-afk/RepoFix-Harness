@@ -6,6 +6,7 @@
 - Skip oversized middle observations while selecting bounded history so smaller, older search and patch evidence can remain visible.
 - Add structured read/search telemetry for file ranges, total lines, query scope, match counts, and truncation.
 - Add optional Harness-owned focused pytest feedback after each changed patch, while keeping full-suite final acceptance independent.
+- Follow actually called module attributes through up to three local facade/re-export files when seeding failure context, scoped to the traceback's failing function and parsed without importing repository code.
 
 ## 1.5.0 - 2026-08-28
 

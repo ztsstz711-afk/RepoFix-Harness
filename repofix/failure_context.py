@@ -62,8 +62,8 @@ class FailureContextExtractor:
         snippets: list[str] = []
         selections: list[FailureSourceSelection] = []
         seen: set[str] = set()
-        referenced_files: list[Path] = []
-        call_candidates: list[tuple[Path, str, str]] = []
+        referenced_files: list[tuple[Path, int]] = []
+        call_candidates: list[tuple[Path, str, str, str]] = []
         for _, raw_path, line_number in locations:
             resolved = self._resolve(raw_path)
             if resolved is None:
@@ -76,7 +76,7 @@ class FailureContextExtractor:
                 continue
             snippets.append(snippet)
             seen.add(relative)
-            referenced_files.append(resolved)
+            referenced_files.append((resolved, line_number))
             selections.append(
                 FailureSourceSelection(
                     path=relative,
@@ -87,10 +87,10 @@ class FailureContextExtractor:
             )
             if len(snippets) >= self.max_files:
                 break
-        for referenced in referenced_files:
+        for referenced, referenced_line in referenced_files:
             if len(snippets) >= self.max_files or not self._looks_like_test(referenced):
                 continue
-            for imported, symbol in self._local_imports(referenced):
+            for imported, symbol in self._local_imports(referenced, referenced_line):
                 relative = imported.relative_to(self.repo).as_posix()
                 if relative in seen:
                     continue
@@ -111,15 +111,21 @@ class FailureContextExtractor:
                     )
                 )
                 if symbol:
-                    for called, called_symbol in self._called_local_imports(
-                        imported, symbol
-                    ):
+                    facade = self._resolve_import_chain(imported, symbol)
+                    if facade is not None:
                         call_candidates.append(
-                            (called, called_symbol, relative)
+                            (facade[0], facade[1], relative, "local_facade")
                         )
+                    else:
+                        for called, called_symbol in self._called_local_imports(
+                            imported, symbol
+                        ):
+                            call_candidates.append(
+                                (called, called_symbol, relative, "local_call")
+                            )
                 if len(snippets) >= self.max_files:
                     break
-        for called, symbol, imported_from in call_candidates:
+        for called, symbol, imported_from, reason in call_candidates:
             if len(snippets) >= self.max_files:
                 break
             relative = called.relative_to(self.repo).as_posix()
@@ -137,7 +143,7 @@ class FailureContextExtractor:
                 FailureSourceSelection(
                     path=relative,
                     line=line_number,
-                    reason="local_call",
+                    reason=reason,
                     snippet_chars=len(snippet),
                     imported_from=imported_from,
                     symbol=symbol,
@@ -175,21 +181,31 @@ class FailureContextExtractor:
             return None
         return resolved
 
-    def _local_imports(self, source: Path) -> list[tuple[Path, str | None]]:
+    def _local_imports(
+        self, source: Path, line_number: int | None = None
+    ) -> list[tuple[Path, str | None]]:
         try:
             tree = ast.parse(source.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, SyntaxError):
             return []
         imports: list[tuple[Path, str | None]] = []
+        called_attributes = self._called_attributes(tree, line_number)
         for node in tree.body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     target = self._resolve_module(alias.name, source, level=0)
                     if target is not None:
-                        imports.append((target, None))
+                        binding = alias.asname or alias.name.split(".")[0]
+                        attributes = called_attributes.get(binding, [])
+                        if attributes:
+                            imports.extend((target, attribute) for attribute in attributes)
+                        else:
+                            imports.append((target, None))
             elif isinstance(node, ast.ImportFrom):
                 target = self._resolve_module(node.module or "", source, node.level)
                 for alias in node.names:
+                    binding = alias.asname or alias.name
+                    attributes = called_attributes.get(binding, [])
                     child_module = ".".join(
                         part for part in (node.module or "", alias.name) if part
                     )
@@ -199,10 +215,109 @@ class FailureContextExtractor:
                         else None
                     )
                     if child is not None:
-                        imports.append((child, None))
+                        if attributes:
+                            imports.extend((child, attribute) for attribute in attributes)
+                        else:
+                            imports.append((child, None))
                     elif target is not None:
-                        imports.append((target, None if alias.name == "*" else alias.name))
+                        symbol = None if alias.name == "*" else alias.name
+                        if symbol and attributes:
+                            imports.extend(
+                                (target, f"{symbol}.{attribute}")
+                                for attribute in attributes
+                            )
+                        else:
+                            imports.append((target, symbol))
         return imports
+
+    @staticmethod
+    def _called_attributes(
+        tree: ast.AST, line_number: int | None = None
+    ) -> dict[str, list[str]]:
+        scope = tree
+        if line_number is not None:
+            candidates = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.lineno <= line_number <= getattr(node, "end_lineno", node.lineno)
+            ]
+            if candidates:
+                scope = min(
+                    candidates,
+                    key=lambda node: getattr(node, "end_lineno", node.lineno) - node.lineno,
+                )
+        selected: dict[str, list[str]] = {}
+        for call in sorted(
+            (node for node in ast.walk(scope) if isinstance(node, ast.Call)),
+            key=lambda node: (node.lineno, node.col_offset),
+        ):
+            parts: list[str] = []
+            current = call.func
+            while isinstance(current, ast.Attribute):
+                parts.append(current.attr)
+                current = current.value
+            if not isinstance(current, ast.Name) or not parts:
+                continue
+            attribute = ".".join(reversed(parts))
+            values = selected.setdefault(current.id, [])
+            if attribute not in values:
+                values.append(attribute)
+        return selected
+
+    def _resolve_import_chain(
+        self, source: Path, symbol: str, max_hops: int = 3
+    ) -> tuple[Path, str] | None:
+        current_source = source
+        current_symbol = symbol
+        moved = False
+        for _ in range(max_hops):
+            resolved = self._resolve_import_binding(current_source, current_symbol)
+            if resolved is None:
+                break
+            current_source, current_symbol = resolved
+            moved = True
+        return (current_source, current_symbol) if moved else None
+
+    def _resolve_import_binding(
+        self, source: Path, symbol: str
+    ) -> tuple[Path, str] | None:
+        try:
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, SyntaxError):
+            return None
+        first, separator, remainder = symbol.partition(".")
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    binding = alias.asname or alias.name.split(".")[0]
+                    if binding != first:
+                        continue
+                    target = self._resolve_module(alias.name, source, level=0)
+                    if target is not None and separator:
+                        return target, remainder
+            elif isinstance(node, ast.ImportFrom):
+                target = self._resolve_module(node.module or "", source, node.level)
+                for alias in node.names:
+                    binding = alias.asname or alias.name
+                    if binding != first:
+                        continue
+                    child_module = ".".join(
+                        part for part in (node.module or "", alias.name) if part
+                    )
+                    child = (
+                        self._resolve_module(child_module, source, node.level)
+                        if target is None or target.name == "__init__.py"
+                        else None
+                    )
+                    if child is not None:
+                        return child, remainder if separator else alias.name
+                    if target is not None:
+                        next_symbol = alias.name
+                        if separator:
+                            next_symbol = f"{next_symbol}.{remainder}"
+                        return target, next_symbol
+        return None
 
     def _resolve_module(self, module: str, source: Path, level: int) -> Path | None:
         parts = [part for part in module.split(".") if part]
