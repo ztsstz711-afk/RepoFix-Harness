@@ -100,6 +100,12 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["usage"]["total_tokens"] == 600
     assert report["usage"]["retries"] == 0
     assert report["failure_counts"] == {}
+    assert report["models"] == {"mock-model": 1}
+    assert report["docker_runtime_fingerprints"] == []
+    assert any(
+        check["name"] == "execution_backend"
+        for check in report["tasks"][0]["preflight_checks"]
+    )
     assert report["estimated_cost_usd"] == 0
     assert report["request_budget"] == {
         "max_total_requests": None,

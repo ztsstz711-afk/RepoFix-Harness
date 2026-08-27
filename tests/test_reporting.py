@@ -158,6 +158,8 @@ def _valid_aggregate_report():
         "estimated_cost_usd": 0.001,
         "changed_files_match": True,
         "failure_kind": "",
+        "model": "model-v1",
+        "preflight_checks": [],
     }
     return {
         "report_schema_version": 1,
@@ -179,6 +181,9 @@ def _valid_aggregate_report():
         "change_scope_matches": 1,
         "change_scope_rate": 1.0,
         "failure_counts": {},
+        "experiment": {"provider_model": "model-v1"},
+        "models": {"model-v1": 1},
+        "docker_runtime_fingerprints": [],
         "tasks": [task],
     }
 
@@ -194,6 +199,18 @@ def test_validate_evaluation_report_accepts_consistent_aggregates():
         (lambda report: report["usage"].update(total_tokens=121), "total_tokens"),
         (lambda report: report.update(estimated_cost_usd=9), "estimated cost"),
         (lambda report: report.update(successes=0), "success count"),
+        (lambda report: report.update(models={"other": 1}), "model counts"),
+        (
+            lambda report: report.update(docker_runtime_fingerprints=["changed"]),
+            "Docker runtime fingerprints",
+        ),
+        (
+            lambda report: (
+                report["tasks"][0].update(model="other"),
+                report.update(models={"other": 1}),
+            ),
+            "declared provider model",
+        ),
         (
             lambda report: report["request_budget"].update(remaining_requests=2),
             "remaining request budget",

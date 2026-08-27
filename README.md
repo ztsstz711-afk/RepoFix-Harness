@@ -56,6 +56,8 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - 每个 trial 后原子更新 `progress.json`；单次 runner 异常被隔离，后续任务继续执行
 - 完成时同时生成机器可读 `report.json` 和可直接审阅的 `report.md`
 - 发布报告前重算聚合完整性；每次实际复制后重验 source 指纹，禁止中途混入变化的 fixture
+- 报告持久化声明模型、实际模型计数、输出上限和成本单价；续跑时必须完全一致
+- Docker trial 保存完整 preflight checks，并汇总 daemon 版本、镜像 SHA-256 与容器 pytest 指纹
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。

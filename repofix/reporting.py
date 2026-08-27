@@ -83,6 +83,27 @@ def validate_evaluation_report(report: dict) -> None:
     if report.get("failure_counts") != dict(failure_counts):
         errors.append("failure counts do not match tasks")
 
+    model_counts = Counter(task.get("model") for task in tasks if task.get("model"))
+    if report.get("models") != dict(sorted(model_counts.items())):
+        errors.append("model counts do not match tasks")
+    expected_model = report.get("experiment", {}).get("provider_model")
+    unexpected_models = sorted(
+        model for model in model_counts if expected_model and model != expected_model
+    )
+    if unexpected_models:
+        errors.append(
+            "task models do not match declared provider model: "
+            + ", ".join(unexpected_models)
+        )
+    docker_fingerprints = sorted({
+        check["message"]
+        for task in tasks
+        for check in task.get("preflight_checks", [])
+        if check.get("name") == "docker_runtime" and check.get("status") == "pass"
+    })
+    if report.get("docker_runtime_fingerprints") != docker_fingerprints:
+        errors.append("Docker runtime fingerprints do not match tasks")
+
     if errors:
         raise ValueError("invalid evaluation report: " + "; ".join(errors))
 
@@ -204,8 +225,22 @@ def render_evaluation_markdown(report: dict) -> str:
         f"- Manifest SHA-256: `{_cell(report['manifest']['sha256'])}`",
         "- Source snapshots:",
     ])
+    experiment = report.get("experiment", {})
+    for key in (
+        "max_output_tokens",
+        "input_cost_per_million",
+        "cached_input_cost_per_million",
+        "output_cost_per_million",
+    ):
+        if key in experiment:
+            lines.insert(-1, f"- {_cell(key)}: `{_cell(experiment[key])}`")
     for task_id, source in report.get("sources", {}).items():
         lines.append(f"  - `{_cell(task_id)}`: `{_cell(source['sha256'])}`")
+    docker_fingerprints = report.get("docker_runtime_fingerprints", [])
+    if docker_fingerprints:
+        lines.append("- Docker runtime fingerprints:")
+        for fingerprint in docker_fingerprints:
+            lines.append(f"  - `{_cell(fingerprint)}`")
 
     failures = report.get("failure_counts", {})
     lines.extend([

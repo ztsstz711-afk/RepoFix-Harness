@@ -6,6 +6,7 @@ import shutil
 import statistics
 import tempfile
 import time
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
@@ -471,6 +472,10 @@ class EvaluationRunner:
             },
             "sources": self._source_fingerprints(suite),
             "experiment": self.experiment_metadata,
+            "models": dict(sorted(Counter(
+                result["model"] for result in results if result["model"]
+            ).items())),
+            "docker_runtime_fingerprints": self._docker_runtime_fingerprints(results),
             "request_budget": {
                 "max_total_requests": suite.max_total_requests,
                 "planned_request_ceiling": _planned_request_ceiling(suite.tasks),
@@ -516,6 +521,16 @@ class EvaluationRunner:
             }
             for task in suite.tasks
         }
+
+    @staticmethod
+    def _docker_runtime_fingerprints(results: list[dict]) -> list[str]:
+        return sorted({
+            check["message"]
+            for result in results
+            for check in result.get("preflight_checks", [])
+            if check.get("name") == "docker_runtime"
+            and check.get("status") == "pass"
+        })
 
     def _run_task(
         self,
@@ -589,6 +604,7 @@ class EvaluationRunner:
             "duration_ms": int((time.perf_counter() - started) * 1000),
             "usage": asdict(state.usage),
             "preflight_success": state.preflight.success,
+            "preflight_checks": [asdict(check) for check in state.preflight.checks],
             "baseline_success": getattr(state.evaluation.baseline, "success", None),
             "final_success": getattr(state.evaluation.final, "success", None),
             "baseline_execution": (
@@ -640,6 +656,7 @@ class EvaluationRunner:
             "duration_ms": 0,
             "usage": asdict(TokenUsage()),
             "preflight_success": False,
+            "preflight_checks": [],
             "baseline_success": None,
             "final_success": None,
             "baseline_execution": None,

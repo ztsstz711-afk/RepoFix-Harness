@@ -72,6 +72,8 @@ Preflight 不执行仓库代码，也不调用模型。它只检查本地运行�
 
 Docker backend 的 preflight 会实际连接 daemon、检查指定镜像并在禁网容器中执行 `pytest --version`。测试容器使用只读仓库与根文件系统、临时 `/tmp`、无 capabilities、禁止提权以及 CPU/内存/PID 限制；超时后 Harness 会按唯一容器名强制清理。
 
+Docker readiness 的 daemon version、`docker image inspect` 返回的内容寻址 SHA-256 和容器内 pytest 版本会保留在每个 suite task 的 `preflight_checks`，并去重汇总到报告。这样即使 manifest 使用 `repofix-pytest:latest`，两次实验也能判断标签背后的实际镜像是否相同。
+
 Local pytest 和 Git 子进程会从环境中移除 provider 配置及常见凭据变量。Git diff/status 另外禁用 external diff、textconv、fsmonitor、global/system config 和 optional locks。Local backend 仍不是 OS sandbox，只应运行可信仓库；外部源码默认走 Docker。
 
 Token 预算除了检查累计用量，还会根据当前 context 与历史请求估算下一次请求成本。剩余额度不足时不发送请求；如果已有真实文件改动、baseline 失败且独立 final pytest 通过，Harness 可以在预算边界判定成功，而不额外购买一次仅用于 `finish` 的模型请求。
@@ -97,6 +99,8 @@ Runner 在每个 trial 后原子覆盖 `progress.json`。未预料的单任务�
 source 指纹不只在 manifest 加载时计算：每个 trial 完成临时复制后、provider 创建前会重新计算副本哈希并与冻结值比较。不同则抛出 suite 级输入变化错误，不会被普通 `runner_error` 隔离后继续消耗 API。source fixture 不允许符号链接，避免哈希对象与实际复制/访问目标不一致。
 
 续跑读取 `report.json` 或 `progress.json`，先核对 schema、suite 名、计划 trial 数、provider model、manifest 指纹、所有 source 指纹和已完成 task 身份。任何一项变化都会拒绝混合结果；验证通过后按原 trial plan 跳过已有 run key。已完成报告的 resume 是幂等读取，不创建 provider，也不产生 API 请求。
+
+CLI 将 provider model、单次最大输出 token，以及 input/cached-input/output 三档百万 token 单价作为非敏感 experiment metadata 写入报告。每个完成 task 的实际 model 会聚合为 `models` 计数并与声明值比较；续跑要求整组 metadata 完全一致，因此不会把换模型或换计价参数后的结果静默合并。API key 从不进入 metadata、trace 或报告。
 
 最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope 和 failure counts；聚合值不一致时拒绝发布。这样 Markdown 渲染和面试结论不会建立在内部损坏的汇总字段上，完整 trial 仍保留在 `progress.json` 供修复后续跑收尾。
 

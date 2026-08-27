@@ -16,6 +16,8 @@
 - Re-hash every copied trial workspace before provider creation and abort the suite if a source fixture changed after manifest loading.
 - Add a suite-level request authorization gate that expands every task limit by repetitions and rejects missing or over-budget manifests before provider creation.
 - Reject zero, negative, boolean, and string-coerced task limits so `0` cannot silently mean unlimited inside a budgeted manifest.
+- Persist provider model, output cap, and pricing inputs; validate actual task model counts and require identical metadata on resume.
+- Preserve structured preflight checks per trial and aggregate Docker daemon/image/pytest fingerprints so mutable image tags remain distinguishable.
 - Expand the context experiment to five bug shapes and 30 DeepSeek Docker trials: both variants repaired 15/15 with exact scope; context-on reduced mean requests by 23.81% and mean tokens by 22.80%, but increased tokens on 4 of 15 matched pairs.
 
 ## 1.2.0 - 2026-08-27

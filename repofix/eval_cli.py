@@ -65,7 +65,13 @@ def main() -> int:
     report = EvaluationRunner(
         OpenAICompatibleProvider,
         print_suite_progress,
-        experiment_metadata={"provider_model": settings.model},
+        experiment_metadata={
+            "provider_model": settings.model,
+            "max_output_tokens": settings.max_output_tokens,
+            "input_cost_per_million": settings.input_cost_per_million,
+            "cached_input_cost_per_million": settings.cached_input_cost_per_million,
+            "output_cost_per_million": settings.output_cost_per_million,
+        },
     ).run(suite, output, resume=args.resume)
     print(
         f"suite={report['suite']} success={report['successes']}/{report['task_count']} "
