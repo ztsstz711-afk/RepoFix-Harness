@@ -35,7 +35,7 @@ V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
-- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段，并过滤外部路径与控制目录
+- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会通过一跳本地 import 定位实现符号，同时过滤外部路径与控制目录
 - 有界 context、工具输出头尾压缩、最近进度摘要
 - step/request/token 预算、成本估算、限流与超时重试
 - 重复动作检测，阻止无进展循环持续消耗 API

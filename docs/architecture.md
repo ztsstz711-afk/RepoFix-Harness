@@ -79,7 +79,7 @@ Token 预算除了检查累计用量，还会根据当前 context 与历史请�
 
 baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后的头尾输出会固定保留在 context 中。模型因此可以直接根据 traceback 开始定位，不需要先消耗一次 action 重跑完整测试。仓库内容、测试输出和历史 observation 均在 provider prompt 中明确标记为不可信数据。
 
-首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
+首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。若 traceback 只指向测试文件，Harness 使用 Python AST 解析一跳 import，在仓库根目录、`src/` 或相对 package 中寻找本地模块，并把片段居中到导入符号定义。该过程不会 import 或执行仓库代码，也不会递归展开依赖。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
 
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
 

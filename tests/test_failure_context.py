@@ -47,3 +47,76 @@ def test_extractor_ignores_control_directories(tmp_path):
     snippets = FailureContextExtractor(str(tmp_path)).build(".repofix/secret.py:1: failure")
 
     assert snippets == ""
+
+
+def test_extractor_expands_one_hop_import_from_traceback_test(tmp_path):
+    test_file = tmp_path / "tests" / "test_quote.py"
+    test_file.parent.mkdir()
+    test_file.write_text(
+        "from order_service.quote import calculate_total\n\n"
+        "def test_total():\n"
+        "    assert calculate_total(10) == 12\n",
+        encoding="utf-8",
+    )
+    implementation = tmp_path / "src" / "order_service" / "quote.py"
+    implementation.parent.mkdir(parents=True)
+    implementation.write_text(
+        "TAX_RATE = 0.2\n\n"
+        "def unrelated():\n"
+        "    return 0\n\n"
+        "def calculate_total(amount):\n"
+        "    return amount\n",
+        encoding="utf-8",
+    )
+
+    snippets = FailureContextExtractor(str(tmp_path), context_lines=1).build(
+        "tests/test_quote.py:4: AssertionError"
+    )
+
+    assert "tests/test_quote.py:4" in snippets
+    assert "imported src/order_service/quote.py:6" in snippets
+    assert "def calculate_total" in snippets
+    assert "def unrelated" not in snippets
+
+
+def test_extractor_does_not_expand_external_or_recursive_imports(tmp_path):
+    test_file = tmp_path / "test_service.py"
+    test_file.write_text(
+        "import pytest\nfrom service import run\n\ndef test_run():\n    assert run() == 1\n",
+        encoding="utf-8",
+    )
+    service = tmp_path / "service.py"
+    service.write_text("from helper import value\n\ndef run():\n    return value\n", encoding="utf-8")
+    (tmp_path / "helper.py").write_text("value = 0\n", encoding="utf-8")
+
+    snippets = FailureContextExtractor(str(tmp_path), context_lines=1).build(
+        "test_service.py:5: AssertionError"
+    )
+
+    assert "imported service.py:3" in snippets
+    assert "helper.py" not in snippets
+    assert "pytest" not in snippets
+
+
+def test_extractor_resolves_relative_package_import(tmp_path):
+    package = tmp_path / "package"
+    tests = package / "tests"
+    tests.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (tests / "__init__.py").write_text("", encoding="utf-8")
+    test_file = tests / "test_logic.py"
+    test_file.write_text(
+        "from ..logic import normalize\n\ndef test_normalize():\n    assert normalize(' A ') == 'a'\n",
+        encoding="utf-8",
+    )
+    (package / "logic.py").write_text(
+        "def normalize(value):\n    return value.strip()\n",
+        encoding="utf-8",
+    )
+
+    snippets = FailureContextExtractor(str(tmp_path), context_lines=1).build(
+        "package/tests/test_logic.py:4: AssertionError"
+    )
+
+    assert "imported package/logic.py:1" in snippets
+    assert "def normalize" in snippets
