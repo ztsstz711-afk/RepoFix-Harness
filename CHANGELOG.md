@@ -10,6 +10,7 @@
 - Isolate unexpected runner failures per trial and atomically persist a complete partial `progress.json` after every result.
 - Fingerprint the exact evaluation manifest and copied source trees with SHA-256 for reproducible report comparisons.
 - Resume interrupted suites in the original interleaved order, skipping completed trials only after report schema, model metadata, manifest, source, and task fingerprints match.
+- Generate a concise Markdown report beside every completed evaluation JSON, including variant, paired, per-case, failure, and reproducibility summaries.
 - Expand the context experiment to five bug shapes and 30 DeepSeek Docker trials: both variants repaired 15/15 with exact scope; context-on reduced mean requests by 23.81% and mean tokens by 22.80%, but increased tokens on 4 of 15 matched pairs.
 
 ## 1.2.0 - 2026-08-27

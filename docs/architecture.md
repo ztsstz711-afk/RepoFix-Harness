@@ -40,6 +40,7 @@ flowchart LR
 | `evaluation.py` | 使用持久化验证命令独立运行 baseline/final/post-rollback pytest |
 | `storage.py` | 原子保存 latest 与 per-run trace/result |
 | `suite.py` | 隔离复制、交错重复 trial、失败隔离、配对统计、实验指纹和聚合报告 |
+| `reporting.py` | 将稳定的 evaluation JSON 字段渲染为便于审阅的 Markdown 摘要 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
 | `preflight.py` | 模型调用前检查解释器、pytest、命令和仓库形态 |
 | `execution.py` | 本地或受限 Docker pytest 执行后端 |

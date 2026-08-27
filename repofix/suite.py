@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from .loop import AgentLoop
+from .reporting import render_evaluation_markdown
 from .schemas import TokenUsage, utc_now
 from .tools import parse_pytest_invocation
 
@@ -284,6 +285,9 @@ class EvaluationRunner:
 
         report = self._build_report(suite, started_at, results, completed=True)
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
+        self._atomic_write(
+            destination / "report.md", render_evaluation_markdown(report)
+        )
         return report
 
     @staticmethod

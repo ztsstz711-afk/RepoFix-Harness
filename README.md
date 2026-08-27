@@ -52,6 +52,7 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - evaluation 支持重复 trial、命名 variant、交错 A/B 执行及请求/token/成本分布统计
 - 配对实验按 case + trial 比较成功结果与资源差值，并记录 manifest/fixture SHA-256
 - 每个 trial 后原子更新 `progress.json`；单次 runner 异常被隔离，后续任务继续执行
+- 完成时同时生成机器可读 `report.json` 和可直接审阅的 `report.md`
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。
@@ -158,6 +159,8 @@ repofix-runs --repo <repo> rollback latest
 ```
 
 `result.json` 包含任务状态、模型、步骤、token、成本、失败分类、baseline/final pytest、改动文件、回滚结果以及每次模型调用的 context snapshot。snapshot 记录上下文长度、历史裁剪和自动源码选择依据，不会在 Agent history 中制造额外事件。
+
+Evaluation 输出目录额外包含逐 trial 的 `runs/`、中断续跑使用的 `progress.json`、完整聚合数据 `report.json`，以及自动生成的 `report.md`。Markdown 只渲染稳定的摘要字段，原始任务与 trace 仍以 JSON 为准。
 
 ## 评测场景
 

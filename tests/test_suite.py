@@ -111,6 +111,10 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["tasks"][0]["changed_files_match"] is True
     assert report["change_scope_rate"] == 1.0
     assert (output / "report.json").exists()
+    assert (output / "report.md").exists()
+    assert "# Evaluation report: unit-smoke" in (
+        output / "report.md"
+    ).read_text(encoding="utf-8")
     assert (output / "runs" / "addition" / "result.json").exists()
     assert "a - b" in (repo / "calculator.py").read_text(encoding="utf-8")
 
