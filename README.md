@@ -216,6 +216,8 @@ V1.5 开始验证真实上游 Bug，而不是继续人工注入错误。准备�
 
 三个案例来自 more-itertools 与 Tomli，覆盖参数边界、滑动窗口稳定性和解析器资源限制。评测最多授权 36 次请求：baseline 使用上游定向回归测试，所有最终成功判定仍运行上游完整测试集。案例设计与 commit 来源见 [V1.5 upstream bug suite](docs/v1.5-upstream-bug-suite.md)。
 
+V1.5 指定发布闸门使用 `deepseek-v4-flash` 完成 2/3：两个 more-itertools 修复均通过完整上游套件并准确命中预期文件；Tomli 在 11 次请求内未产生补丁。整套实际使用 27/36 次授权请求、115,977 tokens，保守估算成本 $0.04467383。该结果按原样发布，不用探索性重跑拼接成功率。
+
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
