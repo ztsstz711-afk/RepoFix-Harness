@@ -38,6 +38,7 @@ class SuiteTask:
     docker_image: str = "repofix-pytest:latest"
     command_timeout_seconds: int = 30
     seed_failure_context: bool = True
+    verify_after_patch: bool = False
     tags: tuple[str, ...] = ()
     expected_changed_files: tuple[str, ...] = ()
     variant: str = "default"
@@ -91,6 +92,9 @@ def load_suite(path: str) -> EvaluationSuite:
         seed_failure_context = item.get("seed_failure_context", True)
         if not isinstance(seed_failure_context, bool):
             raise ValueError("seed_failure_context must be a JSON boolean")
+        verify_after_patch = item.get("verify_after_patch", False)
+        if not isinstance(verify_after_patch, bool):
+            raise ValueError("verify_after_patch must be a JSON boolean")
         tags = _string_list(item, "tags")
         expected_changed_files = _string_list(item, "expected_changed_files")
         test_command = item.get("test_command", "pytest -q")
@@ -137,6 +141,7 @@ def load_suite(path: str) -> EvaluationSuite:
             docker_image=item.get("docker_image", "repofix-pytest:latest"),
             command_timeout_seconds=command_timeout_seconds,
             seed_failure_context=seed_failure_context,
+            verify_after_patch=verify_after_patch,
             tags=tags,
             expected_changed_files=tuple(sorted(expected_changed_files)),
             variant=variant,
@@ -583,6 +588,7 @@ class EvaluationRunner:
                 docker_image=task.docker_image,
                 command_timeout_seconds=task.command_timeout_seconds,
                 seed_failure_context=task.seed_failure_context,
+                verify_after_patch=task.verify_after_patch,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
             target_artifacts = destination / "runs" / run_key
@@ -625,6 +631,7 @@ class EvaluationRunner:
             "docker_image": state.docker_image,
             "command_timeout_seconds": state.command_timeout_seconds,
             "seed_failure_context": state.seed_failure_context,
+            "verify_after_patch": state.verify_after_patch,
             "changed_files": state.evaluation.changed_files,
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),
@@ -674,6 +681,7 @@ class EvaluationRunner:
             "docker_image": task.docker_image,
             "command_timeout_seconds": task.command_timeout_seconds,
             "seed_failure_context": task.seed_failure_context,
+            "verify_after_patch": task.verify_after_patch,
             "changed_files": [],
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),

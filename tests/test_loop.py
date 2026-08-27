@@ -171,6 +171,34 @@ class CapturingFinishProvider(FinishProvider):
         return super().next_action(context)
 
 
+class PatchThenCapturingFinishProvider:
+    def __init__(self):
+        self.calls = 0
+        self.context_after_patch = ""
+
+    def next_action(self, context):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelDecision(
+                Action(
+                    "apply_patch",
+                    {
+                        "path": "calculator.py",
+                        "old_text": "return a - b",
+                        "new_text": "return a + b",
+                    },
+                ),
+                TokenUsage(100, 20, 120, requests=1),
+                "mock-model",
+            )
+        self.context_after_patch = context
+        return ModelDecision(
+            Action("finish", {"summary": "fixed with automatic feedback"}),
+            TokenUsage(100, 20, 120, requests=1),
+            "mock-model",
+        )
+
+
 def test_loop_gives_independent_baseline_to_first_model_request(tmp_path):
     (tmp_path / "test_bad.py").write_text("def test_bad(): assert False\n", encoding="utf-8")
     provider = CapturingFinishProvider()
@@ -180,6 +208,33 @@ def test_loop_gives_independent_baseline_to_first_model_request(tmp_path):
     assert "Independent baseline: failed" in provider.context
     assert "Baseline command: pytest -q test_bad.py" in provider.context
     assert "1 failed" in provider.context
+
+
+def test_loop_can_attach_focused_pytest_feedback_after_patch(tmp_path):
+    (tmp_path / "calculator.py").write_text(
+        "def add(a, b):\n    return a - b\n", encoding="utf-8"
+    )
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    provider = PatchThenCapturingFinishProvider()
+
+    state = AgentLoop(
+        provider,
+        str(tmp_path),
+        verify_after_patch=True,
+        test_command="pytest -q test_calculator.py",
+        final_test_command="pytest -q",
+    ).run("fix add")
+
+    post_patch = state.history[0]["observation"]["metadata"]["post_patch_test"]
+    assert post_patch["success"] is True
+    assert post_patch["command"] == "pytest -q test_calculator.py"
+    assert "Harness post-patch focused pytest: passed" in provider.context_after_patch
+    assert "latest_agent_pytest=passed" in provider.context_after_patch
+    assert state.evaluation.final.command == "pytest -q"
+    assert state.status == "success"
 
 
 def test_loop_resumes_same_run_from_checkpoint(tmp_path):
@@ -228,6 +283,16 @@ def test_resume_rejects_different_failure_context_setting(tmp_path):
     with pytest.raises(ValueError, match="failure-context setting"):
         AgentLoop(
             FinishProvider(), str(tmp_path), 3, seed_failure_context=True
+        ).run("fix tests", resume=True)
+
+
+def test_resume_rejects_different_post_patch_verification_setting(tmp_path):
+    AgentLoop(
+        FailingProvider(), str(tmp_path), 3, verify_after_patch=False
+    ).run("fix tests")
+    with pytest.raises(ValueError, match="post-patch verification setting"):
+        AgentLoop(
+            FinishProvider(), str(tmp_path), 3, verify_after_patch=True
         ).run("fix tests", resume=True)
 
 

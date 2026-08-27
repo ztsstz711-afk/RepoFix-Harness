@@ -12,6 +12,7 @@ from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
 from .tools import ToolRuntime
+from .text import compact_text
 from .workspace import WorkspaceJournal
 
 class AgentLoop:
@@ -34,6 +35,7 @@ class AgentLoop:
         docker_image: str | None = None,
         command_timeout_seconds: int | None = None,
         seed_failure_context: bool | None = None,
+        verify_after_patch: bool | None = None,
     ):
         settings = Settings.from_env()
         self.provider, self.max_steps = provider, max_steps
@@ -61,12 +63,18 @@ class AgentLoop:
             if seed_failure_context is None
             else seed_failure_context
         )
+        self.verify_after_patch = (
+            settings.verify_after_patch
+            if verify_after_patch is None
+            else verify_after_patch
+        )
         self.state = RunState(
             "", str(self.repo), test_command=self.test_command,
             final_test_command=self.final_test_command,
             execution_backend=self.execution_backend, docker_image=self.docker_image,
             command_timeout_seconds=self.command_timeout_seconds,
             seed_failure_context=self.seed_failure_context,
+            verify_after_patch=self.verify_after_patch,
         )
         self.store = RunStore(repo)
         self.max_changed_files = (
@@ -214,6 +222,13 @@ class AgentLoop:
                 self._record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
                 break
             obs = self.runtime.execute(action.name, action.arguments)
+            if (
+                self.verify_after_patch
+                and action.name == "apply_patch"
+                and obs.success
+                and obs.metadata.get("changed")
+            ):
+                self._attach_post_patch_verification(obs)
             self._record({"step": self.state.step, "action": asdict(action), "observation": asdict(obs), "usage": asdict(decision.usage)})
         else:
             self.state.status = "budget_exhausted"
@@ -258,6 +273,18 @@ class AgentLoop:
         self.state.evaluation.rollback_error = ""
         self._save_checkpoint()
         self._notify({"type": "rollback", "files": restored})
+
+    def _attach_post_patch_verification(self, observation) -> None:
+        snapshot = self.evaluator.run_tests()
+        observation.metadata["post_patch_test"] = asdict(snapshot)
+        status = "passed" if snapshot.success else "failed"
+        test_output = compact_text(snapshot.output, 4_000)[0]
+        combined = (
+            f"{observation.output}\n\n"
+            f"Harness post-patch focused pytest: {status}\n"
+            f"Command: {snapshot.command}\n{test_output}"
+        )
+        observation.output = compact_text(combined, self.runtime.max_output_chars)[0]
 
     def _finish_after_provider_error(self) -> None:
         changed_files = self.evaluator.changed_files(self.state.history)
@@ -358,4 +385,6 @@ class AgentLoop:
             raise ValueError("checkpoint command timeout does not match")
         if state.seed_failure_context != self.seed_failure_context:
             raise ValueError("checkpoint failure-context setting does not match")
+        if state.verify_after_patch != self.verify_after_patch:
+            raise ValueError("checkpoint post-patch verification setting does not match")
         return state

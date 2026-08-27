@@ -158,6 +158,9 @@ class ContextBuilder:
                 changed_files.add(observation["metadata"]["path"])
             if action.get("name") == "run_command":
                 latest_pytest = "passed" if observation.get("success") else "failed"
+            post_patch_test = observation.get("metadata", {}).get("post_patch_test")
+            if isinstance(post_patch_test, dict):
+                latest_pytest = "passed" if post_patch_test.get("success") else "failed"
         files = ", ".join(sorted(changed_files)) if changed_files else "none"
         navigation = ContextBuilder._navigation_summary(history)
         return (

@@ -104,6 +104,8 @@ repofix --repo <python-repo> --task "Fix the parser bug" `
 
 两项命令都只接受 pytest 调用。`--test-command` 用于快速 baseline 和模型迭代反馈；`--final-test-command` 专用于成功判定、预算边界验证和回滚后验证。未提供最终命令时会自动沿用前者，兼容原有行为。环境变量分别为 `REPOFIX_TEST_COMMAND`、`REPOFIX_FINAL_TEST_COMMAND`，evaluation task 使用同名 JSON 字段。
 
+对快速定向测试，可启用 `--verify-after-patch`（或 `REPOFIX_VERIFY_AFTER_PATCH=1`）。Harness 会在每次实际文件修改后自动执行 `--test-command`，把通过/失败结果附在补丁观察中；该结果只用于迭代反馈，最终成功仍必须通过 `--final-test-command`。
+
 使用受限 Docker 容器执行所有 pytest：
 
 ```powershell

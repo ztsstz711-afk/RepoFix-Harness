@@ -94,6 +94,7 @@ class RunState:
     docker_image: str = "repofix-pytest:latest"
     command_timeout_seconds: int = 30
     seed_failure_context: bool = True
+    verify_after_patch: bool = False
     run_id: str = field(default_factory=lambda: uuid4().hex[:12])
     model: str = ""
     step: int = 0

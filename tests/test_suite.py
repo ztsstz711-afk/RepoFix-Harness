@@ -118,6 +118,7 @@ def test_v16_navigation_memory_gate_is_single_case_and_bounded():
     assert task.max_requests == 12
     assert task.max_tokens == 68_000
     assert task.execution_backend == "docker"
+    assert task.verify_after_patch is True
     assert task.expected_changed_files == ("src/tomli/_parser.py",)
     assert task.test_command != task.final_test_command
 

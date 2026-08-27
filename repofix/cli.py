@@ -64,6 +64,12 @@ def main():
         default=settings.seed_failure_context,
         help="seed the first model request from pytest traceback context",
     )
+    p.add_argument(
+        "--verify-after-patch",
+        action=argparse.BooleanOptionalAction,
+        default=settings.verify_after_patch,
+        help="run the focused Harness pytest command after each changed patch",
+    )
     p.add_argument("--max-steps", type=int, default=settings.max_steps)
     p.add_argument("--max-requests", type=int, default=settings.max_requests, help="0 means unlimited")
     p.add_argument("--max-tokens", type=int, default=settings.max_tokens, help="0 means unlimited")
@@ -100,6 +106,7 @@ def main():
         docker_image=a.docker_image,
         command_timeout_seconds=a.command_timeout,
         seed_failure_context=a.failure_context,
+        verify_after_patch=a.verify_after_patch,
     ).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "
@@ -114,6 +121,7 @@ def main():
         f"test_command={state.test_command!r} "
         f"final_test_command={state.final_test_command!r} "
         f"backend={state.execution_backend} "
+        f"verify_after_patch={state.verify_after_patch} "
         f"result={state.repo}/.repofix/result.json"
     )
     return 0 if state.status == "success" else 1

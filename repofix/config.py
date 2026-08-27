@@ -26,6 +26,7 @@ class Settings:
     max_output_tokens: int
     json_mode: bool
     seed_failure_context: bool
+    verify_after_patch: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -54,5 +55,7 @@ class Settings:
             json_mode=os.getenv("REPOFIX_JSON_MODE", "1").lower()
             in {"1", "true", "yes"},
             seed_failure_context=os.getenv("REPOFIX_SEED_FAILURE_CONTEXT", "1").lower()
+            in {"1", "true", "yes"},
+            verify_after_patch=os.getenv("REPOFIX_VERIFY_AFTER_PATCH", "0").lower()
             in {"1", "true", "yes"},
         )

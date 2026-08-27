@@ -12,6 +12,7 @@
       "final_test_command": "pytest -q -o pythonpath=src tests",
       "execution_backend": "docker",
       "command_timeout_seconds": 180,
+      "verify_after_patch": true,
       "max_steps": 16,
       "max_requests": 12,
       "max_tokens": 68000,
