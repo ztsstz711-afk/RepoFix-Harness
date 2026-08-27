@@ -50,6 +50,8 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - checkpoint/resume、逐步 trace、独立 run artifacts
 - 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
 - evaluation 支持重复 trial、命名 variant、交错 A/B 执行及请求/token/成本分布统计
+- 配对实验按 case + trial 比较成功结果与资源差值，并记录 manifest/fixture SHA-256
+- 每个 trial 后原子更新 `progress.json`；单次 runner 异常被隔离，后续任务继续执行
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。
@@ -170,13 +172,13 @@ repofix-runs --repo <repo> rollback latest
 
 准备脚本固定到 h11 `v0.16.0` 并校验归档 SHA-256，同时保留 clean 与 injected-bug 两份工作区。该结果属于在真实第三方源码上注入的受控回归，不是上游真实 issue 或 SWE-bench 成绩。
 
-运行 V1.3 的三次重复 context A/B：
+运行 V1.3 的五场景、三次重复 context A/B：
 
 ```powershell
-.\scripts\run_demo.ps1 -Suite evals\context-ab.json
+.\scripts\run_demo.ps1 -Suite evals\context-matrix.json
 ```
 
-manifest 通过 `repetitions` 与 `variant` 声明实验组，并以 `seed_failure_context` 控制上下文。六次 DeepSeek + Docker 实测中，两组都完成 3/3 修复和 3/3 范围命中；context-on 的平均请求减少 50%，平均 tokens 减少约 50.4%。详见 [V1.3 context A/B](docs/v1.3-context-ab-results.md)。
+manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明配对实验，并以 `seed_failure_context` 控制上下文。30 次 DeepSeek + Docker 实测中，两组都完成 15/15 修复和 15/15 范围命中；context-on 的平均请求减少 23.81%，平均 tokens 减少 22.80%。15 个配对中 token 有 11 对更省、4 对更贵，说明上下文定位准确性会决定收益。详见 [V1.3 multi-case context matrix](docs/v1.3-context-matrix-results.md)。单场景先导实验保留在 [V1.3 context A/B](docs/v1.3-context-ab-results.md)。
 
 单元测试使用 mock/scripted provider，因此不会产生 API 费用；项目主路径和 `repofix-eval` 始终使用真实 API provider。
 
@@ -196,3 +198,4 @@ V1.2 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [真实 benchmark 结果](docs/v0.9-deepseek-results.md)
 - [Package-style 真实验证](docs/package-scenario-results.md)
 - [外部 h11 v0.16.0 隔离修复](docs/external-h11-results.md)
+- [V1.3 五场景 context 配对实验](docs/v1.3-context-matrix-results.md)

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import shutil
@@ -34,6 +35,7 @@ class SuiteTask:
     variant: str = "default"
     repetitions: int = 1
     case: str = ""
+    source_sha256: str = ""
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,8 @@ class EvaluationSuite:
     name: str
     tasks: list[SuiteTask]
     baseline_variant: str | None = None
+    manifest_path: str = ""
+    manifest_sha256: str = ""
 
 
 def load_suite(path: str) -> EvaluationSuite:
@@ -114,6 +118,7 @@ def load_suite(path: str) -> EvaluationSuite:
             variant=variant,
             repetitions=repetitions,
             case=case,
+            source_sha256=_source_tree_sha256(repo),
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
@@ -143,7 +148,13 @@ def load_suite(path: str) -> EvaluationSuite:
                 raise ValueError(f"case {case} requires at least two variants")
             if len({task.repetitions for task in case_tasks}) != 1:
                 raise ValueError(f"case {case} variants must use equal repetitions")
-    return EvaluationSuite(name, tasks, baseline_variant)
+    return EvaluationSuite(
+        name,
+        tasks,
+        baseline_variant,
+        str(manifest),
+        hashlib.sha256(manifest.read_bytes()).hexdigest(),
+    )
 
 
 def _string_list(item: dict, key: str) -> tuple[str, ...]:
@@ -153,6 +164,35 @@ def _string_list(item: dict, key: str) -> tuple[str, ...]:
     if len(value) != len(set(value)):
         raise ValueError(f"{key} must not contain duplicates")
     return tuple(value)
+
+
+_IGNORED_SOURCE_PARTS = {
+    ".git",
+    ".repofix",
+    ".venv",
+    "__pycache__",
+    ".pytest_cache",
+}
+
+
+def _source_tree_sha256(repo: Path) -> str:
+    """Hash the source snapshot that an evaluation trial is expected to copy."""
+    digest = hashlib.sha256()
+    files = sorted(
+        path
+        for path in repo.rglob("*")
+        if path.is_file()
+        and not path.is_symlink()
+        and not (_IGNORED_SOURCE_PARTS & set(path.relative_to(repo).parts))
+    )
+    for path in files:
+        relative = path.relative_to(repo).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        with path.open("rb") as stream:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+    return digest.hexdigest()
 
 
 class EvaluationRunner:
@@ -244,7 +284,12 @@ class EvaluationRunner:
             if result["failure_kind"]:
                 failure_counts[result["failure_kind"]] = failure_counts.get(result["failure_kind"], 0) + 1
         report = {
+            "report_schema_version": 1,
             "suite": suite.name,
+            "manifest": {
+                "path": suite.manifest_path,
+                "sha256": suite.manifest_sha256,
+            },
             "started_at": started_at,
             "completed_at": utc_now(),
             "completed": completed,
@@ -329,6 +374,7 @@ class EvaluationRunner:
             "trial": trial,
             "repetitions": task.repetitions,
             "source_repo": task.repo,
+            "source_repo_sha256": task.source_sha256,
             "run_id": state.run_id,
             "status": state.status,
             "model": state.model,
@@ -379,6 +425,7 @@ class EvaluationRunner:
             "trial": trial,
             "repetitions": task.repetitions,
             "source_repo": task.repo,
+            "source_repo_sha256": task.source_sha256,
             "run_id": "",
             "status": "error",
             "model": "",
@@ -498,18 +545,31 @@ class EvaluationRunner:
                 "requests": cls._mean_comparison(
                     [result["usage"]["requests"] for result in baseline],
                     [result["usage"]["requests"] for result in candidate],
+                ) | cls._paired_metric_summary(
+                    baseline, candidate, lambda result: result["usage"]["requests"]
                 ),
                 "tokens": cls._mean_comparison(
                     [result["usage"]["total_tokens"] for result in baseline],
                     [result["usage"]["total_tokens"] for result in candidate],
+                ) | cls._paired_metric_summary(
+                    baseline,
+                    candidate,
+                    lambda result: result["usage"]["total_tokens"],
                 ),
                 "steps": cls._mean_comparison(
                     [result["steps"] for result in baseline],
                     [result["steps"] for result in candidate],
+                ) | cls._paired_metric_summary(
+                    baseline, candidate, lambda result: result["steps"]
                 ),
                 "estimated_cost_usd": cls._mean_comparison(
                     [result["estimated_cost_usd"] for result in baseline],
                     [result["estimated_cost_usd"] for result in candidate],
+                    digits=8,
+                ) | cls._paired_metric_summary(
+                    baseline,
+                    candidate,
+                    lambda result: result["estimated_cost_usd"],
                     digits=8,
                 ),
             }
@@ -534,6 +594,41 @@ class EvaluationRunner:
             "relative_change_percent": (
                 round(relative, 2) if relative is not None else None
             ),
+        }
+
+    @classmethod
+    def _paired_metric_summary(
+        cls,
+        baseline: list[dict],
+        candidate: list[dict],
+        value: Callable[[dict], float],
+        digits: int = 2,
+    ) -> dict:
+        baseline_by_trial = {
+            (result["case"], result["trial"]): value(result)
+            for result in baseline
+        }
+        candidate_by_trial = {
+            (result["case"], result["trial"]): value(result)
+            for result in candidate
+        }
+        keys = sorted(set(baseline_by_trial) & set(candidate_by_trial))
+        deltas = [
+            candidate_by_trial[key] - baseline_by_trial[key]
+            for key in keys
+        ]
+        if not deltas:
+            return {
+                "paired_delta": None,
+                "candidate_better_pairs": 0,
+                "tied_pairs": 0,
+                "baseline_better_pairs": 0,
+            }
+        return {
+            "paired_delta": cls._metric_summary(deltas, digits=digits),
+            "candidate_better_pairs": sum(delta < 0 for delta in deltas),
+            "tied_pairs": sum(delta == 0 for delta in deltas),
+            "baseline_better_pairs": sum(delta > 0 for delta in deltas),
         }
 
     @staticmethod

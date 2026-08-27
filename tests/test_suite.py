@@ -87,6 +87,9 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     report = EvaluationRunner(SuiteMockProvider).run(load_suite(str(manifest)), str(output))
 
     assert report["success_rate"] == 1.0
+    assert report["report_schema_version"] == 1
+    assert report["manifest"]["path"] == str(manifest.resolve())
+    assert len(report["manifest"]["sha256"]) == 64
     assert report["usage"]["requests"] == 5
     assert report["usage"]["total_tokens"] == 600
     assert report["usage"]["retries"] == 0
@@ -96,6 +99,9 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["variants"]["default"]["trials"] == 1
     assert report["variants"]["default"]["requests"]["mean"] == 5
     assert report["tasks"][0]["changed_files"] == ["calculator.py"]
+    assert report["tasks"][0]["source_repo_sha256"] == load_suite(
+        str(manifest)
+    ).tasks[0].source_sha256
     assert report["tasks"][0]["rollback_performed"] is False
     assert report["tasks"][0]["tags"] == ["single-file"]
     assert report["tasks"][0]["changed_files_match"] is True
@@ -103,6 +109,28 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert (output / "report.json").exists()
     assert (output / "runs" / "addition" / "result.json").exists()
     assert "a - b" in (repo / "calculator.py").read_text(encoding="utf-8")
+
+
+def test_suite_source_digest_is_stable_and_detects_fixture_changes(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = repo / "module.py"
+    source.write_text("value = 1\n", encoding="utf-8")
+    ignored = repo / "__pycache__"
+    ignored.mkdir()
+    (ignored / "module.pyc").write_bytes(b"first")
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps({"tasks": [{"id": "task", "repo": "repo", "task": "test"}]}),
+        encoding="utf-8",
+    )
+
+    first = load_suite(str(manifest)).tasks[0].source_sha256
+    (ignored / "module.pyc").write_bytes(b"second")
+    assert load_suite(str(manifest)).tasks[0].source_sha256 == first
+
+    source.write_text("value = 2\n", encoding="utf-8")
+    assert load_suite(str(manifest)).tasks[0].source_sha256 != first
 
 
 def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
@@ -184,6 +212,16 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
     comparison = report["variant_comparisons"]["context_on"]
     assert comparison["success_rate_delta_points"] == 0
     assert comparison["requests"]["relative_change_percent"] == 0
+    assert comparison["requests"]["paired_delta"] == {
+        "total": 0,
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+    }
+    assert comparison["requests"]["candidate_better_pairs"] == 0
+    assert comparison["requests"]["tied_pairs"] == 2
+    assert comparison["requests"]["baseline_better_pairs"] == 0
     assert comparison["paired_outcomes"] == {
         "pairs": 2,
         "both_success": 2,
@@ -397,6 +435,32 @@ def test_mean_comparison_reports_relative_change():
         "candidate_mean": 3,
         "delta": -3,
         "relative_change_percent": -50.0,
+    }
+
+
+def test_paired_metric_summary_uses_matching_case_and_trial():
+    baseline = [
+        {"case": "a", "trial": 1, "value": 10},
+        {"case": "b", "trial": 1, "value": 5},
+    ]
+    candidate = [
+        {"case": "b", "trial": 1, "value": 5},
+        {"case": "a", "trial": 1, "value": 7},
+    ]
+
+    assert EvaluationRunner._paired_metric_summary(
+        baseline, candidate, lambda result: result["value"]
+    ) == {
+        "paired_delta": {
+            "total": -3,
+            "mean": -1.5,
+            "median": -1.5,
+            "min": -3,
+            "max": 0,
+        },
+        "candidate_better_pairs": 1,
+        "tied_pairs": 1,
+        "baseline_better_pairs": 0,
     }
 
 

@@ -6,6 +6,10 @@
 - Add bounded `repetitions` and named `variant` fields to evaluation manifests, with interleaved trial execution and collision-safe artifact IDs.
 - Aggregate per-variant success/scope rates plus total, mean, median, minimum, and maximum requests, tokens, steps, and estimated cost.
 - Validate context-on versus context-off over six DeepSeek Docker trials: both variants repaired 3/3 with exact scope, while context-on used 50% fewer requests and about 50.4% fewer tokens.
+- Add case-aware paired experiment validation, matched success outcomes, and per-pair request/token/step/cost deltas.
+- Isolate unexpected runner failures per trial and atomically persist a complete partial `progress.json` after every result.
+- Fingerprint the exact evaluation manifest and copied source trees with SHA-256 for reproducible report comparisons.
+- Expand the context experiment to five bug shapes and 30 DeepSeek Docker trials: both variants repaired 15/15 with exact scope; context-on reduced mean requests by 23.81% and mean tokens by 22.80%, but increased tokens on 4 of 15 matched pairs.
 
 ## 1.2.0 - 2026-08-27
 
