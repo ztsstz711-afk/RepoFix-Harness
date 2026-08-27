@@ -23,6 +23,8 @@
 
 新增的 package-style 场景使用 `src/` 布局和 4 个相互依赖的业务模块。真实 DeepSeek 运行在 7 次请求内只局部修改 `src/order_pipeline/service.py`，最终 7 项测试通过，详见 [Package scenario result](docs/package-scenario-results.md)。
 
+V1.1 又完成了两次全部测试均在受限 Docker 中执行的真实闭环：package-style 场景使用 7 次请求、14,868 tokens；基于第三方 h11 v0.16.0 源码的注入回归使用 5 次请求、17,287 tokens，从 `2 failed, 76 passed` 修复到 `78 passed`，且只改动预期文件。后者详见 [External h11 result](docs/external-h11-results.md)。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
@@ -39,6 +41,7 @@
 - 回滚前进行路径、备份和结束哈希预检，保护用户后续修改
 - checkpoint/resume、逐步 trace、独立 run artifacts
 - 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
+- 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。
 
@@ -162,7 +165,7 @@ repofix-runs --repo <repo> rollback latest
 
 ## 安全边界与非目标
 
-V1.0 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。它不是完整 OS sandbox，因此不要对不可信仓库授予高权限环境。
+V1.1 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
 
 当前不包含 LangGraph、multi-agent、MCP、完整 Docker sandbox、SWE-bench/BugsInPy。选择标准库状态机和小模块，是为了让控制流、安全边界和失败行为可以直接审查与面试讲解。
 
