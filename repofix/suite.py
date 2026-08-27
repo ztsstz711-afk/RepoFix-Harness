@@ -1,6 +1,7 @@
 import json
 import re
 import shutil
+import statistics
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -27,8 +28,11 @@ class SuiteTask:
     execution_backend: str = "local"
     docker_image: str = "repofix-pytest:latest"
     command_timeout_seconds: int = 30
+    seed_failure_context: bool = True
     tags: tuple[str, ...] = ()
     expected_changed_files: tuple[str, ...] = ()
+    variant: str = "default"
+    repetitions: int = 1
 
 
 @dataclass(frozen=True)
@@ -56,10 +60,21 @@ def load_suite(path: str) -> EvaluationSuite:
         rollback_on_failure = item.get("rollback_on_failure")
         if rollback_on_failure is not None and not isinstance(rollback_on_failure, bool):
             raise ValueError("rollback_on_failure must be a JSON boolean")
+        seed_failure_context = item.get("seed_failure_context", True)
+        if not isinstance(seed_failure_context, bool):
+            raise ValueError("seed_failure_context must be a JSON boolean")
         tags = _string_list(item, "tags")
         expected_changed_files = _string_list(item, "expected_changed_files")
         test_command = item.get("test_command", "pytest -q")
         parse_pytest_invocation(test_command)
+        variant = item.get("variant", "default")
+        if not isinstance(variant, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", variant):
+            raise ValueError(f"invalid variant: {variant}")
+        repetitions = item.get("repetitions", 1)
+        if isinstance(repetitions, bool) or not isinstance(repetitions, int):
+            raise ValueError("repetitions must be a JSON integer")
+        if repetitions < 1 or repetitions > 100:
+            raise ValueError("repetitions must be between 1 and 100")
         for expected_path in expected_changed_files:
             path = Path(expected_path)
             if path.is_absolute() or ".." in path.parts:
@@ -82,11 +97,23 @@ def load_suite(path: str) -> EvaluationSuite:
             execution_backend=item.get("execution_backend", "local"),
             docker_image=item.get("docker_image", "repofix-pytest:latest"),
             command_timeout_seconds=int(item.get("command_timeout_seconds", 30)),
+            seed_failure_context=seed_failure_context,
             tags=tags,
             expected_changed_files=tuple(sorted(expected_changed_files)),
+            variant=variant,
+            repetitions=repetitions,
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
+    if sum(task.repetitions for task in tasks) > 100:
+        raise ValueError("evaluation suite must not exceed 100 total trials")
+    run_keys = [
+        task.id if task.repetitions == 1 else f"{task.id}--trial-{trial:02d}"
+        for task in tasks
+        for trial in range(1, task.repetitions + 1)
+    ]
+    if len(run_keys) != len(set(run_keys)):
+        raise ValueError("evaluation trial output IDs collide")
     return EvaluationSuite(name, tasks)
 
 
@@ -113,12 +140,38 @@ class EvaluationRunner:
         total_usage = TokenUsage()
         results = []
 
-        for index, task in enumerate(suite.tasks, 1):
-            self._notify({"type": "task_start", "index": index, "total": len(suite.tasks), "task_id": task.id})
-            result = self._run_task(task, destination)
-            total_usage.add(TokenUsage(**result["usage"]))
-            results.append(result)
-            self._notify({"type": "task_end", "task_id": task.id, "status": result["status"]})
+        total_trials = sum(task.repetitions for task in suite.tasks)
+        index = 0
+        for trial in range(1, max(task.repetitions for task in suite.tasks) + 1):
+            for task in suite.tasks:
+                if trial > task.repetitions:
+                    continue
+                index += 1
+                run_key = (
+                    task.id
+                    if task.repetitions == 1
+                    else f"{task.id}--trial-{trial:02d}"
+                )
+                self._notify({
+                    "type": "task_start",
+                    "index": index,
+                    "total": total_trials,
+                    "task_id": run_key,
+                    "base_task_id": task.id,
+                    "variant": task.variant,
+                    "trial": trial,
+                })
+                result = self._run_task(task, destination, trial, run_key)
+                total_usage.add(TokenUsage(**result["usage"]))
+                results.append(result)
+                self._notify({
+                    "type": "task_end",
+                    "task_id": run_key,
+                    "base_task_id": task.id,
+                    "variant": task.variant,
+                    "trial": trial,
+                    "status": result["status"],
+                })
 
         successes = sum(result["status"] == "success" for result in results)
         scoped_results = [result for result in results if result["changed_files_match"] is not None]
@@ -131,6 +184,7 @@ class EvaluationRunner:
             "suite": suite.name,
             "started_at": started_at,
             "completed_at": utc_now(),
+            "task_definition_count": len(suite.tasks),
             "task_count": len(results),
             "successes": successes,
             "success_rate": successes / len(results),
@@ -141,12 +195,19 @@ class EvaluationRunner:
             "change_scope_evaluated": len(scoped_results),
             "change_scope_matches": scope_matches,
             "change_scope_rate": scope_matches / len(scoped_results) if scoped_results else None,
+            "variants": self._variant_summaries(results),
             "tasks": results,
         }
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
         return report
 
-    def _run_task(self, task: SuiteTask, destination: Path) -> dict:
+    def _run_task(
+        self,
+        task: SuiteTask,
+        destination: Path,
+        trial: int,
+        run_key: str,
+    ) -> dict:
         started = time.perf_counter()
         with tempfile.TemporaryDirectory(prefix=f"repofix-{task.id}-") as temporary:
             workspace = Path(temporary) / "repo"
@@ -156,7 +217,14 @@ class EvaluationRunner:
                 ignore=shutil.ignore_patterns(".git", ".repofix", ".venv", "__pycache__", ".pytest_cache"),
             )
             def forward_agent_event(state, event):
-                self._notify({"type": "agent_event", "task_id": task.id, "event": event})
+                self._notify({
+                    "type": "agent_event",
+                    "task_id": run_key,
+                    "base_task_id": task.id,
+                    "variant": task.variant,
+                    "trial": trial,
+                    "event": event,
+                })
 
             state = AgentLoop(
                 self.provider_factory(),
@@ -172,9 +240,10 @@ class EvaluationRunner:
                 execution_backend=task.execution_backend,
                 docker_image=task.docker_image,
                 command_timeout_seconds=task.command_timeout_seconds,
+                seed_failure_context=task.seed_failure_context,
             ).run(task.task)
             source_artifacts = workspace / ".repofix" / "runs" / state.run_id
-            target_artifacts = destination / "runs" / task.id
+            target_artifacts = destination / "runs" / run_key
             if source_artifacts.exists():
                 shutil.copytree(source_artifacts, target_artifacts)
 
@@ -184,7 +253,11 @@ class EvaluationRunner:
             else None
         )
         return {
-            "id": task.id,
+            "id": run_key,
+            "task_id": task.id,
+            "variant": task.variant,
+            "trial": trial,
+            "repetitions": task.repetitions,
             "source_repo": task.repo,
             "run_id": state.run_id,
             "status": state.status,
@@ -205,6 +278,7 @@ class EvaluationRunner:
             "execution_backend": state.execution_backend,
             "docker_image": state.docker_image,
             "command_timeout_seconds": state.command_timeout_seconds,
+            "seed_failure_context": state.seed_failure_context,
             "changed_files": state.evaluation.changed_files,
             "tags": list(task.tags),
             "expected_changed_files": list(task.expected_changed_files),
@@ -218,6 +292,46 @@ class EvaluationRunner:
             "rollback_files": state.evaluation.rollback_files,
             "post_rollback_success": getattr(state.evaluation.post_rollback, "success", None),
             "rollback_error": state.evaluation.rollback_error,
+        }
+
+    @classmethod
+    def _variant_summaries(cls, results: list[dict]) -> dict[str, dict]:
+        grouped: dict[str, list[dict]] = {}
+        for result in results:
+            grouped.setdefault(result["variant"], []).append(result)
+        summaries = {}
+        for variant, trials in sorted(grouped.items()):
+            successes = sum(trial["status"] == "success" for trial in trials)
+            scoped = [trial for trial in trials if trial["changed_files_match"] is not None]
+            scope_matches = sum(trial["changed_files_match"] is True for trial in scoped)
+            summaries[variant] = {
+                "trials": len(trials),
+                "successes": successes,
+                "success_rate": successes / len(trials),
+                "change_scope_evaluated": len(scoped),
+                "change_scope_matches": scope_matches,
+                "change_scope_rate": scope_matches / len(scoped) if scoped else None,
+                "requests": cls._metric_summary(
+                    [trial["usage"]["requests"] for trial in trials]
+                ),
+                "tokens": cls._metric_summary(
+                    [trial["usage"]["total_tokens"] for trial in trials]
+                ),
+                "steps": cls._metric_summary([trial["steps"] for trial in trials]),
+                "estimated_cost_usd": cls._metric_summary(
+                    [trial["estimated_cost_usd"] for trial in trials], digits=8
+                ),
+            }
+        return summaries
+
+    @staticmethod
+    def _metric_summary(values: list[float], digits: int = 2) -> dict:
+        return {
+            "total": round(sum(values), digits),
+            "mean": round(statistics.mean(values), digits),
+            "median": round(statistics.median(values), digits),
+            "min": min(values),
+            "max": max(values),
         }
 
     def _notify(self, event: dict) -> None:

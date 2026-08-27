@@ -39,7 +39,7 @@ flowchart LR
 | `budget.py` | request/token 预算、价格估算和 provider 错误分类 |
 | `evaluation.py` | 使用持久化验证命令独立运行 baseline/final/post-rollback pytest |
 | `storage.py` | 原子保存 latest 与 per-run trace/result |
-| `suite.py` | 隔离复制、顺序评测和聚合报告 |
+| `suite.py` | 隔离复制、交错重复 trial、variant 分组统计和聚合报告 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
 | `preflight.py` | 模型调用前检查解释器、pytest、命令和仓库形态 |
 | `execution.py` | 本地或受限 Docker pytest 执行后端 |
@@ -84,6 +84,8 @@ baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后�
 上下文提示明确说明 baseline 与自动附带的源码片段已经构成 inspection evidence，模型只在信息不足时调用 list/read/search。这样 context optimization 才能转化为更短的 action path，而不是提供了源码后仍机械重复读取。
 
 每次真正发起模型 action 前，Harness 会把 context provenance 写入 `RunState.context_snapshots`：包括实际/最大字符数、baseline 是否存在、history 纳入与省略数量，以及自动选择源码的相对路径、原因（traceback 或 local import）、行号、符号和片段长度。这些信息属于 Harness 诊断状态，不加入 Agent history，因此不会改变后续模型决策或额外消耗 token。provider 内部格式/网络重试复用同一 context snapshot。
+
+Evaluation manifest 可以为 task 声明 `repetitions`、`variant` 和 `seed_failure_context`。Runner 按 trial 轮次交错不同 task/variant，每次使用新的 provider 与临时仓库，并为重复项生成独立 artifact ID。报告按 variant 汇总成功率、改动范围，以及 requests/tokens/steps/cost 的 total、mean、median、min 和 max。单个 suite 最多 100 个 trial，避免配置错误造成无界 API 消耗。
 
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
 

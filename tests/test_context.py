@@ -97,3 +97,21 @@ def test_context_seeds_traceback_source_only_on_first_model_request(tmp_path):
     assert metadata["failure_context"]["sources"][0]["path"] == "calculator.py"
     assert metadata["failure_context"]["sources"][0]["reason"] == "traceback"
     assert metadata["history_events_total"] == 0
+
+
+def test_context_can_disable_failure_source_seeding(tmp_path):
+    source = tmp_path / "calculator.py"
+    source.write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    baseline = Snapshot(False, "calculator.py:2: AssertionError")
+
+    result = ContextBuilder(
+        str(tmp_path),
+        "fix add",
+        baseline=baseline,
+        seed_failure_context=False,
+    ).build_with_metadata([])
+
+    assert "traceback-referenced source snippets" not in result.text
+    assert result.metadata["failure_context"]["enabled"] is False
+    assert result.metadata["failure_context"]["included"] is False
+    assert result.metadata["failure_context"]["sources"] == []

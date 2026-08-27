@@ -49,6 +49,7 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - 回滚前进行路径、备份和结束哈希预检，保护用户后续修改
 - checkpoint/resume、逐步 trace、独立 run artifacts
 - 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
+- evaluation 支持重复 trial、命名 variant、交错 A/B 执行及请求/token/成本分布统计
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。
@@ -168,6 +169,14 @@ repofix-runs --repo <repo> rollback latest
 ```
 
 准备脚本固定到 h11 `v0.16.0` 并校验归档 SHA-256，同时保留 clean 与 injected-bug 两份工作区。该结果属于在真实第三方源码上注入的受控回归，不是上游真实 issue 或 SWE-bench 成绩。
+
+运行 V1.3 的三次重复 context A/B：
+
+```powershell
+.\scripts\run_demo.ps1 -Suite evals\context-ab.json
+```
+
+manifest 通过 `repetitions` 与 `variant` 声明实验组，并以 `seed_failure_context` 控制上下文。六次 DeepSeek + Docker 实测中，两组都完成 3/3 修复和 3/3 范围命中；context-on 的平均请求减少 50%，平均 tokens 减少约 50.4%。详见 [V1.3 context A/B](docs/v1.3-context-ab-results.md)。
 
 单元测试使用 mock/scripted provider，因此不会产生 API 费用；项目主路径和 `repofix-eval` 始终使用真实 API provider。
 

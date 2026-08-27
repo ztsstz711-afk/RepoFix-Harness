@@ -140,6 +140,16 @@ def test_resume_rejects_different_test_command(tmp_path):
         ).run("fix tests", resume=True)
 
 
+def test_resume_rejects_different_failure_context_setting(tmp_path):
+    AgentLoop(
+        FailingProvider(), str(tmp_path), 3, seed_failure_context=False
+    ).run("fix tests")
+    with pytest.raises(ValueError, match="failure-context setting"):
+        AgentLoop(
+            FinishProvider(), str(tmp_path), 3, seed_failure_context=True
+        ).run("fix tests", resume=True)
+
+
 def test_loop_rejects_unsafe_harness_test_command_before_running(tmp_path):
     state = AgentLoop(
         FinishProvider(), str(tmp_path), test_command="python dangerous.py"

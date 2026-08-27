@@ -59,6 +59,13 @@ def main() -> int:
         f"tokens={report['usage']['total_tokens']} report={Path(output).resolve() / 'report.json'}"
         f" cost_usd={report['estimated_cost_usd']:.6f} failures={report['failure_counts']}"
     )
+    for variant, summary in report["variants"].items():
+        print(
+            f"variant={variant} success={summary['successes']}/{summary['trials']} "
+            f"requests_mean={summary['requests']['mean']} "
+            f"tokens_mean={summary['tokens']['mean']} "
+            f"cost_mean_usd={summary['estimated_cost_usd']['mean']}"
+        )
     return 0 if report["successes"] == report["task_count"] else 1
 
 

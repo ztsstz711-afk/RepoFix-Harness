@@ -32,6 +32,7 @@ class AgentLoop:
         execution_backend: str | None = None,
         docker_image: str | None = None,
         command_timeout_seconds: int | None = None,
+        seed_failure_context: bool | None = None,
     ):
         settings = Settings.from_env()
         self.provider, self.max_steps = provider, max_steps
@@ -50,10 +51,16 @@ class AgentLoop:
         )
         if self.command_timeout_seconds <= 0:
             raise ValueError("command timeout must be positive")
+        self.seed_failure_context = (
+            settings.seed_failure_context
+            if seed_failure_context is None
+            else seed_failure_context
+        )
         self.state = RunState(
             "", str(self.repo), test_command=self.test_command,
             execution_backend=self.execution_backend, docker_image=self.docker_image,
             command_timeout_seconds=self.command_timeout_seconds,
+            seed_failure_context=self.seed_failure_context,
         )
         self.store = RunStore(repo)
         self.max_changed_files = (
@@ -122,6 +129,7 @@ class AgentLoop:
             self.max_context_chars,
             baseline=self.state.evaluation.baseline,
             preflight=self.state.preflight,
+            seed_failure_context=self.seed_failure_context,
         )
         for step in range(self.state.step, self.max_steps):
             context_result = context_builder.build_with_metadata(self.state.history)
@@ -300,4 +308,6 @@ class AgentLoop:
             raise ValueError("checkpoint Docker image does not match")
         if state.command_timeout_seconds != self.command_timeout_seconds:
             raise ValueError("checkpoint command timeout does not match")
+        if state.seed_failure_context != self.seed_failure_context:
+            raise ValueError("checkpoint failure-context setting does not match")
         return state

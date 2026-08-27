@@ -23,6 +23,7 @@ class Settings:
     docker_image: str
     command_timeout_seconds: int
     max_output_tokens: int
+    seed_failure_context: bool
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -47,4 +48,6 @@ class Settings:
             docker_image=os.getenv("REPOFIX_DOCKER_IMAGE", "repofix-pytest:latest"),
             command_timeout_seconds=int(os.getenv("REPOFIX_COMMAND_TIMEOUT_SECONDS", "30")),
             max_output_tokens=int(os.getenv("REPOFIX_MAX_OUTPUT_TOKENS", "2048")),
+            seed_failure_context=os.getenv("REPOFIX_SEED_FAILURE_CONTEXT", "1").lower()
+            in {"1", "true", "yes"},
         )

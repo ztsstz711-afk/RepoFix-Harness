@@ -24,6 +24,7 @@ class ContextBuilder:
         baseline: TestSnapshot | None = None,
         max_baseline_chars: int = 4_000,
         preflight: PreflightState | None = None,
+        seed_failure_context: bool = True,
     ):
         self.repo = repo
         self.task = task
@@ -32,6 +33,7 @@ class ContextBuilder:
         self.baseline = baseline
         self.max_baseline_chars = max_baseline_chars
         self.preflight = preflight
+        self.seed_failure_context = seed_failure_context
         self.failure_context = FailureContextExtractor(
             repo,
             max_chars=min(6_000, max(max_chars // 4, 0)),
@@ -97,6 +99,7 @@ class ContextBuilder:
                 "history_events_included": len(selected),
                 "history_events_omitted": omitted,
                 "failure_context": {
+                    "enabled": self.seed_failure_context,
                     "included": bool(failure_result.text),
                     "chars": len(failure_result.text),
                     "truncated": failure_result.truncated,
@@ -108,7 +111,12 @@ class ContextBuilder:
     def _failure_context_section(
         self, history: list[dict]
     ) -> tuple[str, FailureContextResult]:
-        if history or self.baseline is None or self.baseline.success:
+        if (
+            not self.seed_failure_context
+            or history
+            or self.baseline is None
+            or self.baseline.success
+        ):
             return "", FailureContextResult("")
         result = self.failure_context.build_result(self.baseline.output)
         if not result.text:

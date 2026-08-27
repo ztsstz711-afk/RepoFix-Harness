@@ -1,0 +1,33 @@
+{
+  "name": "context-ab-v1.3",
+  "tasks": [
+    {
+      "id": "optional-config-context-on",
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "variant": "context_on",
+      "repetitions": 3,
+      "seed_failure_context": true,
+      "execution_backend": "docker",
+      "max_steps": 8,
+      "max_requests": 6,
+      "max_tokens": 12000,
+      "tags": ["context-ab", "assertion-only-traceback", "none-handling"],
+      "expected_changed_files": ["config_loader.py"]
+    },
+    {
+      "id": "optional-config-context-off",
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "variant": "context_off",
+      "repetitions": 3,
+      "seed_failure_context": false,
+      "execution_backend": "docker",
+      "max_steps": 8,
+      "max_requests": 6,
+      "max_tokens": 12000,
+      "tags": ["context-ab", "assertion-only-traceback", "none-handling"],
+      "expected_changed_files": ["config_loader.py"]
+    }
+  ]
+}

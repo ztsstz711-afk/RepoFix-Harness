@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add an explicit failure-context switch across environment settings, CLI, checkpoints, Agent Loop, and evaluation tasks.
+- Add bounded `repetitions` and named `variant` fields to evaluation manifests, with interleaved trial execution and collision-safe artifact IDs.
+- Aggregate per-variant success/scope rates plus total, mean, median, minimum, and maximum requests, tokens, steps, and estimated cost.
+- Validate context-on versus context-off over six DeepSeek Docker trials: both variants repaired 3/3 with exact scope, while context-on used 50% fewer requests and about 50.4% fewer tokens.
+
 ## 1.2.0 - 2026-08-27
 
 - Seed the first model request with bounded, line-numbered repository snippets referenced by the independent pytest baseline.

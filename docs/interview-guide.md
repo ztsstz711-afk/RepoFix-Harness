@@ -14,6 +14,7 @@ RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness
 6. **成本与稳定性**：限制 step/request/token，统计缓存和成本，对限流/超时退避重试，并阻止第三次相同动作。
 7. **可观测性**：每次调用都记录 context 长度、历史裁剪和自动源码选择依据，但这些诊断不进入模型 history。
 8. **评测**：五任务在临时副本运行，同时检查 pytest 和隐藏的期望改动文件。真实 DeepSeek 结果是 5/5、33 次请求、41,299 tokens；h11 注入回归另以 5 次请求从 2 项失败修复到 78 项全通过。
+9. **对照实验**：suite 支持重复 trial 和 variant 分组；三次 context-on/off 对照都保持 3/3 成功，context-on 平均请求与 tokens 约减半。
 
 ## 最值得展开的技术点
 

@@ -53,6 +53,12 @@ def main():
     p.add_argument("--execution-backend", choices=("local", "docker"), default=settings.execution_backend)
     p.add_argument("--docker-image", default=settings.docker_image)
     p.add_argument("--command-timeout", type=int, default=settings.command_timeout_seconds)
+    p.add_argument(
+        "--failure-context",
+        action=argparse.BooleanOptionalAction,
+        default=settings.seed_failure_context,
+        help="seed the first model request from pytest traceback context",
+    )
     p.add_argument("--max-steps", type=int, default=settings.max_steps)
     p.add_argument("--max-requests", type=int, default=settings.max_requests, help="0 means unlimited")
     p.add_argument("--max-tokens", type=int, default=settings.max_tokens, help="0 means unlimited")
@@ -87,6 +93,7 @@ def main():
         execution_backend=a.execution_backend,
         docker_image=a.docker_image,
         command_timeout_seconds=a.command_timeout,
+        seed_failure_context=a.failure_context,
     ).run(a.task, resume=a.resume)
     print(
         f"status={state.status} steps={state.step} requests={state.usage.requests} "
