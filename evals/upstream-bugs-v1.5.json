@@ -13,7 +13,7 @@
       "command_timeout_seconds": 90,
       "max_steps": 16,
       "max_requests": 12,
-      "max_tokens": 24000,
+      "max_tokens": 32000,
       "expected_changed_files": ["more_itertools/more.py"],
       "tags": ["external", "upstream-regression", "more-itertools", "boundary", "validation"]
     },
@@ -28,7 +28,7 @@
       "command_timeout_seconds": 90,
       "max_steps": 16,
       "max_requests": 12,
-      "max_tokens": 24000,
+      "max_tokens": 40000,
       "expected_changed_files": ["more_itertools/recipes.py"],
       "tags": ["external", "upstream-regression", "more-itertools", "algorithm", "stability"]
     },
@@ -43,7 +43,7 @@
       "command_timeout_seconds": 90,
       "max_steps": 16,
       "max_requests": 12,
-      "max_tokens": 24000,
+      "max_tokens": 40000,
       "expected_changed_files": ["src/tomli/_parser.py"],
       "tags": ["external", "upstream-regression", "tomli", "parser", "resource-limit"]
     }
