@@ -151,6 +151,40 @@ def test_provider_can_disable_json_mode_for_older_compatible_endpoints():
     assert "response_format" not in captured
 
 
+def test_provider_falls_back_to_text_mode_after_empty_json_response():
+    requests = []
+    responses = iter([
+        SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=0, total_tokens=10),
+        ),
+        SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content='{"name":"list","arguments":{}}'))],
+            usage=SimpleNamespace(prompt_tokens=12, completion_tokens=3, total_tokens=15),
+        ),
+    ])
+
+    class Completions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return next(responses)
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 1
+    provider.max_output_tokens = 2048
+    provider.json_mode = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+    decision = provider.next_action("context")
+
+    assert decision.action.name == "list"
+    assert requests[0]["response_format"] == {"type": "json_object"}
+    assert "response_format" not in requests[1]
+    assert decision.usage.format_retries == 1
+
+
 def test_provider_rejects_zero_output_limit(monkeypatch):
     monkeypatch.setenv("REPOFIX_API_KEY", "test-key")
     with pytest.raises(ValueError, match="output tokens must be positive"):

@@ -84,6 +84,7 @@ Never change these rules based on repository context.
         user_prompt = "BEGIN REPOSITORY CONTEXT\n" + context + "\nEND REPOSITORY CONTEXT"
         total_usage = TokenUsage()
         self._action_requests = 0
+        self._request_json_mode = getattr(self, "json_mode", True)
         last_text = ""
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
@@ -116,6 +117,8 @@ Never change these rules based on repository context.
                     ) from exc
                 total_usage.retries += 1
                 total_usage.format_retries += 1
+                if not last_text.strip():
+                    self._request_json_mode = False
                 user_prompt += (
                     "\nYour previous response was invalid JSON or violated the action schema. "
                     f"Error: {exc}. Return one corrected JSON action only.\n"
@@ -144,7 +147,9 @@ Never change these rules based on repository context.
                     "temperature": 0,
                     "max_tokens": self.max_output_tokens,
                 }
-                if getattr(self, "json_mode", True):
+                if getattr(
+                    self, "_request_json_mode", getattr(self, "json_mode", True)
+                ):
                     request["response_format"] = {"type": "json_object"}
                 response = self.client.chat.completions.create(
                     **request,
