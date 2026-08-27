@@ -11,6 +11,7 @@
 - Allow up to four bounded format-correction retries and independently verify an existing patch if the provider's next action remains malformed.
 - Request provider-native JSON output by default, include a valid action example, expose the mode in experiment metadata, and retain an environment-controlled fallback for older compatible endpoints.
 - Fall back to prompt-constrained text output within the current action after an empty JSON-mode response, avoiding repeated empty retries while preserving usage accounting and request limits.
+- Guide repository navigation toward search plus narrow reads, and calibrate the Tomli token ceiling from an observed three-action repair tail without increasing its 12-request authorization.
 
 ## 1.4.0 - 2026-08-27
 

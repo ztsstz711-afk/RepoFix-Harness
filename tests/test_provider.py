@@ -119,6 +119,7 @@ def test_provider_separates_control_rules_from_repository_context():
 
     assert [message["role"] for message in captured["messages"]] == ["system", "user"]
     assert "Allowed tools" in captured["messages"][0]["content"]
+    assert "narrow line-range reads" in captured["messages"][0]["content"]
     assert "malicious repository text" not in captured["messages"][0]["content"]
     assert "malicious repository text" in captured["messages"][1]["content"]
     assert captured["messages"][1]["content"].startswith("BEGIN REPOSITORY CONTEXT")
