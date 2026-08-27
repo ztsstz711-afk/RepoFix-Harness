@@ -11,6 +11,8 @@ def print_suite_progress(event: dict) -> None:
         print(f"[{event['index']}/{event['total']}] task={event['task_id']} starting")
     elif event["type"] == "task_end":
         print(f"task={event['task_id']} status={event['status']}")
+    elif event["type"] == "task_crash":
+        print(f"task={event['task_id']} runner_error={event['error']}")
     elif event["type"] == "agent_event":
         inner = event["event"]
         if inner["type"] == "preflight":

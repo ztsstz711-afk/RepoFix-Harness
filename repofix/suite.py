@@ -33,18 +33,26 @@ class SuiteTask:
     expected_changed_files: tuple[str, ...] = ()
     variant: str = "default"
     repetitions: int = 1
+    case: str = ""
 
 
 @dataclass(frozen=True)
 class EvaluationSuite:
     name: str
     tasks: list[SuiteTask]
+    baseline_variant: str | None = None
 
 
 def load_suite(path: str) -> EvaluationSuite:
     manifest = Path(path).resolve()
     data = json.loads(manifest.read_text(encoding="utf-8"))
     name = data.get("name", manifest.stem)
+    baseline_variant = data.get("baseline_variant")
+    if baseline_variant is not None and (
+        not isinstance(baseline_variant, str)
+        or not re.fullmatch(r"[A-Za-z0-9._-]+", baseline_variant)
+    ):
+        raise ValueError(f"invalid baseline_variant: {baseline_variant}")
     tasks = []
     seen = set()
     for item in data.get("tasks", []):
@@ -70,6 +78,9 @@ def load_suite(path: str) -> EvaluationSuite:
         variant = item.get("variant", "default")
         if not isinstance(variant, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", variant):
             raise ValueError(f"invalid variant: {variant}")
+        case = item.get("case", task_id)
+        if not isinstance(case, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", case):
+            raise ValueError(f"invalid case: {case}")
         repetitions = item.get("repetitions", 1)
         if isinstance(repetitions, bool) or not isinstance(repetitions, int):
             raise ValueError("repetitions must be a JSON integer")
@@ -102,6 +113,7 @@ def load_suite(path: str) -> EvaluationSuite:
             expected_changed_files=tuple(sorted(expected_changed_files)),
             variant=variant,
             repetitions=repetitions,
+            case=case,
         ))
     if not tasks:
         raise ValueError("evaluation suite must contain at least one task")
@@ -114,7 +126,24 @@ def load_suite(path: str) -> EvaluationSuite:
     ]
     if len(run_keys) != len(set(run_keys)):
         raise ValueError("evaluation trial output IDs collide")
-    return EvaluationSuite(name, tasks)
+    case_variants = [(task.case, task.variant) for task in tasks]
+    if len(case_variants) != len(set(case_variants)):
+        raise ValueError("evaluation case and variant pairs must be unique")
+    if baseline_variant is not None:
+        grouped: dict[str, list[SuiteTask]] = {}
+        for task in tasks:
+            grouped.setdefault(task.case, []).append(task)
+        for case, case_tasks in grouped.items():
+            variants = {task.variant for task in case_tasks}
+            if baseline_variant not in variants:
+                raise ValueError(
+                    f"case {case} is missing baseline variant {baseline_variant}"
+                )
+            if len(variants) < 2:
+                raise ValueError(f"case {case} requires at least two variants")
+            if len({task.repetitions for task in case_tasks}) != 1:
+                raise ValueError(f"case {case} variants must use equal repetitions")
+    return EvaluationSuite(name, tasks, baseline_variant)
 
 
 def _string_list(item: dict, key: str) -> tuple[str, ...]:
@@ -137,7 +166,6 @@ class EvaluationRunner:
             raise FileExistsError(f"evaluation output directory is not empty: {destination}")
         destination.mkdir(parents=True, exist_ok=True)
         started_at = utc_now()
-        total_usage = TokenUsage()
         results = []
 
         total_trials = sum(task.repetitions for task in suite.tasks)
@@ -161,9 +189,30 @@ class EvaluationRunner:
                     "variant": task.variant,
                     "trial": trial,
                 })
-                result = self._run_task(task, destination, trial, run_key)
-                total_usage.add(TokenUsage(**result["usage"]))
+                try:
+                    result = self._run_task(task, destination, trial, run_key)
+                except Exception as exc:
+                    result = self._runner_error_result(task, trial, run_key, exc)
+                    run_dir = destination / "runs" / run_key
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    self._atomic_write(
+                        run_dir / "result.json", json.dumps(result, indent=2)
+                    )
+                    self._notify({
+                        "type": "task_crash",
+                        "task_id": run_key,
+                        "base_task_id": task.id,
+                        "variant": task.variant,
+                        "trial": trial,
+                        "error": result["error"],
+                    })
                 results.append(result)
+                progress = self._build_report(
+                    suite, started_at, results, completed=False
+                )
+                self._atomic_write(
+                    destination / "progress.json", json.dumps(progress, indent=2)
+                )
                 self._notify({
                     "type": "task_end",
                     "task_id": run_key,
@@ -173,6 +222,20 @@ class EvaluationRunner:
                     "status": result["status"],
                 })
 
+        report = self._build_report(suite, started_at, results, completed=True)
+        self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
+        return report
+
+    def _build_report(
+        self,
+        suite: EvaluationSuite,
+        started_at: str,
+        results: list[dict],
+        completed: bool,
+    ) -> dict:
+        total_usage = TokenUsage()
+        for result in results:
+            total_usage.add(TokenUsage(**result["usage"]))
         successes = sum(result["status"] == "success" for result in results)
         scoped_results = [result for result in results if result["changed_files_match"] is not None]
         scope_matches = sum(result["changed_files_match"] is True for result in scoped_results)
@@ -184,6 +247,8 @@ class EvaluationRunner:
             "suite": suite.name,
             "started_at": started_at,
             "completed_at": utc_now(),
+            "completed": completed,
+            "planned_trial_count": sum(task.repetitions for task in suite.tasks),
             "task_definition_count": len(suite.tasks),
             "task_count": len(results),
             "successes": successes,
@@ -196,9 +261,13 @@ class EvaluationRunner:
             "change_scope_matches": scope_matches,
             "change_scope_rate": scope_matches / len(scoped_results) if scoped_results else None,
             "variants": self._variant_summaries(results),
+            "baseline_variant": suite.baseline_variant,
+            "variant_comparisons": self._variant_comparisons(
+                results, suite.baseline_variant
+            ),
+            "cases": self._case_summaries(results, suite.baseline_variant),
             "tasks": results,
         }
-        self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
         return report
 
     def _run_task(
@@ -256,6 +325,7 @@ class EvaluationRunner:
             "id": run_key,
             "task_id": task.id,
             "variant": task.variant,
+            "case": task.case,
             "trial": trial,
             "repetitions": task.repetitions,
             "source_repo": task.repo,
@@ -292,6 +362,52 @@ class EvaluationRunner:
             "rollback_files": state.evaluation.rollback_files,
             "post_rollback_success": getattr(state.evaluation.post_rollback, "success", None),
             "rollback_error": state.evaluation.rollback_error,
+        }
+
+    @staticmethod
+    def _runner_error_result(
+        task: SuiteTask,
+        trial: int,
+        run_key: str,
+        exc: Exception,
+    ) -> dict:
+        return {
+            "id": run_key,
+            "task_id": task.id,
+            "variant": task.variant,
+            "case": task.case,
+            "trial": trial,
+            "repetitions": task.repetitions,
+            "source_repo": task.repo,
+            "run_id": "",
+            "status": "error",
+            "model": "",
+            "steps": 0,
+            "duration_ms": 0,
+            "usage": asdict(TokenUsage()),
+            "preflight_success": False,
+            "baseline_success": None,
+            "final_success": None,
+            "baseline_execution": None,
+            "final_execution": None,
+            "test_command": task.test_command,
+            "execution_backend": task.execution_backend,
+            "docker_image": task.docker_image,
+            "command_timeout_seconds": task.command_timeout_seconds,
+            "seed_failure_context": task.seed_failure_context,
+            "changed_files": [],
+            "tags": list(task.tags),
+            "expected_changed_files": list(task.expected_changed_files),
+            "changed_files_match": False if task.expected_changed_files else None,
+            "summary": "",
+            "error": f"{type(exc).__name__}: {exc}"[:2000],
+            "failure_kind": "runner_error",
+            "estimated_cost_usd": 0.0,
+            "context_snapshots": [],
+            "rollback_performed": False,
+            "rollback_files": [],
+            "post_rollback_success": None,
+            "rollback_error": "",
         }
 
     @classmethod
@@ -333,6 +449,121 @@ class EvaluationRunner:
             "min": min(values),
             "max": max(values),
         }
+
+    @classmethod
+    def _case_summaries(
+        cls, results: list[dict], baseline_variant: str | None
+    ) -> dict[str, dict]:
+        grouped: dict[str, list[dict]] = {}
+        for result in results:
+            grouped.setdefault(result["case"], []).append(result)
+        return {
+            case: {
+                "trials": len(case_results),
+                "variants": cls._variant_summaries(case_results),
+                "comparisons": cls._variant_comparisons(
+                    case_results, baseline_variant
+                ),
+            }
+            for case, case_results in sorted(grouped.items())
+        }
+
+    @classmethod
+    def _variant_comparisons(
+        cls, results: list[dict], baseline_variant: str | None
+    ) -> dict[str, dict]:
+        if baseline_variant is None:
+            return {}
+        grouped: dict[str, list[dict]] = {}
+        for result in results:
+            grouped.setdefault(result["variant"], []).append(result)
+        baseline = grouped.get(baseline_variant)
+        if not baseline:
+            return {}
+        comparisons = {}
+        for variant, candidate in sorted(grouped.items()):
+            if variant == baseline_variant:
+                continue
+            comparisons[variant] = {
+                "baseline_variant": baseline_variant,
+                "paired_outcomes": cls._paired_outcomes(baseline, candidate),
+                "success_rate_delta_points": round(
+                    100
+                    * (
+                        cls._success_rate(candidate)
+                        - cls._success_rate(baseline)
+                    ),
+                    2,
+                ),
+                "requests": cls._mean_comparison(
+                    [result["usage"]["requests"] for result in baseline],
+                    [result["usage"]["requests"] for result in candidate],
+                ),
+                "tokens": cls._mean_comparison(
+                    [result["usage"]["total_tokens"] for result in baseline],
+                    [result["usage"]["total_tokens"] for result in candidate],
+                ),
+                "steps": cls._mean_comparison(
+                    [result["steps"] for result in baseline],
+                    [result["steps"] for result in candidate],
+                ),
+                "estimated_cost_usd": cls._mean_comparison(
+                    [result["estimated_cost_usd"] for result in baseline],
+                    [result["estimated_cost_usd"] for result in candidate],
+                    digits=8,
+                ),
+            }
+        return comparisons
+
+    @staticmethod
+    def _success_rate(results: list[dict]) -> float:
+        return sum(result["status"] == "success" for result in results) / len(results)
+
+    @staticmethod
+    def _mean_comparison(
+        baseline: list[float], candidate: list[float], digits: int = 2
+    ) -> dict:
+        baseline_mean = statistics.mean(baseline)
+        candidate_mean = statistics.mean(candidate)
+        delta = candidate_mean - baseline_mean
+        relative = 100 * delta / baseline_mean if baseline_mean else None
+        return {
+            "baseline_mean": round(baseline_mean, digits),
+            "candidate_mean": round(candidate_mean, digits),
+            "delta": round(delta, digits),
+            "relative_change_percent": (
+                round(relative, 2) if relative is not None else None
+            ),
+        }
+
+    @staticmethod
+    def _paired_outcomes(baseline: list[dict], candidate: list[dict]) -> dict:
+        baseline_by_trial = {
+            (result["case"], result["trial"]): result for result in baseline
+        }
+        candidate_by_trial = {
+            (result["case"], result["trial"]): result for result in candidate
+        }
+        keys = sorted(set(baseline_by_trial) & set(candidate_by_trial))
+        counts = {
+            "pairs": len(keys),
+            "both_success": 0,
+            "candidate_only_success": 0,
+            "baseline_only_success": 0,
+            "both_failed": 0,
+        }
+        for key in keys:
+            baseline_success = baseline_by_trial[key]["status"] == "success"
+            candidate_success = candidate_by_trial[key]["status"] == "success"
+            if baseline_success and candidate_success:
+                counts["both_success"] += 1
+            elif candidate_success:
+                counts["candidate_only_success"] += 1
+            elif baseline_success:
+                counts["baseline_only_success"] += 1
+            else:
+                counts["both_failed"] += 1
+        return counts
 
     def _notify(self, event: dict) -> None:
         if self.on_event:

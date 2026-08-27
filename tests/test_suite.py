@@ -35,6 +35,29 @@ def test_release_demo_manifest_is_small_and_bounded():
     assert task.expected_changed_files == ("calculator.py",)
 
 
+def test_v13_context_matrix_is_balanced_and_bounded():
+    project_root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(project_root / "evals" / "context-matrix.json"))
+
+    assert suite.baseline_variant == "context_off"
+    assert len(suite.tasks) == 10
+    assert sum(task.repetitions for task in suite.tasks) == 30
+    assert {task.case for task in suite.tasks} == {
+        "toy_add",
+        "username_normalization",
+        "optional_config",
+        "one_based_pagination",
+        "inventory_boundary",
+    }
+    for case in {task.case for task in suite.tasks}:
+        case_tasks = [task for task in suite.tasks if task.case == case]
+        assert {task.variant for task in case_tasks} == {"context_on", "context_off"}
+        assert {task.repetitions for task in case_tasks} == {3}
+        assert all(task.execution_backend == "docker" for task in case_tasks)
+        assert all(task.max_requests <= 8 for task in case_tasks)
+        assert all(task.max_tokens <= 16_000 for task in case_tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     repo = tmp_path / "source_repo"
     repo.mkdir()
@@ -94,6 +117,7 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
     shared = {
         "repo": "source_repo",
         "task": "fix add",
+        "case": "addition",
         "repetitions": 2,
         "expected_changed_files": ["calculator.py"],
     }
@@ -101,6 +125,7 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
         json.dumps(
             {
                 "name": "context-ab",
+                "baseline_variant": "context_off",
                 "tasks": [
                     {
                         **shared,
@@ -156,6 +181,18 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
             "max": 5,
         }
         assert summary["tokens"]["mean"] == 600
+    comparison = report["variant_comparisons"]["context_on"]
+    assert comparison["success_rate_delta_points"] == 0
+    assert comparison["requests"]["relative_change_percent"] == 0
+    assert comparison["paired_outcomes"] == {
+        "pairs": 2,
+        "both_success": 2,
+        "candidate_only_success": 0,
+        "baseline_only_success": 0,
+        "both_failed": 0,
+    }
+    assert report["cases"]["addition"]["trials"] == 4
+    assert report["cases"]["addition"]["comparisons"]["context_on"] == comparison
     assert (
         output / "runs" / "context-on--trial-01" / "result.json"
     ).exists()
@@ -298,6 +335,117 @@ def test_metric_summary_reports_distribution():
         "min": 1,
         "max": 10,
     }
+
+
+def test_suite_isolates_runner_errors_and_persists_progress(tmp_path):
+    repo = tmp_path / "source_repo"
+    repo.mkdir()
+    (repo / "calculator.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    (repo / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [{
+                    "id": "addition",
+                    "repo": "source_repo",
+                    "task": "fix add",
+                    "repetitions": 2,
+                    "expected_changed_files": ["calculator.py"],
+                }]
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = 0
+
+    def provider_factory():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("provider setup failed")
+        return SuiteMockProvider()
+
+    output = tmp_path / "output"
+    report = EvaluationRunner(provider_factory).run(load_suite(str(manifest)), str(output))
+    progress = json.loads((output / "progress.json").read_text(encoding="utf-8"))
+
+    assert report["completed"] is True
+    assert report["planned_trial_count"] == 2
+    assert report["task_count"] == 2
+    assert report["successes"] == 1
+    assert report["failure_counts"] == {"runner_error": 1}
+    assert report["tasks"][0]["failure_kind"] == "runner_error"
+    assert "provider setup failed" in report["tasks"][0]["error"]
+    assert report["tasks"][1]["status"] == "success"
+    assert progress["completed"] is False
+    assert progress["task_count"] == 2
+    assert (
+        output / "runs" / "addition--trial-01" / "result.json"
+    ).exists()
+    assert (
+        output / "runs" / "addition--trial-02" / "result.json"
+    ).exists()
+
+
+def test_mean_comparison_reports_relative_change():
+    assert EvaluationRunner._mean_comparison([6, 6, 6], [3, 3, 3]) == {
+        "baseline_mean": 6,
+        "candidate_mean": 3,
+        "delta": -3,
+        "relative_change_percent": -50.0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("tasks", "message"),
+    [
+        (
+            [
+                {"id": "on", "case": "case", "variant": "context_on"},
+                {"id": "off", "case": "case", "variant": "other"},
+            ],
+            "missing baseline variant",
+        ),
+        (
+            [
+                {
+                    "id": "on",
+                    "case": "case",
+                    "variant": "context_on",
+                    "repetitions": 2,
+                },
+                {
+                    "id": "off",
+                    "case": "case",
+                    "variant": "context_off",
+                    "repetitions": 3,
+                },
+            ],
+            "equal repetitions",
+        ),
+    ],
+)
+def test_suite_validates_paired_experiment_design(tmp_path, tasks, message):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for task in tasks:
+        task.update({"repo": "repo", "task": "test"})
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "baseline_variant": "context_off",
+                "tasks": tasks,
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=message):
+        load_suite(str(manifest))
 
 
 def test_suite_loads_safe_test_command_and_rejects_shell_commands(tmp_path):
