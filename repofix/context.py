@@ -1,6 +1,7 @@
 import json
 
 from .schemas import PreflightState, TestSnapshot
+from .failure_context import FailureContextExtractor
 from .text import compact_text
 
 
@@ -24,17 +25,23 @@ class ContextBuilder:
         self.baseline = baseline
         self.max_baseline_chars = max_baseline_chars
         self.preflight = preflight
+        self.failure_context = FailureContextExtractor(
+            repo,
+            max_chars=min(6_000, max(max_chars // 4, 0)),
+        )
 
     def build(self, history: list[dict]) -> str:
         progress = self._progress_summary(history)
         preflight = self._preflight_section()
         baseline = self._baseline_section()
+        failure_context = self._failure_context_section(history)
         fixed = (
             f"Repository: {self.repo}\n"
             "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
             f"Progress summary: {progress}"
             f"{preflight}"
             f"{baseline}"
+            f"{failure_context}"
         )
         task_budget = max(self.max_chars - len(fixed) - len("Task: \n") - 100, 0)
         bounded_task = compact_text(self.task, task_budget)[0]
@@ -45,6 +52,7 @@ class ContextBuilder:
             f"Progress summary: {progress}"
             f"{preflight}"
             f"{baseline}"
+            f"{failure_context}"
         )
         budget = max(self.max_chars - len(header) - 100, 0)
         selected: list[str] = []
@@ -65,6 +73,14 @@ class ContextBuilder:
         note = f"\nEarlier events omitted: {omitted}" if omitted else ""
         context = header + note + ("\nRecent trace:\n" + "\n".join(selected) if selected else "")
         return compact_text(context, self.max_chars)[0]
+
+    def _failure_context_section(self, history: list[dict]) -> str:
+        if history or self.baseline is None or self.baseline.success:
+            return ""
+        snippets = self.failure_context.build(self.baseline.output)
+        if not snippets:
+            return ""
+        return f"\nUntrusted traceback-referenced source snippets:\n{snippets}"
 
     def _baseline_section(self) -> str:
         if self.baseline is None:

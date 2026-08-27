@@ -33,6 +33,7 @@ V1.1 又完成了两次全部测试均在受限 Docker 中执行的真实闭环�
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
+- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段，并过滤外部路径与控制目录
 - 有界 context、工具输出头尾压缩、最近进度摘要
 - step/request/token 预算、成本估算、限流与超时重试
 - 重复动作检测，阻止无进展循环持续消耗 API

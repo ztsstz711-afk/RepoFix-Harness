@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Seed the first model request with bounded, line-numbered repository snippets referenced by the independent pytest baseline.
+- Ignore traceback paths outside the target repository and all protected control directories, deduplicate files, and omit the snippets after the first model action.
+
 ## 1.1.0 - 2026-08-27
 
 - Add localized `old_text`/`new_text` editing to `apply_patch` while preserving full-file creation and replacement.

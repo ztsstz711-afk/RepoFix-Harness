@@ -73,3 +73,17 @@ def test_context_includes_preflight_warnings():
 
     assert "Preflight: passed" in context
     assert "no standard project metadata found" in context
+
+
+def test_context_seeds_traceback_source_only_on_first_model_request(tmp_path):
+    source = tmp_path / "calculator.py"
+    source.write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    baseline = Snapshot(False, "calculator.py:2: AssertionError")
+    builder = ContextBuilder(str(tmp_path), "fix add", baseline=baseline)
+
+    first = builder.build([])
+    later = builder.build([{"step": 1, "action": {"name": "list"}}])
+
+    assert "Untrusted traceback-referenced source snippets" in first
+    assert "return a - b" in first
+    assert "traceback-referenced source snippets" not in later
