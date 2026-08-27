@@ -1,10 +1,35 @@
 import argparse
+import hashlib
 from datetime import datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from .config import Settings
 from .provider import OpenAICompatibleProvider
 from .suite import EvaluationRunner, load_suite
+
+
+def harness_source_sha256() -> str:
+    package = Path(__file__).resolve().parent
+    project = package.parent
+    files = sorted(package.rglob("*.py"))
+    pyproject = project / "pyproject.toml"
+    if pyproject.is_file():
+        files.append(pyproject)
+    digest = hashlib.sha256()
+    for path in sorted(files):
+        relative = path.relative_to(project).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def harness_version() -> str:
+    try:
+        return version("repofix-harness")
+    except PackageNotFoundError:
+        return "uninstalled"
 
 
 def print_suite_progress(event: dict) -> None:
@@ -66,6 +91,8 @@ def main() -> int:
         OpenAICompatibleProvider,
         print_suite_progress,
         experiment_metadata={
+            "harness_version": harness_version(),
+            "harness_source_sha256": harness_source_sha256(),
             "provider_model": settings.model,
             "max_output_tokens": settings.max_output_tokens,
             "input_cost_per_million": settings.input_cost_per_million,

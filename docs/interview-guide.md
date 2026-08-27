@@ -33,7 +33,7 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 ### 为什么限制成 pytest，而不是任意 shell？
 
-V1.2 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
+V1.3 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
 
 ### 为什么不用 LangGraph？
 
@@ -60,4 +60,4 @@ V1.3 的 30 次实验进一步证明 context 机制在这组 fixture 上能降�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** 基于 traceback 的相关源码上下文、更真实的开源 issue 集和更大规模 benchmark，而不是先做 multi-agent。
+- **下一步是什么？** 在固定版本的真实开源 issue 集上验证泛化，并改进跨文件 context relevance；不是先堆 multi-agent。

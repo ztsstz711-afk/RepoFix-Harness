@@ -227,6 +227,8 @@ def render_evaluation_markdown(report: dict) -> str:
     ])
     experiment = report.get("experiment", {})
     for key in (
+        "harness_version",
+        "harness_source_sha256",
         "max_output_tokens",
         "input_cost_per_million",
         "cached_input_cost_per_million",

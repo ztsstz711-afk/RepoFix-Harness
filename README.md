@@ -31,6 +31,8 @@ V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取
 
 V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并在 evaluation report 中持久化了三轮 context snapshot；首轮明确记录 `test_config_loader.py` 来自 traceback、`config_loader.py` 来自 local import。
 
+V1.3 把单场景验证扩展为五类 Bug、context-on/off 各三次的 30-trial 配对矩阵。两组均完成 15/15 修复与 15/15 范围命中；context-on 平均请求减少 23.81%、平均 tokens 减少 22.80%，但跨文件间接定位也出现 token 增加反例。V1.3 同时加入 trial 失败隔离、断点续跑、逐对统计、suite 请求授权、manifest/source/model/Docker 指纹、聚合完整性校验以及自动 Markdown 报告。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action
@@ -57,6 +59,7 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - 完成时同时生成机器可读 `report.json` 和可直接审阅的 `report.md`
 - 发布报告前重算聚合完整性；每次实际复制后重验 source 指纹，禁止中途混入变化的 fixture
 - 报告持久化声明模型、实际模型计数、输出上限和成本单价；续跑时必须完全一致
+- Harness 包版本和源码树 SHA-256 也属于实验身份，防止不同实现版本静默续跑
 - Docker trial 保存完整 preflight checks，并汇总 daemon 版本、镜像 SHA-256 与容器 pytest 指纹
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
@@ -188,6 +191,8 @@ Evaluation 输出目录额外包含逐 trial 的 `runs/`、中断续跑使用的
 
 manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明配对实验，并以 `seed_failure_context` 控制上下文。30 次 DeepSeek + Docker 实测中，两组都完成 15/15 修复和 15/15 范围命中；context-on 的平均请求减少 23.81%，平均 tokens 减少 22.80%。15 个配对中 token 有 11 对更省、4 对更贵，说明上下文定位准确性会决定收益。详见 [V1.3 multi-case context matrix](docs/v1.3-context-matrix-results.md)。单场景先导实验保留在 [V1.3 context A/B](docs/v1.3-context-ab-results.md)。
 
+最终 V1.3 代码又执行一次六 trial release gate：6/6 修复和范围命中，实际使用 26/36 授权请求、40,977 tokens，聚合完整性校验通过，并生成带模型与 Docker 镜像 SHA-256 的 JSON/Markdown 报告。
+
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
@@ -201,7 +206,7 @@ manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明
 
 ## 安全边界与非目标
 
-V1.2 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
+V1.3 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运行 pytest，以及查看 Git diff/status。Docker backend 会隔离仓库测试代码；Harness 与 Agent 文件写入仍运行在宿主机，因此它不是完整 OS sandbox。
 
 当前不包含 LangGraph、multi-agent、MCP、完整 Docker sandbox、SWE-bench/BugsInPy。选择标准库状态机和小模块，是为了让控制流、安全边界和失败行为可以直接审查与面试讲解。
 

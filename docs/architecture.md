@@ -102,6 +102,8 @@ source 指纹不只在 manifest 加载时计算：每个 trial 完成临时复�
 
 CLI 将 provider model、单次最大输出 token，以及 input/cached-input/output 三档百万 token 单价作为非敏感 experiment metadata 写入报告。每个完成 task 的实际 model 会聚合为 `models` 计数并与声明值比较；续跑要求整组 metadata 完全一致，因此不会把换模型或换计价参数后的结果静默合并。API key 从不进入 metadata、trace 或报告。
 
+同一 metadata 还包含安装包版本和 Harness source SHA-256。后者按相对路径与原始字节哈希 `repofix/**/*.py` 和 `pyproject.toml`，因此即使开发者忘记提升版本号，任何控制逻辑变化也会让旧 progress 拒绝续跑。
+
 最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope 和 failure counts；聚合值不一致时拒绝发布。这样 Markdown 渲染和面试结论不会建立在内部损坏的汇总字段上，完整 trial 仍保留在 `progress.json` 供修复后续跑收尾。
 
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
@@ -110,4 +112,4 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 ## Why a custom loop
 
-V1.2 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
+V1.3 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

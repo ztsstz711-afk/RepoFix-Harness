@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-08-27
+
 - Add an explicit failure-context switch across environment settings, CLI, checkpoints, Agent Loop, and evaluation tasks.
 - Add bounded `repetitions` and named `variant` fields to evaluation manifests, with interleaved trial execution and collision-safe artifact IDs.
 - Aggregate per-variant success/scope rates plus total, mean, median, minimum, and maximum requests, tokens, steps, and estimated cost.
@@ -18,7 +20,9 @@
 - Reject zero, negative, boolean, and string-coerced task limits so `0` cannot silently mean unlimited inside a budgeted manifest.
 - Persist provider model, output cap, and pricing inputs; validate actual task model counts and require identical metadata on resume.
 - Preserve structured preflight checks per trial and aggregate Docker daemon/image/pytest fingerprints so mutable image tags remain distinguishable.
+- Fingerprint the installed Harness version and exact Python/pyproject source bytes as part of strict experiment identity.
 - Expand the context experiment to five bug shapes and 30 DeepSeek Docker trials: both variants repaired 15/15 with exact scope; context-on reduced mean requests by 23.81% and mean tokens by 22.80%, but increased tokens on 4 of 15 matched pairs.
+- Pass the final V1.3 DeepSeek Docker release gate with 6/6 repairs and exact scope, using 26/36 authorized requests and producing validated JSON/Markdown reports with immutable runtime fingerprints.
 
 ## 1.2.0 - 2026-08-27
 
