@@ -51,8 +51,10 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
 - evaluation 支持重复 trial、命名 variant、交错 A/B 执行及请求/token/成本分布统计
 - 配对实验按 case + trial 比较成功结果与资源差值，并记录 manifest/fixture SHA-256
+- 配对资源指标附带 better/tied/worse 计数和不依赖第三方统计库的双侧精确符号检验
 - 每个 trial 后原子更新 `progress.json`；单次 runner 异常被隔离，后续任务继续执行
 - 完成时同时生成机器可读 `report.json` 和可直接审阅的 `report.md`
+- 发布报告前重算聚合完整性；每次实际复制后重验 source 指纹，禁止中途混入变化的 fixture
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
 
 架构与模块职责见 [Architecture](docs/architecture.md)。

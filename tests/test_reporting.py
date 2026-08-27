@@ -1,4 +1,8 @@
-from repofix.reporting import render_evaluation_markdown
+import copy
+
+import pytest
+
+from repofix.reporting import render_evaluation_markdown, validate_evaluation_report
 
 
 def test_render_evaluation_markdown_surfaces_paired_results_and_fingerprints():
@@ -46,6 +50,7 @@ def test_render_evaluation_markdown_surfaces_paired_results_and_fingerprints():
                     "candidate_better_pairs": 1,
                     "tied_pairs": 0,
                     "baseline_better_pairs": 0,
+                    "paired_sign_test_p_value": 1,
                 },
                 "tokens": {
                     "delta": -3655,
@@ -53,6 +58,7 @@ def test_render_evaluation_markdown_surfaces_paired_results_and_fingerprints():
                     "candidate_better_pairs": 1,
                     "tied_pairs": 0,
                     "baseline_better_pairs": 0,
+                    "paired_sign_test_p_value": 1,
                 },
             }
         },
@@ -80,6 +86,7 @@ def test_render_evaluation_markdown_surfaces_paired_results_and_fingerprints():
     assert "| Total tokens | 12,345 |" in rendered
     assert "context_on | context_off | +0.00 points | -2 (-40.00%)" in rendered
     assert "1/0/0" in rendered
+    assert "1.000000" in rendered
     assert "addition | context_on | -40.00% | -45.69%" in rendered
     assert f"Manifest SHA-256: `{'a' * 64}`" in rendered
     assert "## Failures\n\nNone." in rendered
@@ -130,3 +137,66 @@ def test_render_evaluation_markdown_handles_zero_baseline_percentages():
 
     assert "+0 (n/a)" in rendered
     assert "`runner_error`: 2" in rendered
+
+
+def _valid_aggregate_report():
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "total_tokens": 120,
+        "cached_input_tokens": 10,
+        "requests": 1,
+        "retries": 0,
+        "format_retries": 0,
+        "transient_retries": 0,
+    }
+    task = {
+        "id": "trial-1",
+        "status": "success",
+        "steps": 2,
+        "usage": usage,
+        "estimated_cost_usd": 0.001,
+        "changed_files_match": True,
+        "failure_kind": "",
+    }
+    return {
+        "report_schema_version": 1,
+        "completed": True,
+        "planned_trial_count": 1,
+        "task_count": 1,
+        "successes": 1,
+        "success_rate": 1.0,
+        "total_steps": 2,
+        "usage": dict(usage),
+        "estimated_cost_usd": 0.001,
+        "change_scope_evaluated": 1,
+        "change_scope_matches": 1,
+        "change_scope_rate": 1.0,
+        "failure_counts": {},
+        "tasks": [task],
+    }
+
+
+def test_validate_evaluation_report_accepts_consistent_aggregates():
+    validate_evaluation_report(_valid_aggregate_report())
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        (lambda report: report.update(task_count=2), "task_count"),
+        (lambda report: report["usage"].update(total_tokens=121), "total_tokens"),
+        (lambda report: report.update(estimated_cost_usd=9), "estimated cost"),
+        (lambda report: report.update(successes=0), "success count"),
+        (
+            lambda report: report["tasks"].append(copy.deepcopy(report["tasks"][0])),
+            "task IDs",
+        ),
+    ],
+)
+def test_validate_evaluation_report_rejects_inconsistent_aggregates(mutation, message):
+    report = _valid_aggregate_report()
+    mutation(report)
+
+    with pytest.raises(ValueError, match=message):
+        validate_evaluation_report(report)

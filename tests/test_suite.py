@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from repofix.schemas import Action, ModelDecision, TokenUsage
-from repofix.suite import EvaluationRunner, load_suite
+from repofix.suite import EvaluationInputChangedError, EvaluationRunner, load_suite
 
 
 class SuiteMockProvider:
@@ -141,6 +141,35 @@ def test_suite_source_digest_is_stable_and_detects_fixture_changes(tmp_path):
     assert load_suite(str(manifest)).tasks[0].source_sha256 != first
 
 
+def test_suite_aborts_before_provider_when_source_changes_after_load(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    source = repo / "module.py"
+    source.write_text("value = 1\n", encoding="utf-8")
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps({"tasks": [{"id": "task", "repo": "repo", "task": "test"}]}),
+        encoding="utf-8",
+    )
+    suite = load_suite(str(manifest))
+    source.write_text("value = 2\n", encoding="utf-8")
+    provider_created = False
+
+    def provider_factory():
+        nonlocal provider_created
+        provider_created = True
+        return SuiteMockProvider()
+
+    output = tmp_path / "output"
+    with pytest.raises(EvaluationInputChangedError, match="source changed"):
+        EvaluationRunner(provider_factory).run(suite, str(output))
+
+    assert provider_created is False
+    progress = json.loads((output / "progress.json").read_text(encoding="utf-8"))
+    assert progress["task_count"] == 0
+    assert not (output / "report.json").exists()
+
+
 def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
     repo = tmp_path / "source_repo"
     repo.mkdir()
@@ -230,6 +259,7 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
     assert comparison["requests"]["candidate_better_pairs"] == 0
     assert comparison["requests"]["tied_pairs"] == 2
     assert comparison["requests"]["baseline_better_pairs"] == 0
+    assert comparison["requests"]["paired_sign_test_p_value"] is None
     assert comparison["paired_outcomes"] == {
         "pairs": 2,
         "both_success": 2,
@@ -592,7 +622,15 @@ def test_paired_metric_summary_uses_matching_case_and_trial():
         "candidate_better_pairs": 1,
         "tied_pairs": 1,
         "baseline_better_pairs": 0,
+        "paired_sign_test_p_value": 1.0,
     }
+
+
+def test_two_sided_sign_test_reports_exact_binomial_probability():
+    deltas = [-1] * 10 + [1] + [0] * 4
+
+    assert EvaluationRunner._two_sided_sign_test(deltas) == 0.01171875
+    assert EvaluationRunner._two_sided_sign_test([0, 0]) is None
 
 
 @pytest.mark.parametrize(

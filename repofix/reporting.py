@@ -1,5 +1,81 @@
 from __future__ import annotations
 
+from collections import Counter
+
+
+_USAGE_FIELDS = (
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cached_input_tokens",
+    "requests",
+    "retries",
+    "format_retries",
+    "transient_retries",
+)
+
+
+def validate_evaluation_report(report: dict) -> None:
+    """Reject internally inconsistent aggregate reports before publication."""
+    errors = []
+    tasks = report.get("tasks")
+    if report.get("report_schema_version") != 1:
+        errors.append("unsupported report schema")
+    if not isinstance(tasks, list):
+        raise ValueError("invalid evaluation report: tasks must be a list")
+    if report.get("task_count") != len(tasks):
+        errors.append("task_count does not match tasks")
+    if report.get("completed") and report.get("planned_trial_count") != len(tasks):
+        errors.append("completed report does not contain every planned trial")
+
+    ids = [task.get("id") for task in tasks if isinstance(task, dict)]
+    if len(ids) != len(tasks) or len(ids) != len(set(ids)):
+        errors.append("task IDs are missing or duplicated")
+
+    successes = sum(task.get("status") == "success" for task in tasks)
+    if report.get("successes") != successes:
+        errors.append("success count does not match tasks")
+    expected_success_rate = successes / len(tasks) if tasks else None
+    if not _same_number(report.get("success_rate"), expected_success_rate):
+        errors.append("success rate does not match tasks")
+
+    if report.get("total_steps") != sum(task.get("steps", 0) for task in tasks):
+        errors.append("total steps do not match tasks")
+    usage = report.get("usage", {})
+    for field in _USAGE_FIELDS:
+        expected = sum(task.get("usage", {}).get(field, 0) for task in tasks)
+        if usage.get(field) != expected:
+            errors.append(f"usage.{field} does not match tasks")
+
+    expected_cost = round(sum(task.get("estimated_cost_usd", 0) for task in tasks), 8)
+    if not _same_number(report.get("estimated_cost_usd"), expected_cost):
+        errors.append("estimated cost does not match tasks")
+
+    scoped = [task for task in tasks if task.get("changed_files_match") is not None]
+    scope_matches = sum(task.get("changed_files_match") is True for task in scoped)
+    if report.get("change_scope_evaluated") != len(scoped):
+        errors.append("scope evaluation count does not match tasks")
+    if report.get("change_scope_matches") != scope_matches:
+        errors.append("scope match count does not match tasks")
+    expected_scope_rate = scope_matches / len(scoped) if scoped else None
+    if not _same_number(report.get("change_scope_rate"), expected_scope_rate):
+        errors.append("scope match rate does not match tasks")
+
+    failure_counts = Counter(
+        task.get("failure_kind") for task in tasks if task.get("failure_kind")
+    )
+    if report.get("failure_counts") != dict(failure_counts):
+        errors.append("failure counts do not match tasks")
+
+    if errors:
+        raise ValueError("invalid evaluation report: " + "; ".join(errors))
+
+
+def _same_number(left: object, right: object) -> bool:
+    if left is None or right is None:
+        return left is right
+    return isinstance(left, (int, float)) and abs(left - right) <= 1e-10
+
 
 def render_evaluation_markdown(report: dict) -> str:
     """Render the stable, human-facing subset of an evaluation JSON report."""
@@ -58,8 +134,8 @@ def render_evaluation_markdown(report: dict) -> str:
             "",
             "Negative deltas mean the candidate used fewer resources than the baseline.",
             "",
-            "| Candidate | Baseline | Success delta | Request delta | Token delta | Request pairs better/tied/worse | Token pairs better/tied/worse |",
-            "|---|---|---:|---:|---:|---:|---:|",
+            "| Candidate | Baseline | Success delta | Request delta | Token delta | Request pairs better/tied/worse | Request sign p | Token pairs better/tied/worse | Token sign p |",
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|",
         ])
         for candidate, comparison in comparisons.items():
             requests = comparison["requests"]
@@ -69,7 +145,8 @@ def render_evaluation_markdown(report: dict) -> str:
                 f"{comparison['success_rate_delta_points']:+.2f} points | "
                 f"{requests['delta']:+} ({_signed_percent(requests['relative_change_percent'])}) | "
                 f"{tokens['delta']:+} ({_signed_percent(tokens['relative_change_percent'])}) | "
-                f"{_pair_counts(requests)} | {_pair_counts(tokens)} |"
+                f"{_pair_counts(requests)} | {_p_value(requests)} | "
+                f"{_pair_counts(tokens)} | {_p_value(tokens)} |"
             )
 
     cases = report.get("cases", {})
@@ -132,6 +209,11 @@ def _number(value: int | float) -> str:
 
 def _signed_percent(value: float | None) -> str:
     return "n/a" if value is None else f"{value:+.2f}%"
+
+
+def _p_value(metric: dict) -> str:
+    value = metric.get("paired_sign_test_p_value")
+    return "n/a" if value is None else f"{value:.6f}"
 
 
 def _cell(value: object) -> str:

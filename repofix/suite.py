@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import re
 import shutil
 import statistics
@@ -10,9 +11,13 @@ from pathlib import Path
 from typing import Callable
 
 from .loop import AgentLoop
-from .reporting import render_evaluation_markdown
+from .reporting import render_evaluation_markdown, validate_evaluation_report
 from .schemas import TokenUsage, utc_now
 from .tools import parse_pytest_invocation
+
+
+class EvaluationInputChangedError(RuntimeError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -179,13 +184,18 @@ _IGNORED_SOURCE_PARTS = {
 def _source_tree_sha256(repo: Path) -> str:
     """Hash the source snapshot that an evaluation trial is expected to copy."""
     digest = hashlib.sha256()
-    files = sorted(
+    paths = [
         path
         for path in repo.rglob("*")
-        if path.is_file()
-        and not path.is_symlink()
-        and not (_IGNORED_SOURCE_PARTS & set(path.relative_to(repo).parts))
-    )
+        if not (_IGNORED_SOURCE_PARTS & set(path.relative_to(repo).parts))
+    ]
+    symlinks = [path.relative_to(repo).as_posix() for path in paths if path.is_symlink()]
+    if symlinks:
+        raise ValueError(
+            "evaluation source repositories must not contain symbolic links: "
+            + ", ".join(sorted(symlinks)[:5])
+        )
+    files = sorted(path for path in paths if path.is_file())
     for path in files:
         relative = path.relative_to(repo).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(8, "big"))
@@ -257,6 +267,8 @@ class EvaluationRunner:
             })
             try:
                 result = self._run_task(task, destination, trial, run_key)
+            except EvaluationInputChangedError:
+                raise
             except Exception as exc:
                 result = self._runner_error_result(task, trial, run_key, exc)
                 run_dir = destination / "runs" / run_key
@@ -284,6 +296,7 @@ class EvaluationRunner:
             })
 
         report = self._build_report(suite, started_at, results, completed=True)
+        validate_evaluation_report(report)
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
         self._atomic_write(
             destination / "report.md", render_evaluation_markdown(report)
@@ -468,6 +481,11 @@ class EvaluationRunner:
                 workspace,
                 ignore=shutil.ignore_patterns(".git", ".repofix", ".venv", "__pycache__", ".pytest_cache"),
             )
+            copied_sha256 = _source_tree_sha256(workspace)
+            if copied_sha256 != task.source_sha256:
+                raise EvaluationInputChangedError(
+                    f"evaluation source changed after suite load: {task.id}"
+                )
             def forward_agent_event(state, event):
                 self._notify({
                     "type": "agent_event",
@@ -761,13 +779,26 @@ class EvaluationRunner:
                 "candidate_better_pairs": 0,
                 "tied_pairs": 0,
                 "baseline_better_pairs": 0,
+                "paired_sign_test_p_value": None,
             }
         return {
             "paired_delta": cls._metric_summary(deltas, digits=digits),
             "candidate_better_pairs": sum(delta < 0 for delta in deltas),
             "tied_pairs": sum(delta == 0 for delta in deltas),
             "baseline_better_pairs": sum(delta > 0 for delta in deltas),
+            "paired_sign_test_p_value": cls._two_sided_sign_test(deltas),
         }
+
+    @staticmethod
+    def _two_sided_sign_test(deltas: list[float]) -> float | None:
+        better = sum(delta < 0 for delta in deltas)
+        worse = sum(delta > 0 for delta in deltas)
+        trials = better + worse
+        if trials == 0:
+            return None
+        smaller = min(better, worse)
+        tail = sum(math.comb(trials, index) for index in range(smaller + 1))
+        return round(min(1.0, 2 * tail / (2 ** trials)), 8)
 
     @staticmethod
     def _paired_outcomes(baseline: list[dict], candidate: list[dict]) -> dict:

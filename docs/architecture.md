@@ -88,9 +88,15 @@ baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后�
 
 Evaluation manifest 可以为 task 声明 `case`、`repetitions`、`variant` 和 `seed_failure_context`，suite 可声明 `baseline_variant`。Runner 按 trial 轮次交错不同 task/variant，每次使用新的 provider 与临时仓库，并为重复项生成独立 artifact ID。报告既按 variant 汇总成功率、改动范围和资源分布，也按 `(case, trial)` 计算配对成功结果及 requests/tokens/steps/cost 差值，避免只看两组平均值掩盖逐对反例。
 
+每个配对资源指标同时记录 candidate 更优、持平、baseline 更优的数量，并在排除持平项后计算双侧 exact binomial sign test。该检验只衡量差值方向是否一致，不利用差值大小；小样本、多指标和探索性 fixture 的限制仍需在结果解释中单独说明。
+
 Runner 在每个 trial 后原子覆盖 `progress.json`。未预料的单任务异常只生成该 trial 的 `runner_error`，不会抹掉已完成数据或阻断后续任务；`KeyboardInterrupt` 等进程控制信号不被吞掉。最终报告写入 manifest 原始字节的 SHA-256，以及排除 Git、虚拟环境、缓存和 RepoFix 控制目录后的 source tree SHA-256。只有指纹一致的报告才应被视作同一实验输入。单个 suite 最多 100 个 trial，避免配置错误造成无界 API 消耗。
 
+source 指纹不只在 manifest 加载时计算：每个 trial 完成临时复制后、provider 创建前会重新计算副本哈希并与冻结值比较。不同则抛出 suite 级输入变化错误，不会被普通 `runner_error` 隔离后继续消耗 API。source fixture 不允许符号链接，避免哈希对象与实际复制/访问目标不一致。
+
 续跑读取 `report.json` 或 `progress.json`，先核对 schema、suite 名、计划 trial 数、provider model、manifest 指纹、所有 source 指纹和已完成 task 身份。任何一项变化都会拒绝混合结果；验证通过后按原 trial plan 跳过已有 run key。已完成报告的 resume 是幂等读取，不创建 provider，也不产生 API 请求。
+
+最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope 和 failure counts；聚合值不一致时拒绝发布。这样 Markdown 渲染和面试结论不会建立在内部损坏的汇总字段上，完整 trial 仍保留在 `progress.json` 供修复后续跑收尾。
 
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
 
