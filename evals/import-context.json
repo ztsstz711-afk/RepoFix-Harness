@@ -1,0 +1,16 @@
+{
+  "name": "import-context-v1.2",
+  "tasks": [
+    {
+      "id": "optional-config-import-context",
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "execution_backend": "docker",
+      "max_steps": 8,
+      "max_requests": 6,
+      "max_tokens": 12000,
+      "tags": ["import-context", "assertion-only-traceback", "none-handling"],
+      "expected_changed_files": ["config_loader.py"]
+    }
+  ]
+}

@@ -86,4 +86,5 @@ def test_context_seeds_traceback_source_only_on_first_model_request(tmp_path):
 
     assert "Untrusted traceback-referenced source snippets" in first
     assert "return a - b" in first
+    assert "Call tools only for missing information" in first
     assert "traceback-referenced source snippets" not in later

@@ -27,6 +27,8 @@ V1.1 又完成了两次全部测试均在受限 Docker 中执行的真实闭环�
 
 V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取仓库内源码位置，将有界片段只注入首轮请求。专用场景的真实 DeepSeek + Docker 验证以 4 次请求、6,701 tokens 完成局部修复，详见 [Traceback context result](docs/traceback-context-results.md)。
 
+对于 traceback 只指向测试断言的场景，V1.2 会通过一跳本地 import 找到实现符号。一次同模型、同 fixture 的配对验证把动作路径从 6 请求缩短到 3 请求、tokens 从 9,820 降到 5,159；这是单场景工程验证而非统计性 benchmark，详见 [Import context result](docs/import-context-results.md)。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action

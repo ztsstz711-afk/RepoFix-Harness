@@ -37,7 +37,8 @@ class ContextBuilder:
         failure_context = self._failure_context_section(history)
         fixed = (
             f"Repository: {self.repo}\n"
-            "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
+            "Use the baseline and source snippets as inspection evidence. "
+            "Call tools only for missing information, and verify with pytest.\n"
             f"Progress summary: {progress}"
             f"{preflight}"
             f"{baseline}"
@@ -48,7 +49,8 @@ class ContextBuilder:
         header = (
             f"Repository: {self.repo}\n"
             f"Task: {bounded_task}\n"
-            "Continue from the recent trace below. Inspect before editing and verify with pytest.\n"
+            "Use the baseline and source snippets as inspection evidence. "
+            "Call tools only for missing information, and verify with pytest.\n"
             f"Progress summary: {progress}"
             f"{preflight}"
             f"{baseline}"
