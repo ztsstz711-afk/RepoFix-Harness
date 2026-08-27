@@ -31,7 +31,7 @@ V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取
 
 V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并在 evaluation report 中持久化了三轮 context snapshot；首轮明确记录 `test_config_loader.py` 来自 traceback、`config_loader.py` 来自 local import。
 
-V1.3 把单场景验证扩展为五类 Bug、context-on/off 各三次的 30-trial 配对矩阵。两组均完成 15/15 修复与 15/15 范围命中；context-on 平均请求减少 23.81%、平均 tokens 减少 22.80%，但跨文件间接定位也出现 token 增加反例。V1.3 同时加入 trial 失败隔离、断点续跑、逐对统计、suite 请求授权、manifest/source/model/Docker 指纹、聚合完整性校验以及自动 Markdown 报告。
+V1.3 把单场景验证扩展为五类 Bug、context-on/off 各三次的 30-trial 配对矩阵。两组均完成 15/15 修复与 15/15 范围命中；context-on 平均请求减少 23.81%、平均 tokens 减少 22.80%，但跨文件间接定位也出现 token 增加反例。V1.3 同时加入 trial 失败隔离、断点续跑、逐对统计、suite 请求授权、manifest/source/model/Docker 指纹、聚合完整性校验以及自动 Markdown 报告。V1.4 针对这个反例增加了受限的调用感知扩展：当测试导入的入口函数继续调用本地 helper 时，只补充该函数体内真正调用到的一跳实现，不递归遍历整个依赖图。
 
 ## 核心能力
 
@@ -41,7 +41,7 @@ V1.3 把单场景验证扩展为五类 Bug、context-on/off 各三次的 30-tria
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
-- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会通过一跳本地 import 定位实现符号，同时过滤外部路径与控制目录
+- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会通过本地 import 定位入口函数，并补充该函数实际调用的一跳本地实现，同时过滤外部路径与控制目录
 - 有界 context、工具输出头尾压缩、最近进度摘要
 - 每步持久化 context 选择元数据，记录自动选中文件、原因、行号与字符预算，但不重复保存源码正文
 - step/request/token 预算、成本估算、限流与超时重试

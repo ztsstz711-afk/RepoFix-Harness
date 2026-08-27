@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Expand a traceback-selected test's imported facade by one additional local call edge, attaching only repository functions actually called by the selected implementation function.
+- Keep call-aware context extraction AST-only, bounded by the existing file/character limits, and non-recursive.
+
 ## 1.3.0 - 2026-08-27
 
 - Add an explicit failure-context switch across environment settings, CLI, checkpoints, Agent Loop, and evaluation tasks.

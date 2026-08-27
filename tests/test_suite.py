@@ -59,6 +59,24 @@ def test_v13_context_matrix_is_balanced_and_bounded():
         assert all(task.max_tokens <= 16_000 for task in case_tasks)
 
 
+def test_v14_call_context_ab_is_balanced_and_bounded():
+    project_root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(project_root / "evals" / "call-context-ab.json"))
+
+    assert suite.name == "call-context-ab-v1.4"
+    assert suite.baseline_variant == "context_off"
+    assert suite.max_total_requests == 48
+    assert len(suite.tasks) == 2
+    assert sum(task.repetitions for task in suite.tasks) == 6
+    assert {task.case for task in suite.tasks} == {"username_normalization"}
+    assert {task.variant for task in suite.tasks} == {"context_on", "context_off"}
+    assert {task.repetitions for task in suite.tasks} == {3}
+    assert all(task.execution_backend == "docker" for task in suite.tasks)
+    assert all(task.max_requests == 8 for task in suite.tasks)
+    assert all(task.max_tokens == 16_000 for task in suite.tasks)
+    assert all(task.expected_changed_files == ("formatter.py",) for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     repo = tmp_path / "source_repo"
     repo.mkdir()

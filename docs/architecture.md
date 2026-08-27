@@ -84,11 +84,11 @@ Token 预算除了检查累计用量，还会根据当前 context 与历史请�
 
 baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后的头尾输出会固定保留在 context 中。模型因此可以直接根据 traceback 开始定位，不需要先消耗一次 action 重跑完整测试。仓库内容、测试输出和历史 observation 均在 provider prompt 中明确标记为不可信数据。
 
-首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。若 traceback 只指向测试文件，Harness 使用 Python AST 解析一跳 import，在仓库根目录、`src/` 或相对 package 中寻找本地模块，并把片段居中到导入符号定义。该过程不会 import 或执行仓库代码，也不会递归展开依赖。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
+首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。若 traceback 只指向测试文件，Harness 使用 Python AST 解析本地 import，在仓库根目录、`src/` 或相对 package 中寻找入口函数，并把片段居中到导入符号定义。若该入口函数实际调用了另一个本地导入函数，再补充这一条调用边对应的实现片段；未调用的 import 不会进入 context。该过程不会 import 或执行仓库代码，调用扩展只执行一跳且不递归，所有片段继续服从同一文件数和字符数上限。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
 
 上下文提示明确说明 baseline 与自动附带的源码片段已经构成 inspection evidence，模型只在信息不足时调用 list/read/search。这样 context optimization 才能转化为更短的 action path，而不是提供了源码后仍机械重复读取。
 
-每次真正发起模型 action 前，Harness 会把 context provenance 写入 `RunState.context_snapshots`：包括实际/最大字符数、baseline 是否存在、history 纳入与省略数量，以及自动选择源码的相对路径、原因（traceback 或 local import）、行号、符号和片段长度。这些信息属于 Harness 诊断状态，不加入 Agent history，因此不会改变后续模型决策或额外消耗 token。provider 内部格式/网络重试复用同一 context snapshot。
+每次真正发起模型 action 前，Harness 会把 context provenance 写入 `RunState.context_snapshots`：包括实际/最大字符数、baseline 是否存在、history 纳入与省略数量，以及自动选择源码的相对路径、原因（traceback、local import 或 local call）、行号、符号和片段长度。这些信息属于 Harness 诊断状态，不加入 Agent history，因此不会改变后续模型决策或额外消耗 token。provider 内部格式/网络重试复用同一 context snapshot。
 
 Evaluation manifest 可以为 task 声明 `case`、`repetitions`、`variant` 和 `seed_failure_context`，suite 可声明 `baseline_variant`。Runner 按 trial 轮次交错不同 task/variant，每次使用新的 provider 与临时仓库，并为重复项生成独立 artifact ID。报告既按 variant 汇总成功率、改动范围和资源分布，也按 `(case, trial)` 计算配对成功结果及 requests/tokens/steps/cost 差值，避免只看两组平均值掩盖逐对反例。
 

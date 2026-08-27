@@ -63,6 +63,7 @@ class FailureContextExtractor:
         selections: list[FailureSourceSelection] = []
         seen: set[str] = set()
         referenced_files: list[Path] = []
+        call_candidates: list[tuple[Path, str, str]] = []
         for _, raw_path, line_number in locations:
             resolved = self._resolve(raw_path)
             if resolved is None:
@@ -109,8 +110,39 @@ class FailureContextExtractor:
                         symbol=symbol or "",
                     )
                 )
+                if symbol:
+                    for called, called_symbol in self._called_local_imports(
+                        imported, symbol
+                    ):
+                        call_candidates.append(
+                            (called, called_symbol, relative)
+                        )
                 if len(snippets) >= self.max_files:
                     break
+        for called, symbol, imported_from in call_candidates:
+            if len(snippets) >= self.max_files:
+                break
+            relative = called.relative_to(self.repo).as_posix()
+            if relative in seen:
+                continue
+            line_number = self._definition_line(called, symbol)
+            snippet = self._snippet(
+                called, relative, line_number, label="called "
+            )
+            if not snippet:
+                continue
+            snippets.append(snippet)
+            seen.add(relative)
+            selections.append(
+                FailureSourceSelection(
+                    path=relative,
+                    line=line_number,
+                    reason="local_call",
+                    snippet_chars=len(snippet),
+                    imported_from=imported_from,
+                    symbol=symbol,
+                )
+            )
         if not snippets:
             return FailureContextResult("")
         content = "\n\n".join(snippets)
@@ -193,6 +225,79 @@ class FailureContextExtractor:
                 if resolved is not None:
                     return resolved
         return None
+
+    def _called_local_imports(
+        self, source: Path, symbol: str
+    ) -> list[tuple[Path, str]]:
+        try:
+            tree = ast.parse(source.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError, SyntaxError):
+            return []
+        definition = next(
+            (
+                node
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == symbol
+            ),
+            None,
+        )
+        if definition is None:
+            return []
+
+        function_bindings: dict[str, tuple[Path, str]] = {}
+        module_bindings: dict[str, Path] = {}
+        for node in tree.body:
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    target = self._resolve_module(alias.name, source, level=0)
+                    if target is not None:
+                        module_bindings[alias.asname or alias.name.split(".")[0]] = target
+            elif isinstance(node, ast.ImportFrom):
+                target = self._resolve_module(node.module or "", source, node.level)
+                for alias in node.names:
+                    if alias.name == "*":
+                        continue
+                    binding = alias.asname or alias.name
+                    child_module = ".".join(
+                        part for part in (node.module or "", alias.name) if part
+                    )
+                    child = (
+                        self._resolve_module(child_module, source, node.level)
+                        if target is None or target.name == "__init__.py"
+                        else None
+                    )
+                    if child is not None:
+                        module_bindings[binding] = child
+                    elif target is not None:
+                        function_bindings[binding] = (target, alias.name)
+
+        calls = sorted(
+            (node for node in ast.walk(definition) if isinstance(node, ast.Call)),
+            key=lambda node: (node.lineno, node.col_offset),
+        )
+        selected: list[tuple[Path, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for call in calls:
+            candidate: tuple[Path, str] | None = None
+            if isinstance(call.func, ast.Name):
+                candidate = function_bindings.get(call.func.id)
+            elif (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id in module_bindings
+            ):
+                candidate = (
+                    module_bindings[call.func.value.id],
+                    call.func.attr,
+                )
+            if candidate is None:
+                continue
+            key = (candidate[0].as_posix(), candidate[1])
+            if key not in seen:
+                seen.add(key)
+                selected.append(candidate)
+        return selected
 
     def _safe_python_file(self, candidate: Path) -> Path | None:
         try:

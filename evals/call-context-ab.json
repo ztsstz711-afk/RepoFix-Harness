@@ -1,0 +1,37 @@
+{
+  "name": "call-context-ab-v1.4",
+  "baseline_variant": "context_off",
+  "max_total_requests": 48,
+  "tasks": [
+    {
+      "id": "username-call-context-on",
+      "case": "username_normalization",
+      "variant": "context_on",
+      "repetitions": 3,
+      "seed_failure_context": true,
+      "repo": "../examples/multi_file_repo",
+      "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
+      "execution_backend": "docker",
+      "max_steps": 10,
+      "max_requests": 8,
+      "max_tokens": 16000,
+      "tags": ["multi-file-navigation", "string-normalization", "context-local-call"],
+      "expected_changed_files": ["formatter.py"]
+    },
+    {
+      "id": "username-call-context-off",
+      "case": "username_normalization",
+      "variant": "context_off",
+      "repetitions": 3,
+      "seed_failure_context": false,
+      "repo": "../examples/multi_file_repo",
+      "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
+      "execution_backend": "docker",
+      "max_steps": 10,
+      "max_requests": 8,
+      "max_tokens": 16000,
+      "tags": ["multi-file-navigation", "string-normalization", "context-local-call"],
+      "expected_changed_files": ["formatter.py"]
+    }
+  ]
+}

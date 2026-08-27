@@ -125,3 +125,93 @@ def test_extractor_resolves_relative_package_import(tmp_path):
 
     assert "imported package/logic.py:1" in snippets
     assert "def normalize" in snippets
+
+
+def test_extractor_expands_called_import_from_imported_facade(tmp_path):
+    test_file = tmp_path / "test_user_service.py"
+    test_file.write_text(
+        "from user_service import build_user_record\n\n"
+        "def test_user():\n"
+        "    assert build_user_record(' Alice ') == {'username': 'alice'}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "user_service.py").write_text(
+        "from formatter import normalize_username\n\n"
+        "def build_user_record(name):\n"
+        "    return {'username': normalize_username(name)}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "formatter.py").write_text(
+        "def normalize_username(name):\n"
+        "    return name.strip()\n",
+        encoding="utf-8",
+    )
+
+    result = FailureContextExtractor(str(tmp_path), context_lines=1).build_result(
+        "test_user_service.py:4: AssertionError"
+    )
+
+    assert "imported user_service.py:3" in result.text
+    assert "called formatter.py:1" in result.text
+    assert "return name.strip()" in result.text
+    assert [source.reason for source in result.sources] == [
+        "traceback",
+        "local_import",
+        "local_call",
+    ]
+    assert result.sources[2].imported_from == "user_service.py"
+    assert result.sources[2].symbol == "normalize_username"
+
+
+def test_extractor_only_expands_imports_called_by_target_function(tmp_path):
+    test_file = tmp_path / "test_service.py"
+    test_file.write_text(
+        "from service import run\n\ndef test_run():\n    assert run(' A ') == 'a'\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "service.py").write_text(
+        "import formatter as fmt\n"
+        "from unused import ignored\n\n"
+        "def run(value):\n"
+        "    return fmt.clean(value)\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "formatter.py").write_text(
+        "def clean(value):\n    return value.strip().lower()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "unused.py").write_text(
+        "def ignored(value):\n    return value\n",
+        encoding="utf-8",
+    )
+
+    result = FailureContextExtractor(str(tmp_path), context_lines=1).build_result(
+        "test_service.py:4: AssertionError"
+    )
+
+    assert "called formatter.py:1" in result.text
+    assert "unused.py" not in result.text
+
+
+def test_extractor_keeps_call_expansion_within_file_limit(tmp_path):
+    (tmp_path / "test_service.py").write_text(
+        "from service import run\n\ndef test_run():\n    assert run() == 1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "service.py").write_text(
+        "from helper import value\n\ndef run():\n    return value()\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "helper.py").write_text(
+        "def value():\n    return 0\n", encoding="utf-8"
+    )
+
+    result = FailureContextExtractor(str(tmp_path), max_files=2).build_result(
+        "test_service.py:4: AssertionError"
+    )
+
+    assert [source.reason for source in result.sources] == [
+        "traceback",
+        "local_import",
+    ]
+    assert "helper.py" not in result.text
