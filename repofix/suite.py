@@ -196,75 +196,196 @@ def _source_tree_sha256(repo: Path) -> str:
 
 
 class EvaluationRunner:
-    def __init__(self, provider_factory: Callable, on_event: Callable[[dict], None] | None = None):
+    def __init__(
+        self,
+        provider_factory: Callable,
+        on_event: Callable[[dict], None] | None = None,
+        experiment_metadata: dict | None = None,
+    ):
         self.provider_factory = provider_factory
         self.on_event = on_event
+        self.experiment_metadata = dict(experiment_metadata or {})
 
-    def run(self, suite: EvaluationSuite, output_dir: str) -> dict:
+    def run(
+        self, suite: EvaluationSuite, output_dir: str, resume: bool = False
+    ) -> dict:
         destination = Path(output_dir).resolve()
-        if destination.exists() and any(destination.iterdir()):
+        has_output = destination.exists() and any(destination.iterdir())
+        if has_output and not resume:
             raise FileExistsError(f"evaluation output directory is not empty: {destination}")
+        if resume and not has_output:
+            raise FileNotFoundError(
+                f"evaluation resume data not found: {destination}"
+            )
         destination.mkdir(parents=True, exist_ok=True)
-        started_at = utc_now()
-        results = []
+        if resume:
+            saved = self._load_resume_report(destination)
+            self._validate_resume_report(suite, saved)
+            if saved["completed"]:
+                return saved
+            started_at = saved["started_at"]
+            results = list(saved["tasks"])
+        else:
+            started_at = utc_now()
+            results = []
 
-        total_trials = sum(task.repetitions for task in suite.tasks)
-        index = 0
-        for trial in range(1, max(task.repetitions for task in suite.tasks) + 1):
-            for task in suite.tasks:
-                if trial > task.repetitions:
-                    continue
-                index += 1
-                run_key = (
-                    task.id
-                    if task.repetitions == 1
-                    else f"{task.id}--trial-{trial:02d}"
-                )
+        trial_plan = self._trial_plan(suite)
+        completed_keys = {result["id"] for result in results}
+        if not results:
+            self._write_progress(destination, suite, started_at, results)
+        for index, (task, trial, run_key) in enumerate(trial_plan, start=1):
+            if run_key in completed_keys:
                 self._notify({
-                    "type": "task_start",
+                    "type": "task_skip",
                     "index": index,
-                    "total": total_trials,
+                    "total": len(trial_plan),
                     "task_id": run_key,
                     "base_task_id": task.id,
                     "variant": task.variant,
                     "trial": trial,
                 })
-                try:
-                    result = self._run_task(task, destination, trial, run_key)
-                except Exception as exc:
-                    result = self._runner_error_result(task, trial, run_key, exc)
-                    run_dir = destination / "runs" / run_key
-                    run_dir.mkdir(parents=True, exist_ok=True)
-                    self._atomic_write(
-                        run_dir / "result.json", json.dumps(result, indent=2)
-                    )
-                    self._notify({
-                        "type": "task_crash",
-                        "task_id": run_key,
-                        "base_task_id": task.id,
-                        "variant": task.variant,
-                        "trial": trial,
-                        "error": result["error"],
-                    })
-                results.append(result)
-                progress = self._build_report(
-                    suite, started_at, results, completed=False
-                )
+                continue
+            self._notify({
+                "type": "task_start",
+                "index": index,
+                "total": len(trial_plan),
+                "task_id": run_key,
+                "base_task_id": task.id,
+                "variant": task.variant,
+                "trial": trial,
+            })
+            try:
+                result = self._run_task(task, destination, trial, run_key)
+            except Exception as exc:
+                result = self._runner_error_result(task, trial, run_key, exc)
+                run_dir = destination / "runs" / run_key
+                run_dir.mkdir(parents=True, exist_ok=True)
                 self._atomic_write(
-                    destination / "progress.json", json.dumps(progress, indent=2)
+                    run_dir / "result.json", json.dumps(result, indent=2)
                 )
                 self._notify({
-                    "type": "task_end",
+                    "type": "task_crash",
                     "task_id": run_key,
                     "base_task_id": task.id,
                     "variant": task.variant,
                     "trial": trial,
-                    "status": result["status"],
+                    "error": result["error"],
                 })
+            results.append(result)
+            self._write_progress(destination, suite, started_at, results)
+            self._notify({
+                "type": "task_end",
+                "task_id": run_key,
+                "base_task_id": task.id,
+                "variant": task.variant,
+                "trial": trial,
+                "status": result["status"],
+            })
 
         report = self._build_report(suite, started_at, results, completed=True)
         self._atomic_write(destination / "report.json", json.dumps(report, indent=2))
         return report
+
+    @staticmethod
+    def _trial_plan(suite: EvaluationSuite) -> list[tuple[SuiteTask, int, str]]:
+        plan = []
+        for trial in range(1, max(task.repetitions for task in suite.tasks) + 1):
+            for task in suite.tasks:
+                if trial <= task.repetitions:
+                    run_key = (
+                        task.id
+                        if task.repetitions == 1
+                        else f"{task.id}--trial-{trial:02d}"
+                    )
+                    plan.append((task, trial, run_key))
+        return plan
+
+    def _write_progress(
+        self,
+        destination: Path,
+        suite: EvaluationSuite,
+        started_at: str,
+        results: list[dict],
+    ) -> None:
+        progress = self._build_report(suite, started_at, results, completed=False)
+        self._atomic_write(
+            destination / "progress.json", json.dumps(progress, indent=2)
+        )
+
+    @staticmethod
+    def _load_resume_report(destination: Path) -> dict:
+        report_path = destination / "report.json"
+        progress_path = destination / "progress.json"
+        path = report_path if report_path.exists() else progress_path
+        if not path.exists():
+            raise FileNotFoundError(
+                f"evaluation progress.json not found: {destination}"
+            )
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError(f"invalid evaluation resume data: {path}") from exc
+        if not isinstance(saved, dict):
+            raise ValueError(f"invalid evaluation resume data: {path}")
+        return saved
+
+    def _validate_resume_report(
+        self, suite: EvaluationSuite, saved: dict
+    ) -> None:
+        if saved.get("report_schema_version") != 1:
+            raise ValueError("evaluation resume report schema does not match")
+        if saved.get("suite") != suite.name:
+            raise ValueError("evaluation resume suite name does not match")
+        if saved.get("manifest", {}).get("sha256") != suite.manifest_sha256:
+            raise ValueError("evaluation resume manifest fingerprint does not match")
+        if saved.get("sources") != self._source_fingerprints(suite):
+            raise ValueError("evaluation resume source fingerprints do not match")
+        if saved.get("experiment", {}) != self.experiment_metadata:
+            raise ValueError("evaluation resume metadata does not match")
+        plan = self._trial_plan(suite)
+        if saved.get("planned_trial_count") != len(plan):
+            raise ValueError("evaluation resume trial count does not match")
+        if not isinstance(saved.get("started_at"), str) or not isinstance(
+            saved.get("completed"), bool
+        ):
+            raise ValueError("evaluation resume lifecycle data is invalid")
+        expected = {
+            run_key: (task, trial) for task, trial, run_key in plan
+        }
+        results = saved.get("tasks")
+        if not isinstance(results, list):
+            raise ValueError("evaluation resume tasks are invalid")
+        seen = set()
+        for result in results:
+            if not isinstance(result, dict) or result.get("id") in seen:
+                raise ValueError("evaluation resume task IDs are invalid")
+            run_key = result["id"]
+            seen.add(run_key)
+            if run_key not in expected:
+                raise ValueError(f"unexpected evaluation resume task: {run_key}")
+            task, trial = expected[run_key]
+            identity = (
+                result.get("task_id"),
+                result.get("variant"),
+                result.get("case"),
+                result.get("trial"),
+                result.get("repetitions"),
+                result.get("source_repo_sha256"),
+            )
+            expected_identity = (
+                task.id,
+                task.variant,
+                task.case,
+                trial,
+                task.repetitions,
+                task.source_sha256,
+            )
+            if identity != expected_identity:
+                raise ValueError(
+                    f"evaluation resume task fingerprint does not match: {run_key}"
+                )
+        if saved["completed"] and seen != set(expected):
+            raise ValueError("completed evaluation resume report is missing tasks")
 
     def _build_report(
         self,
@@ -290,14 +411,17 @@ class EvaluationRunner:
                 "path": suite.manifest_path,
                 "sha256": suite.manifest_sha256,
             },
+            "sources": self._source_fingerprints(suite),
+            "experiment": self.experiment_metadata,
             "started_at": started_at,
-            "completed_at": utc_now(),
+            "updated_at": utc_now(),
+            "completed_at": utc_now() if completed else None,
             "completed": completed,
             "planned_trial_count": sum(task.repetitions for task in suite.tasks),
             "task_definition_count": len(suite.tasks),
             "task_count": len(results),
             "successes": successes,
-            "success_rate": successes / len(results),
+            "success_rate": successes / len(results) if results else None,
             "total_steps": sum(result["steps"] for result in results),
             "usage": asdict(total_usage),
             "estimated_cost_usd": round(sum(result["estimated_cost_usd"] for result in results), 8),
@@ -314,6 +438,16 @@ class EvaluationRunner:
             "tasks": results,
         }
         return report
+
+    @staticmethod
+    def _source_fingerprints(suite: EvaluationSuite) -> dict[str, dict[str, str]]:
+        return {
+            task.id: {
+                "path": task.repo,
+                "sha256": task.source_sha256,
+            }
+            for task in suite.tasks
+        }
 
     def _run_task(
         self,

@@ -1,5 +1,7 @@
 param(
-    [string]$Suite = "evals\demo.json"
+    [string]$Suite = "evals\demo.json",
+    [string]$Output = "",
+    [switch]$Resume
 )
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -31,15 +33,30 @@ if ([string]::IsNullOrWhiteSpace($env:REPOFIX_API_KEY)) {
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $suitePath = (Resolve-Path (Join-Path $projectRoot $Suite)).Path
 $suiteName = [System.IO.Path]::GetFileNameWithoutExtension($suitePath)
-$output = Join-Path $projectRoot "eval-results\$suiteName-$stamp"
+if ($Resume -and [string]::IsNullOrWhiteSpace($Output)) {
+    throw "-Resume requires -Output with the existing evaluation directory."
+}
+if ([string]::IsNullOrWhiteSpace($Output)) {
+    $outputPath = Join-Path $projectRoot "eval-results\$suiteName-$stamp"
+}
+elseif ([System.IO.Path]::IsPathRooted($Output)) {
+    $outputPath = [System.IO.Path]::GetFullPath($Output)
+}
+else {
+    $outputPath = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $Output))
+}
 
 Write-Host "RepoFix isolated demo"
 Write-Host "Model: $env:REPOFIX_MODEL"
-Write-Host "Output: $output"
+Write-Host "Output: $outputPath"
 
 Push-Location $projectRoot
 try {
-    & $python -m repofix.eval_cli --suite $suitePath --output $output
+    $arguments = @("-m", "repofix.eval_cli", "--suite", $suitePath, "--output", $outputPath)
+    if ($Resume) {
+        $arguments += "--resume"
+    }
+    & $python @arguments
     $demoExitCode = $LASTEXITCODE
 }
 finally {

@@ -2,6 +2,7 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 
+from .config import Settings
 from .provider import OpenAICompatibleProvider
 from .suite import EvaluationRunner, load_suite
 
@@ -11,6 +12,8 @@ def print_suite_progress(event: dict) -> None:
         print(f"[{event['index']}/{event['total']}] task={event['task_id']} starting")
     elif event["type"] == "task_end":
         print(f"task={event['task_id']} status={event['status']}")
+    elif event["type"] == "task_skip":
+        print(f"[{event['index']}/{event['total']}] task={event['task_id']} resumed")
     elif event["type"] == "task_crash":
         print(f"task={event['task_id']} runner_error={event['error']}")
     elif event["type"] == "agent_event":
@@ -50,11 +53,20 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run a RepoFix evaluation suite sequentially")
     parser.add_argument("--suite", required=True)
     parser.add_argument("--output")
+    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
+
+    if args.resume and not args.output:
+        parser.error("--resume requires --output")
 
     suite = load_suite(args.suite)
     output = args.output or str(Path("eval-results") / f"{suite.name}-{datetime.now():%Y%m%d-%H%M%S}")
-    report = EvaluationRunner(OpenAICompatibleProvider, print_suite_progress).run(suite, output)
+    settings = Settings.from_env()
+    report = EvaluationRunner(
+        OpenAICompatibleProvider,
+        print_suite_progress,
+        experiment_metadata={"provider_model": settings.model},
+    ).run(suite, output, resume=args.resume)
     print(
         f"suite={report['suite']} success={report['successes']}/{report['task_count']} "
         f"scope={report['change_scope_matches']}/{report['change_scope_evaluated']} "

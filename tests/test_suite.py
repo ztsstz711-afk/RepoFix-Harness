@@ -90,6 +90,10 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["report_schema_version"] == 1
     assert report["manifest"]["path"] == str(manifest.resolve())
     assert len(report["manifest"]["sha256"]) == 64
+    assert report["sources"]["addition"] == {
+        "path": str(repo.resolve()),
+        "sha256": load_suite(str(manifest)).tasks[0].source_sha256,
+    }
     assert report["usage"]["requests"] == 5
     assert report["usage"]["total_tokens"] == 600
     assert report["usage"]["retries"] == 0
@@ -252,6 +256,129 @@ def test_suite_rejects_nonempty_output_directory(tmp_path):
     (output / "existing.txt").write_text("keep", encoding="utf-8")
     with pytest.raises(FileExistsError, match="not empty"):
         EvaluationRunner(SuiteMockProvider).run(load_suite(str(manifest)), str(output))
+
+
+def test_suite_resumes_after_interruption_without_repeating_completed_trial(tmp_path):
+    repo = tmp_path / "source_repo"
+    repo.mkdir()
+    (repo / "calculator.py").write_text(
+        "def add(a, b):\n    return a - b\n", encoding="utf-8"
+    )
+    (repo / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "name": "resume-suite",
+                "tasks": [{
+                    "id": "addition",
+                    "repo": "source_repo",
+                    "task": "fix add",
+                    "repetitions": 2,
+                    "expected_changed_files": ["calculator.py"],
+                }],
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite = load_suite(str(manifest))
+    output = tmp_path / "output"
+    provider_calls = 0
+
+    def interrupting_factory():
+        nonlocal provider_calls
+        provider_calls += 1
+        if provider_calls == 2:
+            raise KeyboardInterrupt
+        return SuiteMockProvider()
+
+    metadata = {"provider_model": "mock-model"}
+    with pytest.raises(KeyboardInterrupt):
+        EvaluationRunner(
+            interrupting_factory, experiment_metadata=metadata
+        ).run(suite, str(output))
+
+    progress = json.loads((output / "progress.json").read_text(encoding="utf-8"))
+    assert progress["completed"] is False
+    assert progress["task_count"] == 1
+    assert progress["tasks"][0]["id"] == "addition--trial-01"
+    started_at = progress["started_at"]
+    events = []
+
+    report = EvaluationRunner(
+        SuiteMockProvider,
+        events.append,
+        experiment_metadata=metadata,
+    ).run(suite, str(output), resume=True)
+
+    assert report["completed"] is True
+    assert report["task_count"] == 2
+    assert report["successes"] == 2
+    assert report["started_at"] == started_at
+    assert [event["task_id"] for event in events if event["type"] == "task_skip"] == [
+        "addition--trial-01"
+    ]
+    assert (output / "report.json").exists()
+
+    def must_not_create_provider():
+        raise AssertionError("completed resume must not create a provider")
+
+    repeated = EvaluationRunner(
+        must_not_create_provider, experiment_metadata=metadata
+    ).run(suite, str(output), resume=True)
+    assert repeated == report
+
+
+def test_suite_resume_rejects_changed_experiment_inputs(tmp_path):
+    repo = tmp_path / "source_repo"
+    repo.mkdir()
+    source = repo / "calculator.py"
+    source.write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
+    (repo / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add(): assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [{
+                    "id": "addition",
+                    "repo": "source_repo",
+                    "task": "fix add",
+                    "expected_changed_files": ["calculator.py"],
+                }]
+            }
+        ),
+        encoding="utf-8",
+    )
+    suite = load_suite(str(manifest))
+    output = tmp_path / "output"
+
+    def interrupt_before_provider():
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        EvaluationRunner(
+            interrupt_before_provider,
+            experiment_metadata={"provider_model": "first"},
+        ).run(suite, str(output))
+
+    with pytest.raises(ValueError, match="metadata does not match"):
+        EvaluationRunner(
+            SuiteMockProvider,
+            experiment_metadata={"provider_model": "second"},
+        ).run(suite, str(output), resume=True)
+
+    source.write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="source fingerprints do not match"):
+        EvaluationRunner(
+            SuiteMockProvider,
+            experiment_metadata={"provider_model": "first"},
+        ).run(load_suite(str(manifest)), str(output), resume=True)
 
 
 def test_suite_requires_boolean_rollback_setting(tmp_path):

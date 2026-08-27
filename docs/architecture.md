@@ -89,6 +89,8 @@ Evaluation manifest 可以为 task 声明 `case`、`repetitions`、`variant` 和
 
 Runner 在每个 trial 后原子覆盖 `progress.json`。未预料的单任务异常只生成该 trial 的 `runner_error`，不会抹掉已完成数据或阻断后续任务；`KeyboardInterrupt` 等进程控制信号不被吞掉。最终报告写入 manifest 原始字节的 SHA-256，以及排除 Git、虚拟环境、缓存和 RepoFix 控制目录后的 source tree SHA-256。只有指纹一致的报告才应被视作同一实验输入。单个 suite 最多 100 个 trial，避免配置错误造成无界 API 消耗。
 
+续跑读取 `report.json` 或 `progress.json`，先核对 schema、suite 名、计划 trial 数、provider model、manifest 指纹、所有 source 指纹和已完成 task 身份。任何一项变化都会拒绝混合结果；验证通过后按原 trial plan 跳过已有 run key。已完成报告的 resume 是幂等读取，不创建 provider，也不产生 API 请求。
+
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
 
 局部 patch 使用精确 `old_text`/`new_text` 协议。只有旧文本在目标文件中唯一出现时才写入；零匹配或多匹配都会作为 observation 返回给模型继续修正。这样不依赖 Git 仓库，也不会让模糊替换静默改错位置。
