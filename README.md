@@ -39,6 +39,7 @@ V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
 - 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会通过一跳本地 import 定位实现符号，同时过滤外部路径与控制目录
 - 有界 context、工具输出头尾压缩、最近进度摘要
+- 每步持久化 context 选择元数据，记录自动选中文件、原因、行号与字符预算，但不重复保存源码正文
 - step/request/token 预算、成本估算、限流与超时重试
 - 重复动作检测，阻止无进展循环持续消耗 API
 - 仓库路径、控制目录、pytest 参数和改动文件数权限
@@ -151,7 +152,7 @@ repofix-runs --repo <repo> rollback latest
         └── backups/*.bin        # original file bytes
 ```
 
-`result.json` 包含任务状态、模型、步骤、token、成本、失败分类、baseline/final pytest、改动文件以及回滚结果。
+`result.json` 包含任务状态、模型、步骤、token、成本、失败分类、baseline/final pytest、改动文件、回滚结果以及每次模型调用的 context snapshot。snapshot 记录上下文长度、历史裁剪和自动源码选择依据，不会在 Agent history 中制造额外事件。
 
 ## 评测场景
 

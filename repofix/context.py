@@ -1,8 +1,15 @@
 import json
+from dataclasses import asdict, dataclass
 
+from .failure_context import FailureContextExtractor, FailureContextResult
 from .schemas import PreflightState, TestSnapshot
-from .failure_context import FailureContextExtractor
 from .text import compact_text
+
+
+@dataclass(frozen=True)
+class ContextBuildResult:
+    text: str
+    metadata: dict
 
 
 class ContextBuilder:
@@ -31,10 +38,13 @@ class ContextBuilder:
         )
 
     def build(self, history: list[dict]) -> str:
+        return self.build_with_metadata(history).text
+
+    def build_with_metadata(self, history: list[dict]) -> ContextBuildResult:
         progress = self._progress_summary(history)
         preflight = self._preflight_section()
         baseline = self._baseline_section()
-        failure_context = self._failure_context_section(history)
+        failure_context, failure_result = self._failure_context_section(history)
         fixed = (
             f"Repository: {self.repo}\n"
             "Use the baseline and source snippets as inspection evidence. "
@@ -74,15 +84,36 @@ class ContextBuilder:
         omitted = len(history) - len(selected)
         note = f"\nEarlier events omitted: {omitted}" if omitted else ""
         context = header + note + ("\nRecent trace:\n" + "\n".join(selected) if selected else "")
-        return compact_text(context, self.max_chars)[0]
+        context = compact_text(context, self.max_chars)[0]
+        return ContextBuildResult(
+            text=context,
+            metadata={
+                "context_chars": len(context),
+                "max_context_chars": self.max_chars,
+                "task_chars": len(bounded_task),
+                "baseline_included": self.baseline is not None,
+                "baseline_section_chars": len(baseline),
+                "history_events_total": len(history),
+                "history_events_included": len(selected),
+                "history_events_omitted": omitted,
+                "failure_context": {
+                    "included": bool(failure_result.text),
+                    "chars": len(failure_result.text),
+                    "truncated": failure_result.truncated,
+                    "sources": [asdict(source) for source in failure_result.sources],
+                },
+            },
+        )
 
-    def _failure_context_section(self, history: list[dict]) -> str:
+    def _failure_context_section(
+        self, history: list[dict]
+    ) -> tuple[str, FailureContextResult]:
         if history or self.baseline is None or self.baseline.success:
-            return ""
-        snippets = self.failure_context.build(self.baseline.output)
-        if not snippets:
-            return ""
-        return f"\nUntrusted traceback-referenced source snippets:\n{snippets}"
+            return "", FailureContextResult("")
+        result = self.failure_context.build_result(self.baseline.output)
+        if not result.text:
+            return "", result
+        return f"\nUntrusted traceback-referenced source snippets:\n{result.text}", result
 
     def _baseline_section(self) -> str:
         if self.baseline is None:

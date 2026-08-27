@@ -124,14 +124,26 @@ class AgentLoop:
             preflight=self.state.preflight,
         )
         for step in range(self.state.step, self.max_steps):
-            context = context_builder.build(self.state.history)
+            context_result = context_builder.build_with_metadata(self.state.history)
+            context = context_result.text
             estimated_next_tokens = self._estimate_next_request_tokens(context)
             denied = self.budget.admission_denied(self.state.usage, estimated_next_tokens)
             if denied:
                 self._finish_budget(*denied)
                 break
             self.state.step = step + 1
-            self._notify({"type": "model_request", "step": self.state.step})
+            context_snapshot = {"step": self.state.step, **context_result.metadata}
+            self.state.context_snapshots.append(context_snapshot)
+            self._save_checkpoint()
+            source_count = len(
+                context_result.metadata["failure_context"]["sources"]
+            )
+            self._notify({
+                "type": "model_request",
+                "step": self.state.step,
+                "context_chars": context_result.metadata["context_chars"],
+                "seeded_sources": source_count,
+            })
             try:
                 request_limiter = getattr(self.provider, "limit_next_action_requests", None)
                 if request_limiter is not None:

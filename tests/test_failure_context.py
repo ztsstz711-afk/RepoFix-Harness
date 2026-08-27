@@ -69,14 +69,19 @@ def test_extractor_expands_one_hop_import_from_traceback_test(tmp_path):
         encoding="utf-8",
     )
 
-    snippets = FailureContextExtractor(str(tmp_path), context_lines=1).build(
+    result = FailureContextExtractor(str(tmp_path), context_lines=1).build_result(
         "tests/test_quote.py:4: AssertionError"
     )
+    snippets = result.text
 
     assert "tests/test_quote.py:4" in snippets
     assert "imported src/order_service/quote.py:6" in snippets
     assert "def calculate_total" in snippets
     assert "def unrelated" not in snippets
+    assert [source.reason for source in result.sources] == ["traceback", "local_import"]
+    assert result.sources[1].imported_from == "tests/test_quote.py"
+    assert result.sources[1].symbol == "calculate_total"
+    assert result.sources[1].snippet_chars > 0
 
 
 def test_extractor_does_not_expand_external_or_recursive_imports(tmp_path):

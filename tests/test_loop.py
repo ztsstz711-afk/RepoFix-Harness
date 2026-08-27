@@ -47,6 +47,11 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert state.evaluation.final.success is True
     assert state.evaluation.changed_files == ["calculator.py"]
     assert len(state.history) == 6
+    assert len(state.context_snapshots) == 6
+    assert state.context_snapshots[0]["failure_context"]["included"] is True
+    assert state.context_snapshots[0]["failure_context"]["sources"]
+    assert state.context_snapshots[1]["failure_context"]["included"] is False
+    assert state.context_snapshots[0]["context_chars"] > 0
     assert state.history[1]["observation"]["success"] is False
     assert state.history[4]["observation"]["success"] is True
     assert "a + b" in (tmp_path / "calculator.py").read_text(encoding="utf-8")

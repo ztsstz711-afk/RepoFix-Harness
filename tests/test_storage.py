@@ -30,3 +30,8 @@ def test_run_store_rejects_unsafe_run_id(tmp_path):
     store = RunStore(str(tmp_path))
     with pytest.raises(ValueError, match="invalid run ID"):
         store.load_run("../../outside")
+
+
+def test_run_state_loads_legacy_checkpoint_without_context_snapshots(tmp_path):
+    state = RunState.from_dict({"task": "legacy", "repo": str(tmp_path)})
+    assert state.context_snapshots == []

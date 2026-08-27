@@ -105,6 +105,7 @@ class RunState:
     usage: TokenUsage = field(default_factory=TokenUsage)
     preflight: PreflightState = field(default_factory=PreflightState)
     evaluation: EvaluationState = field(default_factory=EvaluationState)
+    context_snapshots: list[dict[str, Any]] = field(default_factory=list)
     history: list[dict[str, Any]] = field(default_factory=list)
 
     def record(self, item: dict[str, Any]) -> None:

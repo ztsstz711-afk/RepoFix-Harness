@@ -45,6 +45,8 @@ def test_package_style_scenario_repairs_in_isolation(tmp_path):
     assert task["execution_backend"] == "docker"
     assert task["baseline_execution"]["network"] == "none"
     assert task["final_execution"]["workspace_mount"] == "readonly"
+    assert task["context_snapshots"]
+    assert task["context_snapshots"][0]["context_chars"] > 0
     assert task["changed_files"] == ["src/order_pipeline/service.py"]
     assert task["changed_files_match"] is True
     assert report["usage"]["requests"] == 6

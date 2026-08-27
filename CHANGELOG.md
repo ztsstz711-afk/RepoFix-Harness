@@ -8,6 +8,8 @@
 - Expand traceback-referenced test files through one hop of local Python imports, supporting repository-root, `src/`, and relative package layouts without importing or executing repository code.
 - Center imported snippets on the referenced function, class, or assigned symbol while ignoring external modules and recursive dependencies.
 - Treat supplied baseline/snippets as completed inspection evidence; in a paired DeepSeek Docker run this reduced the optional-config path from 6 to 3 requests and from 9,820 to 5,159 tokens.
+- Persist per-step context snapshots outside Agent history, including selected relative files, selection reasons, source lines, snippet sizes, history omission counts, and total character budget usage.
+- Surface context size and seeded-source counts in CLI progress and include the structured snapshots in evaluation task reports while retaining legacy checkpoint compatibility.
 
 ## 1.1.0 - 2026-08-27
 

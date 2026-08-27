@@ -88,3 +88,12 @@ def test_context_seeds_traceback_source_only_on_first_model_request(tmp_path):
     assert "return a - b" in first
     assert "Call tools only for missing information" in first
     assert "traceback-referenced source snippets" not in later
+
+    details = builder.build_with_metadata([])
+    metadata = details.metadata
+    assert metadata["context_chars"] == len(details.text)
+    assert metadata["max_context_chars"] == 24_000
+    assert metadata["failure_context"]["included"] is True
+    assert metadata["failure_context"]["sources"][0]["path"] == "calculator.py"
+    assert metadata["failure_context"]["sources"][0]["reason"] == "traceback"
+    assert metadata["history_events_total"] == 0

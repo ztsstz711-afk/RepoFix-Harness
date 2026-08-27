@@ -21,7 +21,11 @@ def print_suite_progress(event: dict) -> None:
                 f"backend={inner['execution_backend']}"
             )
         elif inner["type"] == "model_request":
-            print(f"task={event['task_id']} step={inner['step']} requesting model...")
+            print(
+                f"task={event['task_id']} step={inner['step']} requesting model... "
+                f"context_chars={inner.get('context_chars', 0)} "
+                f"seeded_sources={inner.get('seeded_sources', 0)}"
+            )
         elif inner["type"] == "budget":
             print(f"task={event['task_id']} stopped by {inner['failure_kind']}: {inner['error']}")
         elif inner["type"] == "stalled":

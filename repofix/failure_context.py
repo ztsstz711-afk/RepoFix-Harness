@@ -1,5 +1,6 @@
 import ast
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from .permissions import PermissionPolicy
@@ -11,6 +12,23 @@ PYTEST_LOCATION = re.compile(
     r"^\s*(?:>\s*)?(?P<path>(?:[A-Za-z]:[\\/])?[^:\r\n]+?\.py):(?P<line>\d+)",
     re.MULTILINE,
 )
+
+
+@dataclass(frozen=True)
+class FailureSourceSelection:
+    path: str
+    line: int
+    reason: str
+    snippet_chars: int
+    imported_from: str = ""
+    symbol: str = ""
+
+
+@dataclass(frozen=True)
+class FailureContextResult:
+    text: str
+    sources: tuple[FailureSourceSelection, ...] = ()
+    truncated: bool = False
 
 
 class FailureContextExtractor:
@@ -30,8 +48,11 @@ class FailureContextExtractor:
         self.max_chars = max_chars
 
     def build(self, pytest_output: str) -> str:
+        return self.build_result(pytest_output).text
+
+    def build_result(self, pytest_output: str) -> FailureContextResult:
         if not pytest_output or self.max_files <= 0 or self.max_chars <= 0:
-            return ""
+            return FailureContextResult("")
         locations = []
         for pattern in (TRACEBACK_FILE, PYTEST_LOCATION):
             for match in pattern.finditer(pytest_output):
@@ -39,6 +60,7 @@ class FailureContextExtractor:
         locations.sort(key=lambda item: item[0])
 
         snippets: list[str] = []
+        selections: list[FailureSourceSelection] = []
         seen: set[str] = set()
         referenced_files: list[Path] = []
         for _, raw_path, line_number in locations:
@@ -54,6 +76,14 @@ class FailureContextExtractor:
             snippets.append(snippet)
             seen.add(relative)
             referenced_files.append(resolved)
+            selections.append(
+                FailureSourceSelection(
+                    path=relative,
+                    line=line_number,
+                    reason="traceback",
+                    snippet_chars=len(snippet),
+                )
+            )
             if len(snippets) >= self.max_files:
                 break
         for referenced in referenced_files:
@@ -69,12 +99,26 @@ class FailureContextExtractor:
                     continue
                 snippets.append(snippet)
                 seen.add(relative)
+                selections.append(
+                    FailureSourceSelection(
+                        path=relative,
+                        line=line_number,
+                        reason="local_import",
+                        snippet_chars=len(snippet),
+                        imported_from=referenced.relative_to(self.repo).as_posix(),
+                        symbol=symbol or "",
+                    )
+                )
                 if len(snippets) >= self.max_files:
                     break
         if not snippets:
-            return ""
+            return FailureContextResult("")
         content = "\n\n".join(snippets)
-        return compact_text(content, self.max_chars)[0]
+        return FailureContextResult(
+            text=compact_text(content, self.max_chars)[0],
+            sources=tuple(selections),
+            truncated=len(content) > self.max_chars,
+        )
 
     def _resolve(self, raw_path: str) -> Path | None:
         normalized = raw_path.strip().replace("\\", "/")

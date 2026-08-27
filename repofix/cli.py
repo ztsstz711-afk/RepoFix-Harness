@@ -17,7 +17,11 @@ def print_progress(state, event):
             f"backend={event['execution_backend']}"
         )
     elif event["type"] == "model_request":
-        print(f"step={event['step']} requesting model action...")
+        print(
+            f"step={event['step']} requesting model action... "
+            f"context_chars={event.get('context_chars', 0)} "
+            f"seeded_sources={event.get('seeded_sources', 0)}"
+        )
     elif event["type"] == "budget":
         print(f"stopped by {event['failure_kind']}: {event['error']}")
     elif event["type"] == "stalled":

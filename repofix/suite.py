@@ -213,6 +213,7 @@ class EvaluationRunner:
             "error": state.error,
             "failure_kind": state.failure_kind,
             "estimated_cost_usd": state.estimated_cost_usd,
+            "context_snapshots": state.context_snapshots,
             "rollback_performed": state.evaluation.rollback_performed,
             "rollback_files": state.evaluation.rollback_files,
             "post_rollback_success": getattr(state.evaluation.post_rollback, "success", None),
