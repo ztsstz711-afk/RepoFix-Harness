@@ -89,6 +89,7 @@ class RunState:
     task: str
     repo: str
     test_command: str = "pytest -q"
+    final_test_command: str = "pytest -q"
     execution_backend: str = "local"
     docker_image: str = "repofix-pytest:latest"
     command_timeout_seconds: int = 30
@@ -119,6 +120,7 @@ class RunState:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RunState":
         values = dict(data)
+        values.setdefault("final_test_command", values.get("test_command", "pytest -q"))
         values["usage"] = TokenUsage(**values.get("usage", {}))
         preflight = values.get("preflight", {})
         if isinstance(preflight, dict):

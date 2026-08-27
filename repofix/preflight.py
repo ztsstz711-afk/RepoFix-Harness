@@ -14,9 +14,17 @@ PROJECT_MARKERS = ("pyproject.toml", "setup.cfg", "setup.py", "requirements.txt"
 class RepositoryPreflight:
     """Inspect local prerequisites without executing repository code or calling a model."""
 
-    def __init__(self, repo: str, test_command: str, execution_backend: str = "local", docker_image: str = "repofix-pytest:latest"):
+    def __init__(
+        self,
+        repo: str,
+        test_command: str,
+        execution_backend: str = "local",
+        docker_image: str = "repofix-pytest:latest",
+        final_test_command: str | None = None,
+    ):
         self.repo = Path(repo).resolve()
         self.test_command = test_command
+        self.final_test_command = final_test_command or test_command
         self.execution_backend = execution_backend
         self.docker_image = docker_image
 
@@ -56,6 +64,14 @@ class RepositoryPreflight:
             checks.append(PreflightCheck("test_command", "fail", str(exc)))
         else:
             checks.append(PreflightCheck("test_command", "pass", self.test_command))
+        try:
+            runtime.pytest_command(self.final_test_command)
+        except (PermissionError, ValueError) as exc:
+            checks.append(PreflightCheck("final_test_command", "fail", str(exc)))
+        else:
+            checks.append(
+                PreflightCheck("final_test_command", "pass", self.final_test_command)
+            )
 
         python_files = self._visible_files("*.py", runtime)
         checks.append(

@@ -29,6 +29,7 @@ class AgentLoop:
         max_changed_files: int | None = None,
         rollback_on_failure: bool | None = None,
         test_command: str | None = None,
+        final_test_command: str | None = None,
         execution_backend: str | None = None,
         docker_image: str | None = None,
         command_timeout_seconds: int | None = None,
@@ -40,6 +41,10 @@ class AgentLoop:
         if not self.repo.is_dir():
             raise FileNotFoundError(f"repository directory not found: {self.repo}")
         self.test_command = settings.test_command if test_command is None else test_command
+        configured_final_command = (
+            settings.final_test_command if final_test_command is None else final_test_command
+        )
+        self.final_test_command = configured_final_command or self.test_command
         self.execution_backend = (
             settings.execution_backend if execution_backend is None else execution_backend
         )
@@ -58,6 +63,7 @@ class AgentLoop:
         )
         self.state = RunState(
             "", str(self.repo), test_command=self.test_command,
+            final_test_command=self.final_test_command,
             execution_backend=self.execution_backend, docker_image=self.docker_image,
             command_timeout_seconds=self.command_timeout_seconds,
             seed_failure_context=self.seed_failure_context,
@@ -103,7 +109,8 @@ class AgentLoop:
         else:
             self.state.task = task
         self.state.preflight = RepositoryPreflight(
-            str(self.repo), self.test_command, self.execution_backend, self.docker_image
+            str(self.repo), self.test_command, self.execution_backend, self.docker_image,
+            self.final_test_command,
         ).run()
         self._save_checkpoint()
         self._notify({"type": "preflight", "success": self.state.preflight.success})
@@ -200,7 +207,7 @@ class AgentLoop:
                 break
             if action.name == "finish":
                 self.state.summary = action.arguments.get("summary", "")
-                self.state.evaluation.final = self.evaluator.run_tests()
+                self.state.evaluation.final = self.evaluator.run_final_tests()
                 self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
                 self.state.status = "success" if self.state.evaluation.final.success else "verification_failed"
                 self.state.failure_kind = "" if self.state.status == "success" else "verification"
@@ -212,7 +219,7 @@ class AgentLoop:
             self.state.status = "budget_exhausted"
             self.state.failure_kind = "step_budget"
             self.state.error = f"step budget reached ({self.max_steps}/{self.max_steps})"
-            self.state.evaluation.final = self.evaluator.run_tests()
+            self.state.evaluation.final = self.evaluator.run_final_tests()
             self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
             self._save_checkpoint()
         self._maybe_rollback()
@@ -229,7 +236,9 @@ class AgentLoop:
             docker_image=self.docker_image,
             command_timeout_seconds=self.command_timeout_seconds,
         )
-        self.evaluator = RepairEvaluator(self.runtime, self.test_command)
+        self.evaluator = RepairEvaluator(
+            self.runtime, self.test_command, self.final_test_command
+        )
 
     def _maybe_rollback(self) -> None:
         if self.state.status == "success" or not self.rollback_on_failure:
@@ -245,7 +254,7 @@ class AgentLoop:
             return
         self.state.evaluation.rollback_performed = True
         self.state.evaluation.rollback_files = restored
-        self.state.evaluation.post_rollback = self.evaluator.run_tests()
+        self.state.evaluation.post_rollback = self.evaluator.run_final_tests()
         self.state.evaluation.rollback_error = ""
         self._save_checkpoint()
         self._notify({"type": "rollback", "files": restored})
@@ -254,7 +263,7 @@ class AgentLoop:
         changed_files = self.evaluator.changed_files(self.state.history)
         self.state.evaluation.changed_files = changed_files
         if changed_files:
-            self.state.evaluation.final = self.evaluator.run_tests()
+            self.state.evaluation.final = self.evaluator.run_final_tests()
         repair_verified = (
             self.state.evaluation.final is not None
             and self.state.evaluation.final.success
@@ -274,7 +283,7 @@ class AgentLoop:
         self._save_checkpoint()
 
     def _finish_budget(self, failure_kind: str, message: str) -> None:
-        self.state.evaluation.final = self.evaluator.run_tests()
+        self.state.evaluation.final = self.evaluator.run_final_tests()
         self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
         repair_verified = (
             self.state.evaluation.final.success
@@ -312,7 +321,7 @@ class AgentLoop:
         self.state.status = "stalled"
         self.state.failure_kind = failure_kind
         self.state.error = message
-        self.state.evaluation.final = self.evaluator.run_tests()
+        self.state.evaluation.final = self.evaluator.run_final_tests()
         self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
         self._save_checkpoint()
         self._notify({"type": "stalled", "failure_kind": failure_kind, "error": message})
@@ -337,6 +346,10 @@ class AgentLoop:
             raise ValueError("checkpoint task does not match --task")
         if state.test_command != self.test_command:
             raise ValueError("checkpoint test command does not match --test-command")
+        if state.final_test_command != self.final_test_command:
+            raise ValueError(
+                "checkpoint final test command does not match --final-test-command"
+            )
         if state.execution_backend != self.execution_backend:
             raise ValueError("checkpoint execution backend does not match")
         if state.docker_image != self.docker_image:

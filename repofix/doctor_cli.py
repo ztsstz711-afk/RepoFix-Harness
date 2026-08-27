@@ -13,6 +13,7 @@ def main() -> int:
     )
     parser.add_argument("--repo", required=True)
     parser.add_argument("--test-command", default=settings.test_command)
+    parser.add_argument("--final-test-command", default=settings.final_test_command)
     parser.add_argument(
         "--execution-backend", choices=("local", "docker"), default=settings.execution_backend
     )
@@ -21,7 +22,11 @@ def main() -> int:
     args = parser.parse_args()
 
     report = RepositoryPreflight(
-        args.repo, args.test_command, args.execution_backend, args.docker_image
+        args.repo,
+        args.test_command,
+        args.execution_backend,
+        args.docker_image,
+        args.final_test_command,
     ).run()
     if args.json:
         print(json.dumps(asdict(report), indent=2))

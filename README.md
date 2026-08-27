@@ -94,13 +94,15 @@ pip install -e ".[dev]"
 repofix --repo <python-repo> --task "Fix the failing tests" --max-requests 8 --max-tokens 20000
 ```
 
-为采用特定测试入口的仓库指定 Harness 独立验证命令：
+为采用特定测试入口的仓库指定快速反馈测试；最终仍用完整套件验收：
 
 ```powershell
-repofix --repo <python-repo> --task "Fix the parser bug" --test-command "pytest -q tests/parser"
+repofix --repo <python-repo> --task "Fix the parser bug" `
+  --test-command "pytest -q tests/parser/test_regression.py" `
+  --final-test-command "pytest -q tests"
 ```
 
-`--test-command` 只接受 pytest 调用，且同一命令会用于 baseline、最终验证和回滚后验证。它也可以通过 `REPOFIX_TEST_COMMAND` 或 evaluation task 的 `test_command` 配置。
+两项命令都只接受 pytest 调用。`--test-command` 用于快速 baseline 和模型迭代反馈；`--final-test-command` 专用于成功判定、预算边界验证和回滚后验证。未提供最终命令时会自动沿用前者，兼容原有行为。环境变量分别为 `REPOFIX_TEST_COMMAND`、`REPOFIX_FINAL_TEST_COMMAND`，evaluation task 使用同名 JSON 字段。
 
 使用受限 Docker 容器执行所有 pytest：
 
@@ -210,7 +212,7 @@ V1.5 开始验证真实上游 Bug，而不是继续人工注入错误。准备�
 .\scripts\run_demo.ps1 -Suite evals\upstream-bugs-v1.5.json
 ```
 
-三个案例来自 more-itertools 与 Tomli，覆盖参数边界、滑动窗口稳定性和解析器资源限制。评测最多授权 36 次请求，所有 baseline/final 都运行上游完整测试集。案例设计与 commit 来源见 [V1.5 upstream bug suite](docs/v1.5-upstream-bug-suite.md)。
+三个案例来自 more-itertools 与 Tomli，覆盖参数边界、滑动窗口稳定性和解析器资源限制。评测最多授权 36 次请求：baseline 使用上游定向回归测试，所有最终成功判定仍运行上游完整测试集。案例设计与 commit 来源见 [V1.5 upstream bug suite](docs/v1.5-upstream-bug-suite.md)。
 
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 

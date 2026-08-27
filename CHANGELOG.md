@@ -4,7 +4,8 @@
 
 - Add a checksum-pinned preparation workflow for three real upstream bug-fix commits from more-itertools and Tomli.
 - Build each V1.5 buggy workspace from the fix commit's parent implementation plus only the upstream regression test, never the upstream repair patch.
-- Add a Docker-only, 36-request-authorized external evaluation manifest with full upstream test commands and hidden expected file scope.
+- Add a Docker-only, 36-request-authorized external evaluation manifest with focused feedback tests, full-suite final acceptance, and hidden expected file scope.
+- Separate the fast baseline/iteration pytest command from an optional full-suite final command across CLI, environment configuration, checkpoints, preflight, rollback, and evaluation reports.
 - Bound repository listings to 4,000 characters and prioritize shallow source paths before deep fixture trees, preserving omitted-file counts in tool metadata.
 - Account for every malformed-response attempt when provider format retries are exhausted, so request, token, retry, and cost reports cannot silently undercount failed calls.
 - Allow up to four bounded format-correction retries and independently verify an existing patch if the provider's next action remains malformed.

@@ -207,6 +207,20 @@ def test_resume_rejects_different_test_command(tmp_path):
         ).run("fix tests", resume=True)
 
 
+def test_resume_rejects_different_final_test_command(tmp_path):
+    AgentLoop(
+        FailingProvider(), str(tmp_path), 3,
+        test_command="pytest -q",
+        final_test_command="pytest -q tests",
+    ).run("fix tests")
+    with pytest.raises(ValueError, match="final test command"):
+        AgentLoop(
+            FinishProvider(), str(tmp_path), 3,
+            test_command="pytest -q",
+            final_test_command="pytest -q test_unit.py",
+        ).run("fix tests", resume=True)
+
+
 def test_resume_rejects_different_failure_context_setting(tmp_path):
     AgentLoop(
         FailingProvider(), str(tmp_path), 3, seed_failure_context=False
@@ -233,6 +247,18 @@ def test_loop_rejects_empty_test_command_as_preflight_result(tmp_path):
     state = AgentLoop(FinishProvider(), str(tmp_path), test_command="").run("fix tests")
     assert state.status == "preflight_failed"
     assert "non-empty string" in state.error
+    assert state.usage.requests == 0
+
+
+def test_loop_rejects_unsafe_final_test_command_before_running(tmp_path):
+    state = AgentLoop(
+        FinishProvider(), str(tmp_path),
+        test_command="pytest -q",
+        final_test_command="python dangerous.py",
+    ).run("fix tests")
+
+    assert state.status == "preflight_failed"
+    assert "only pytest" in state.error
     assert state.usage.requests == 0
 
 

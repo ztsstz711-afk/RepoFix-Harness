@@ -93,7 +93,9 @@ def test_v15_upstream_bug_manifest_is_bounded_and_has_provenance_contract():
         "tomli_key_parts_limit",
     }
     assert all(task["execution_backend"] == "docker" for task in manifest["tasks"])
-    assert all(task["command_timeout_seconds"] == 90 for task in manifest["tasks"])
+    assert all(task["command_timeout_seconds"] == 180 for task in manifest["tasks"])
+    assert all(task["test_command"] != task["final_test_command"] for task in manifest["tasks"])
+    assert all("tests" in task["final_test_command"] for task in manifest["tasks"])
     assert [task["max_tokens"] for task in manifest["tasks"]] == [
         32_000,
         40_000,
@@ -812,15 +814,24 @@ def test_suite_loads_safe_test_command_and_rejects_shell_commands(tmp_path):
                     "repo": "repo",
                     "task": "test",
                     "test_command": "pytest -q tests/unit",
+                    "final_test_command": "pytest -q tests",
                 }]
             }
         ),
         encoding="utf-8",
     )
-    assert load_suite(str(manifest)).tasks[0].test_command == "pytest -q tests/unit"
+    task = load_suite(str(manifest)).tasks[0]
+    assert task.test_command == "pytest -q tests/unit"
+    assert task.final_test_command == "pytest -q tests"
 
     data = json.loads(manifest.read_text(encoding="utf-8"))
     data["tasks"][0]["test_command"] = "python setup.py clean"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(PermissionError, match="only pytest"):
+        load_suite(str(manifest))
+
+    data["tasks"][0]["test_command"] = "pytest -q tests/unit"
+    data["tasks"][0]["final_test_command"] = "python setup.py test"
     manifest.write_text(json.dumps(data), encoding="utf-8")
     with pytest.raises(PermissionError, match="only pytest"):
         load_suite(str(manifest))

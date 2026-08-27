@@ -58,7 +58,8 @@ class RunManager:
                 command_timeout_seconds=state.command_timeout_seconds,
             ),
             state.test_command,
-        ).run_tests()
+            state.final_test_command,
+        ).run_final_tests()
         state.updated_at = utc_now()
         self.store.save(state, update_latest=state.run_id == latest_id)
         return state

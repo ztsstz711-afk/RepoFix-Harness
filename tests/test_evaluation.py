@@ -24,3 +24,21 @@ def test_evaluator_uses_a_custom_targeted_pytest_command(tmp_path):
     assert snapshot.success is True
     assert snapshot.command == "pytest -q test_pass.py"
     assert "1 passed" in snapshot.output
+
+
+def test_evaluator_uses_full_command_only_for_final_acceptance(tmp_path):
+    (tmp_path / "test_fast.py").write_text("def test_fast(): assert True\n", encoding="utf-8")
+    (tmp_path / "test_full.py").write_text("def test_full(): assert False\n", encoding="utf-8")
+    evaluator = RepairEvaluator(
+        ToolRuntime(str(tmp_path)),
+        "pytest -q test_fast.py",
+        "pytest -q",
+    )
+
+    baseline = evaluator.run_tests()
+    final = evaluator.run_final_tests()
+
+    assert baseline.success is True
+    assert baseline.command == "pytest -q test_fast.py"
+    assert final.success is False
+    assert final.command == "pytest -q"

@@ -33,5 +33,10 @@ def test_run_store_rejects_unsafe_run_id(tmp_path):
 
 
 def test_run_state_loads_legacy_checkpoint_without_context_snapshots(tmp_path):
-    state = RunState.from_dict({"task": "legacy", "repo": str(tmp_path)})
+    state = RunState.from_dict({
+        "task": "legacy",
+        "repo": str(tmp_path),
+        "test_command": "pytest -q legacy_tests",
+    })
     assert state.context_snapshots == []
+    assert state.final_test_command == "pytest -q legacy_tests"

@@ -50,6 +50,11 @@ def main():
         default=settings.test_command,
         help='Harness-owned verification command; pytest only (default: "pytest -q")',
     )
+    p.add_argument(
+        "--final-test-command",
+        default=settings.final_test_command,
+        help="optional full pytest command used only for final acceptance",
+    )
     p.add_argument("--execution-backend", choices=("local", "docker"), default=settings.execution_backend)
     p.add_argument("--docker-image", default=settings.docker_image)
     p.add_argument("--command-timeout", type=int, default=settings.command_timeout_seconds)
@@ -90,6 +95,7 @@ def main():
         max_changed_files=a.max_changed_files,
         rollback_on_failure=a.rollback_on_failure,
         test_command=a.test_command,
+        final_test_command=a.final_test_command,
         execution_backend=a.execution_backend,
         docker_image=a.docker_image,
         command_timeout_seconds=a.command_timeout,
@@ -106,6 +112,7 @@ def main():
         f"baseline={getattr(state.evaluation.baseline, 'success', None)} "
         f"final={getattr(state.evaluation.final, 'success', None)} "
         f"test_command={state.test_command!r} "
+        f"final_test_command={state.final_test_command!r} "
         f"backend={state.execution_backend} "
         f"result={state.repo}/.repofix/result.json"
     )

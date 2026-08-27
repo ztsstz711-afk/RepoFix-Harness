@@ -33,6 +33,7 @@ class SuiteTask:
     max_changed_files: int | None = None
     rollback_on_failure: bool | None = None
     test_command: str = "pytest -q"
+    final_test_command: str | None = None
     execution_backend: str = "local"
     docker_image: str = "repofix-pytest:latest"
     command_timeout_seconds: int = 30
@@ -94,6 +95,9 @@ def load_suite(path: str) -> EvaluationSuite:
         expected_changed_files = _string_list(item, "expected_changed_files")
         test_command = item.get("test_command", "pytest -q")
         parse_pytest_invocation(test_command)
+        final_test_command = item.get("final_test_command")
+        if final_test_command is not None:
+            parse_pytest_invocation(final_test_command)
         variant = item.get("variant", "default")
         if not isinstance(variant, str) or not re.fullmatch(r"[A-Za-z0-9._-]+", variant):
             raise ValueError(f"invalid variant: {variant}")
@@ -128,6 +132,7 @@ def load_suite(path: str) -> EvaluationSuite:
             max_changed_files=max_changed_files,
             rollback_on_failure=rollback_on_failure,
             test_command=test_command,
+            final_test_command=final_test_command,
             execution_backend=item.get("execution_backend", "local"),
             docker_image=item.get("docker_image", "repofix-pytest:latest"),
             command_timeout_seconds=command_timeout_seconds,
@@ -573,6 +578,7 @@ class EvaluationRunner:
                 max_changed_files=task.max_changed_files,
                 rollback_on_failure=task.rollback_on_failure,
                 test_command=task.test_command,
+                final_test_command=task.final_test_command,
                 execution_backend=task.execution_backend,
                 docker_image=task.docker_image,
                 command_timeout_seconds=task.command_timeout_seconds,
@@ -614,6 +620,7 @@ class EvaluationRunner:
                 state.evaluation.final.metadata if state.evaluation.final else None
             ),
             "test_command": state.test_command,
+            "final_test_command": state.final_test_command,
             "execution_backend": state.execution_backend,
             "docker_image": state.docker_image,
             "command_timeout_seconds": state.command_timeout_seconds,
@@ -662,6 +669,7 @@ class EvaluationRunner:
             "baseline_execution": None,
             "final_execution": None,
             "test_command": task.test_command,
+            "final_test_command": task.final_test_command or task.test_command,
             "execution_backend": task.execution_backend,
             "docker_image": task.docker_image,
             "command_timeout_seconds": task.command_timeout_seconds,
