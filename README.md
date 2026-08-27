@@ -43,6 +43,7 @@ V1.2 正式发布回归继续保持 3 请求路径，使用 4,663 tokens，并�
 - 有界 context、工具输出头尾压缩、最近进度摘要
 - 每步持久化 context 选择元数据，记录自动选中文件、原因、行号与字符预算，但不重复保存源码正文
 - step/request/token 预算、成本估算、限流与超时重试
+- suite 可声明总请求授权值；理论最坏请求量在运行前按 repetitions 展开校验
 - 重复动作检测，阻止无进展循环持续消耗 API
 - 仓库路径、控制目录、pytest 参数和改动文件数权限
 - 每次写入前保存 run 级原始快照，支持失败或事后回滚
@@ -184,6 +185,8 @@ Evaluation 输出目录额外包含逐 trial 的 `runs/`、中断续跑使用的
 ```
 
 manifest 通过 `case`、`repetitions`、`variant` 和 `baseline_variant` 声明配对实验，并以 `seed_failure_context` 控制上下文。30 次 DeepSeek + Docker 实测中，两组都完成 15/15 修复和 15/15 范围命中；context-on 的平均请求减少 23.81%，平均 tokens 减少 22.80%。15 个配对中 token 有 11 对更省、4 对更贵，说明上下文定位准确性会决定收益。详见 [V1.3 multi-case context matrix](docs/v1.3-context-matrix-results.md)。单场景先导实验保留在 [V1.3 context A/B](docs/v1.3-context-ab-results.md)。
+
+`context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
 

@@ -1,6 +1,7 @@
 {
   "name": "context-matrix-v1.3",
   "baseline_variant": "context_off",
+  "max_total_requests": 204,
   "tasks": [
     {
       "id": "toy-add-context-on",

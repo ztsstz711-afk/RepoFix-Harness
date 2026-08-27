@@ -51,6 +51,7 @@ class EvaluationSuite:
     baseline_variant: str | None = None
     manifest_path: str = ""
     manifest_sha256: str = ""
+    max_total_requests: int | None = None
 
 
 def load_suite(path: str) -> EvaluationSuite:
@@ -58,6 +59,13 @@ def load_suite(path: str) -> EvaluationSuite:
     data = json.loads(manifest.read_text(encoding="utf-8"))
     name = data.get("name", manifest.stem)
     baseline_variant = data.get("baseline_variant")
+    max_total_requests = data.get("max_total_requests")
+    if max_total_requests is not None and (
+        isinstance(max_total_requests, bool)
+        or not isinstance(max_total_requests, int)
+        or max_total_requests < 1
+    ):
+        raise ValueError("max_total_requests must be a positive JSON integer")
     if baseline_variant is not None and (
         not isinstance(baseline_variant, str)
         or not re.fullmatch(r"[A-Za-z0-9._-]+", baseline_variant)
@@ -100,24 +108,28 @@ def load_suite(path: str) -> EvaluationSuite:
             path = Path(expected_path)
             if path.is_absolute() or ".." in path.parts:
                 raise ValueError(f"unsafe expected changed file: {expected_path}")
+        max_steps = _positive_int(item, "max_steps", default=12)
+        max_requests = _positive_int(item, "max_requests")
+        max_tokens = _positive_int(item, "max_tokens")
+        max_identical_actions = _positive_int(item, "max_identical_actions")
+        max_changed_files = _positive_int(item, "max_changed_files")
+        command_timeout_seconds = _positive_int(
+            item, "command_timeout_seconds", default=30
+        )
         tasks.append(SuiteTask(
             id=task_id,
             repo=str(repo),
             task=item["task"],
-            max_steps=int(item.get("max_steps", 12)),
-            max_requests=int(item["max_requests"]) if "max_requests" in item else None,
-            max_tokens=int(item["max_tokens"]) if "max_tokens" in item else None,
-            max_identical_actions=(
-                int(item["max_identical_actions"]) if "max_identical_actions" in item else None
-            ),
-            max_changed_files=(
-                int(item["max_changed_files"]) if "max_changed_files" in item else None
-            ),
+            max_steps=max_steps,
+            max_requests=max_requests,
+            max_tokens=max_tokens,
+            max_identical_actions=max_identical_actions,
+            max_changed_files=max_changed_files,
             rollback_on_failure=rollback_on_failure,
             test_command=test_command,
             execution_backend=item.get("execution_backend", "local"),
             docker_image=item.get("docker_image", "repofix-pytest:latest"),
-            command_timeout_seconds=int(item.get("command_timeout_seconds", 30)),
+            command_timeout_seconds=command_timeout_seconds,
             seed_failure_context=seed_failure_context,
             tags=tags,
             expected_changed_files=tuple(sorted(expected_changed_files)),
@@ -154,12 +166,24 @@ def load_suite(path: str) -> EvaluationSuite:
                 raise ValueError(f"case {case} requires at least two variants")
             if len({task.repetitions for task in case_tasks}) != 1:
                 raise ValueError(f"case {case} variants must use equal repetitions")
+    planned_request_ceiling = _planned_request_ceiling(tasks)
+    if max_total_requests is not None:
+        if planned_request_ceiling is None:
+            raise ValueError(
+                "max_total_requests requires max_requests on every task"
+            )
+        if planned_request_ceiling > max_total_requests:
+            raise ValueError(
+                "planned task requests exceed max_total_requests "
+                f"({planned_request_ceiling}/{max_total_requests})"
+            )
     return EvaluationSuite(
         name,
         tasks,
         baseline_variant,
         str(manifest),
         hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        max_total_requests,
     )
 
 
@@ -170,6 +194,23 @@ def _string_list(item: dict, key: str) -> tuple[str, ...]:
     if len(value) != len(set(value)):
         raise ValueError(f"{key} must not contain duplicates")
     return tuple(value)
+
+
+def _positive_int(
+    item: dict, key: str, default: int | None = None
+) -> int | None:
+    value = item.get(key, default)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(f"{key} must be a positive JSON integer")
+    return value
+
+
+def _planned_request_ceiling(tasks: list[SuiteTask]) -> int | None:
+    if any(task.max_requests is None for task in tasks):
+        return None
+    return sum(task.max_requests * task.repetitions for task in tasks)
 
 
 _IGNORED_SOURCE_PARTS = {
@@ -430,6 +471,16 @@ class EvaluationRunner:
             },
             "sources": self._source_fingerprints(suite),
             "experiment": self.experiment_metadata,
+            "request_budget": {
+                "max_total_requests": suite.max_total_requests,
+                "planned_request_ceiling": _planned_request_ceiling(suite.tasks),
+                "actual_requests": total_usage.requests,
+                "remaining_requests": (
+                    max(suite.max_total_requests - total_usage.requests, 0)
+                    if suite.max_total_requests is not None
+                    else None
+                ),
+            },
             "started_at": started_at,
             "updated_at": utc_now(),
             "completed_at": utc_now() if completed else None,

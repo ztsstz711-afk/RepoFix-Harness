@@ -47,6 +47,22 @@ def validate_evaluation_report(report: dict) -> None:
         if usage.get(field) != expected:
             errors.append(f"usage.{field} does not match tasks")
 
+    request_budget = report.get("request_budget", {})
+    if request_budget.get("actual_requests") != usage.get("requests"):
+        errors.append("request budget actual does not match usage")
+    planned_requests = request_budget.get("planned_request_ceiling")
+    authorized_requests = request_budget.get("max_total_requests")
+    if authorized_requests is not None:
+        if planned_requests is None or planned_requests > authorized_requests:
+            errors.append("planned requests exceed suite authorization")
+        expected_remaining = max(authorized_requests - usage.get("requests", 0), 0)
+        if request_budget.get("remaining_requests") != expected_remaining:
+            errors.append("remaining request budget does not match usage")
+        if usage.get("requests", 0) > authorized_requests:
+            errors.append("actual requests exceed suite authorization")
+    elif request_budget.get("remaining_requests") is not None:
+        errors.append("unbounded request budget must not report remaining requests")
+
     expected_cost = round(sum(task.get("estimated_cost_usd", 0) for task in tasks), 8)
     if not _same_number(report.get("estimated_cost_usd"), expected_cost):
         errors.append("estimated cost does not match tasks")
@@ -91,6 +107,7 @@ def render_evaluation_markdown(report: dict) -> str:
         lines.append(f"- Model: `{_cell(model)}`")
 
     usage = report["usage"]
+    request_budget = report.get("request_budget", {})
     lines.extend([
         "",
         "## Overall",
@@ -103,6 +120,14 @@ def render_evaluation_markdown(report: dict) -> str:
             f"{report['change_scope_matches']}/{report['change_scope_evaluated']} |"
         ),
         f"| Model requests | {_number(usage['requests'])} |",
+        (
+            "| Planned request ceiling | "
+            f"{_optional_number(request_budget.get('planned_request_ceiling'))} |"
+        ),
+        (
+            "| Suite request authorization | "
+            f"{_optional_number(request_budget.get('max_total_requests'))} |"
+        ),
         f"| Retries | {_number(usage['retries'])} |",
         f"| Total tokens | {_number(usage['total_tokens'])} |",
         f"| Estimated cost (USD) | ${report['estimated_cost_usd']:.8f} |",
@@ -205,6 +230,10 @@ def _pair_counts(metric: dict) -> str:
 
 def _number(value: int | float) -> str:
     return f"{value:,}"
+
+
+def _optional_number(value: int | float | None) -> str:
+    return "not declared" if value is None else _number(value)
 
 
 def _signed_percent(value: float | None) -> str:

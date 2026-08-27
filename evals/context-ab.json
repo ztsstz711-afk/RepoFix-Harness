@@ -1,6 +1,7 @@
 {
   "name": "context-ab-v1.3",
   "baseline_variant": "context_off",
+  "max_total_requests": 36,
   "tasks": [
     {
       "id": "optional-config-context-on",

@@ -168,6 +168,12 @@ def _valid_aggregate_report():
         "success_rate": 1.0,
         "total_steps": 2,
         "usage": dict(usage),
+        "request_budget": {
+            "max_total_requests": 2,
+            "planned_request_ceiling": 2,
+            "actual_requests": 1,
+            "remaining_requests": 1,
+        },
         "estimated_cost_usd": 0.001,
         "change_scope_evaluated": 1,
         "change_scope_matches": 1,
@@ -188,6 +194,10 @@ def test_validate_evaluation_report_accepts_consistent_aggregates():
         (lambda report: report["usage"].update(total_tokens=121), "total_tokens"),
         (lambda report: report.update(estimated_cost_usd=9), "estimated cost"),
         (lambda report: report.update(successes=0), "success count"),
+        (
+            lambda report: report["request_budget"].update(remaining_requests=2),
+            "remaining request budget",
+        ),
         (
             lambda report: report["tasks"].append(copy.deepcopy(report["tasks"][0])),
             "task IDs",

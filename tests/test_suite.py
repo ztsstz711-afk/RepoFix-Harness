@@ -42,6 +42,7 @@ def test_v13_context_matrix_is_balanced_and_bounded():
     assert suite.baseline_variant == "context_off"
     assert len(suite.tasks) == 10
     assert sum(task.repetitions for task in suite.tasks) == 30
+    assert suite.max_total_requests == 204
     assert {task.case for task in suite.tasks} == {
         "toy_add",
         "username_normalization",
@@ -73,8 +74,9 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
                 "tasks": [{
                     "id": "addition",
                     "repo": "source_repo",
-                    "task": "fix add",
-                    "max_steps": 8,
+                        "task": "fix add",
+                        "max_steps": 8,
+                        "max_requests": 8,
                     "tags": ["single-file"],
                     "expected_changed_files": ["calculator.py"],
                 }],
@@ -99,6 +101,12 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
     assert report["usage"]["retries"] == 0
     assert report["failure_counts"] == {}
     assert report["estimated_cost_usd"] == 0
+    assert report["request_budget"] == {
+        "max_total_requests": None,
+        "planned_request_ceiling": 8,
+        "actual_requests": 5,
+        "remaining_requests": None,
+    }
     assert report["task_definition_count"] == 1
     assert report["variants"]["default"]["trials"] == 1
     assert report["variants"]["default"]["requests"]["mean"] == 5
@@ -523,6 +531,67 @@ def test_suite_caps_total_trials(tmp_path):
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="100 total trials"):
+        load_suite(str(manifest))
+
+
+@pytest.mark.parametrize(
+    ("task", "limit", "message"),
+    [
+        ({}, 10, "requires max_requests on every task"),
+        ({"max_requests": 6, "repetitions": 2}, 10, "exceed max_total_requests"),
+        ({"max_requests": 6}, 0, "positive JSON integer"),
+        ({"max_requests": 6}, True, "positive JSON integer"),
+    ],
+)
+def test_suite_validates_declared_total_request_budget(tmp_path, task, limit, message):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "max_total_requests": limit,
+                "tasks": [{"id": "task", "repo": "repo", "task": "test", **task}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=message):
+        load_suite(str(manifest))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("max_steps", 0),
+        ("max_requests", 0),
+        ("max_requests", "8"),
+        ("max_tokens", True),
+        ("max_identical_actions", -1),
+        ("max_changed_files", 0),
+        ("command_timeout_seconds", 0),
+    ],
+)
+def test_suite_rejects_nonpositive_or_coerced_task_limits(tmp_path, field, value):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    manifest = tmp_path / "suite.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "tasks": [{
+                    "id": "task",
+                    "repo": "repo",
+                    "task": "test",
+                    field: value,
+                }]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=f"{field} must be a positive JSON integer"):
         load_suite(str(manifest))
 
 
