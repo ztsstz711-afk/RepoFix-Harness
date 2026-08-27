@@ -1,0 +1,16 @@
+{
+  "name": "traceback-context-v1.2",
+  "tasks": [
+    {
+      "id": "missing-profile-display-name",
+      "repo": "../examples/traceback_context_repo",
+      "task": "Fix the missing-name profile behavior while preserving normalization for present names, then verify the complete test suite.",
+      "execution_backend": "docker",
+      "max_steps": 8,
+      "max_requests": 6,
+      "max_tokens": 12000,
+      "tags": ["traceback-context", "missing-key", "single-file"],
+      "expected_changed_files": ["profile.py"]
+    }
+  ]
+}

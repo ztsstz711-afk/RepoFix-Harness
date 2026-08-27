@@ -25,6 +25,8 @@
 
 V1.1 又完成了两次全部测试均在受限 Docker 中执行的真实闭环：package-style 场景使用 7 次请求、14,868 tokens；基于第三方 h11 v0.16.0 源码的注入回归使用 5 次请求、17,287 tokens，从 `2 failed, 76 passed` 修复到 `78 passed`，且只改动预期文件。后者详见 [External h11 result](docs/external-h11-results.md)。
 
+V1.2 开始加入 traceback-aware context：Harness 从独立 baseline 中提取仓库内源码位置，将有界片段只注入首轮请求。专用场景的真实 DeepSeek + Docker 验证以 4 次请求、6,701 tokens 完成局部修复，详见 [Traceback context result](docs/traceback-context-results.md)。
+
 ## 核心能力
 
 - 自主 Agent Loop：模型每轮选择一个结构化 action

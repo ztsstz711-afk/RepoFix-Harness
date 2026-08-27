@@ -4,6 +4,7 @@
 
 - Seed the first model request with bounded, line-numbered repository snippets referenced by the independent pytest baseline.
 - Ignore traceback paths outside the target repository and all protected control directories, deduplicate files, and omit the snippets after the first model action.
+- Validate the traceback-aware path with DeepSeek in restricted Docker: 1/1 repair, exact file scope, 4 requests, and 6,701 tokens.
 
 ## 1.1.0 - 2026-08-27
 
