@@ -12,6 +12,7 @@ Fresh Windows setup can be completed with:
 
 ```powershell
 .\scripts\setup_project.ps1 -BuildSandbox
+.\.venv\Scripts\Activate.ps1
 .\scripts\setup_deepseek.ps1
 ```
 

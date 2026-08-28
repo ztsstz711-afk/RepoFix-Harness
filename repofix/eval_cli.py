@@ -1,5 +1,6 @@
 import argparse
 import hashlib
+import sys
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -93,6 +94,8 @@ def main() -> int:
         experiment_metadata={
             "harness_version": harness_version(),
             "harness_source_sha256": harness_source_sha256(),
+            "python_executable": str(Path(sys.executable).resolve()),
+            "harness_module_path": str(Path(__file__).resolve()),
             "provider_model": settings.model,
             "max_output_tokens": settings.max_output_tokens,
             "patch_max_output_tokens": settings.patch_max_output_tokens,

@@ -83,6 +83,7 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 ```powershell
 cd <project-path>\RepoFix-Harness
 .\scripts\setup_project.ps1
+.\.venv\Scripts\Activate.ps1
 ```
 
 同时构建 Docker pytest 镜像：

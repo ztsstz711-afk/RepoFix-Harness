@@ -229,6 +229,8 @@ def render_evaluation_markdown(report: dict) -> str:
     for key in (
         "harness_version",
         "harness_source_sha256",
+        "python_executable",
+        "harness_module_path",
         "max_output_tokens",
         "patch_max_output_tokens",
         "input_cost_per_million",

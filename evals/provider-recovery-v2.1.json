@@ -32,7 +32,7 @@
       "verify_after_patch": true,
       "max_steps": 16,
       "max_requests": 12,
-      "max_tokens": 68000,
+      "max_tokens": 80000,
       "expected_changed_files": ["src/tomli/_parser.py"],
       "tags": ["external", "provider-recovery", "tomli", "parser"]
     }

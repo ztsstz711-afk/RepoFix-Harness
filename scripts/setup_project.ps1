@@ -31,5 +31,6 @@ if ($BuildSandbox) {
 
 Write-Host "RepoFix project setup complete."
 Write-Host "Python: $venvPython"
+Write-Host "Activate: .\.venv\Scripts\Activate.ps1"
 Write-Host "Next: .\scripts\setup_deepseek.ps1"
 Write-Host "Demo: .\scripts\run_demo.ps1"
