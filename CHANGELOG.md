@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.1.0 - 2026-08-28
+
 - Retry one malformed native tool response in native mode before falling back to JSON, with mode-specific correction guidance.
 - Allow a separate, recorded patch-phase output ceiling so reasoning models can complete tool arguments without increasing navigation-call output limits.
 - Record the exact Python executable and Harness module path in evaluation identity, and make virtual-environment activation explicit in Windows setup instructions.
