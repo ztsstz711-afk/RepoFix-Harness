@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V2.2 在冻结的 DeepSeek non-thinking 配置上对两个困难上游 Bug 各重复三次，主稳定性门禁完成 4/6 verified repairs、6/6 改动范围命中，53 requests / 231,784 tokens，且没有格式重试。随后针对两条预算失败轨迹加入 patch 后最多两次导航的 revision cap，独立 follow-up 为 2/2。主门禁与 follow-up 分开报告，不合并选择结果。详见 [V2.2 non-thinking stability](docs/v2.2-nonthinking-stability.md)。
+
 V2.1 针对 V2.0 暴露的 DeepSeek 空响应与补丁截断问题增加原生工具原地纠错、阶段输出上限和显式 thinking 配置。在两个困难上游案例的顺序式 before/after gate 中，API 默认 thinking 为 0/2，显式 `thinking=disabled` 为 2/2；后者完整测试和改动范围均通过，token 从 108,138 降至 73,192，估算成本从 $0.06776712 降至 $0.03117027。每案例仅运行一次，不能当作稳定成功率。详见 [V2.1 Provider recovery](docs/v2.1-provider-recovery.md)。
 
 V2.0 使用 `deepseek-v4-flash` 对三个 checksum-qualified 真实上游 Bug 各运行三次，共 9 个交错 trial：
@@ -284,3 +286,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V1.9 CLI 真实演示](docs/v1.9-cli-demo.md)
 - [V2.0 三案例九次稳定性门禁](docs/v2.0-stability-results.md)
 - [V2.1 Provider 恢复与 thinking 对照](docs/v2.1-provider-recovery.md)
+- [V2.2 non-thinking 重复稳定性与 revision cap](docs/v2.2-nonthinking-stability.md)

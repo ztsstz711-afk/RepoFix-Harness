@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.2.0 - 2026-08-28
+
 - Bound post-patch and rejected-patch navigation to two successful read/search actions before the phase policy exposes only `apply_patch` again.
 
 ## 2.1.0 - 2026-08-28
