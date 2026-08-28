@@ -188,8 +188,9 @@ class FailureContextExtractor:
             tree = ast.parse(source.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, SyntaxError):
             return []
-        imports: list[tuple[Path, str | None]] = []
+        imports: list[tuple[str, Path, str | None]] = []
         called_attributes = self._called_attributes(tree, line_number)
+        names_at_failure = self._names_at_line(tree, line_number)
         for node in tree.body:
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -198,9 +199,11 @@ class FailureContextExtractor:
                         binding = alias.asname or alias.name.split(".")[0]
                         attributes = called_attributes.get(binding, [])
                         if attributes:
-                            imports.extend((target, attribute) for attribute in attributes)
+                            imports.extend(
+                                (binding, target, attribute) for attribute in attributes
+                            )
                         else:
-                            imports.append((target, None))
+                            imports.append((binding, target, None))
             elif isinstance(node, ast.ImportFrom):
                 target = self._resolve_module(node.module or "", source, node.level)
                 for alias in node.names:
@@ -216,19 +219,34 @@ class FailureContextExtractor:
                     )
                     if child is not None:
                         if attributes:
-                            imports.extend((child, attribute) for attribute in attributes)
+                            imports.extend(
+                                (binding, child, attribute) for attribute in attributes
+                            )
                         else:
-                            imports.append((child, None))
+                            imports.append((binding, child, None))
                     elif target is not None:
                         symbol = None if alias.name == "*" else alias.name
                         if symbol and attributes:
                             imports.extend(
-                                (target, f"{symbol}.{attribute}")
+                                (binding, target, f"{symbol}.{attribute}")
                                 for attribute in attributes
                             )
                         else:
-                            imports.append((target, symbol))
-        return imports
+                            imports.append((binding, target, symbol))
+        relevant = [item for item in imports if item[0] in names_at_failure]
+        selected = relevant or imports
+        return [(target, symbol) for _, target, symbol in selected]
+
+    @staticmethod
+    def _names_at_line(tree: ast.AST, line_number: int | None) -> set[str]:
+        if line_number is None:
+            return set()
+        return {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name)
+            and node.lineno <= line_number <= getattr(node, "end_lineno", node.lineno)
+        }
 
     @staticmethod
     def _called_attributes(

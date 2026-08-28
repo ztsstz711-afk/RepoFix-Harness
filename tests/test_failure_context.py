@@ -84,6 +84,42 @@ def test_extractor_expands_one_hop_import_from_traceback_test(tmp_path):
     assert result.sources[1].snippet_chars > 0
 
 
+def test_extractor_prioritizes_imports_used_on_failing_line(tmp_path):
+    test_file = tmp_path / "tests" / "test_reader.py"
+    test_file.parent.mkdir()
+    test_file.write_text(
+        "from events import Data, End\n"
+        "from readers import ChunkedReader\n"
+        "from errors import ProtocolError\n\n"
+        "def test_reader():\n"
+        "    assert ChunkedReader().read() == ProtocolError\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "events.py").write_text(
+        "class Data: pass\nclass End: pass\n", encoding="utf-8"
+    )
+    (tmp_path / "readers.py").write_text(
+        "class ChunkedReader:\n    def read(self):\n        return None\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "errors.py").write_text(
+        "class ProtocolError(Exception): pass\n", encoding="utf-8"
+    )
+
+    result = FailureContextExtractor(str(tmp_path), max_files=3).build_result(
+        "tests/test_reader.py:6: AssertionError"
+    )
+
+    assert [source.path for source in result.sources] == [
+        "tests/test_reader.py",
+        "readers.py",
+        "errors.py",
+    ]
+    assert "events.py" not in result.text
+    assert result.sources[1].symbol == "ChunkedReader"
+    assert result.sources[2].symbol == "ProtocolError"
+
+
 def test_extractor_does_not_expand_external_or_recursive_imports(tmp_path):
     test_file = tmp_path / "test_service.py"
     test_file.write_text(

@@ -47,7 +47,10 @@ class ContextBuilder:
         repair_phase = self._repair_phase(history)
         next_priority = self._next_priority(repair_phase)
         preflight = self._preflight_section()
-        baseline = self._baseline_section()
+        baseline_superseded = self.baseline is not None and self._has_new_test_evidence(
+            history
+        )
+        baseline = self._baseline_section(history)
         failure_context, failure_result = self._failure_context_section(history)
         fixed = (
             f"Repository: {self.repo}\n"
@@ -77,7 +80,8 @@ class ContextBuilder:
         used = 0
         oversized_skipped = 0
 
-        for event in reversed(history):
+        context_history, deduplicated = self._deduplicate_navigation(history)
+        for event in reversed(context_history):
             compact = self._compact_event(event)
             remaining = budget - used
             if len(compact) > remaining:
@@ -102,9 +106,11 @@ class ContextBuilder:
                 "task_chars": len(bounded_task),
                 "baseline_included": self.baseline is not None,
                 "baseline_section_chars": len(baseline),
+                "baseline_output_superseded": baseline_superseded,
                 "history_events_total": len(history),
                 "history_events_included": len(selected),
                 "history_events_omitted": omitted,
+                "history_events_deduplicated": deduplicated,
                 "history_events_skipped_oversized": oversized_skipped,
                 "navigation_summary": self._navigation_summary(history),
                 "repair_phase": repair_phase,
@@ -133,17 +139,63 @@ class ContextBuilder:
             return "", result
         return f"\nUntrusted traceback-referenced source snippets:\n{result.text}", result
 
-    def _baseline_section(self) -> str:
+    def _baseline_section(self, history: list[dict]) -> str:
         if self.baseline is None:
             return ""
+        status = "passed" if self.baseline.success else "failed"
+        if self._has_new_test_evidence(history):
+            return (
+                f"\nIndependent baseline: {status} (output superseded by newer pytest evidence)\n"
+                f"Baseline command: {self.baseline.command}"
+            )
         output_budget = min(self.max_baseline_chars, max(self.max_chars // 3, 0))
         output = compact_text(self.baseline.output, output_budget)[0]
-        status = "passed" if self.baseline.success else "failed"
         return (
             f"\nIndependent baseline: {status}\n"
             f"Baseline command: {self.baseline.command}\n"
             f"Baseline output:\n{output}"
         )
+
+    @staticmethod
+    def _has_new_test_evidence(history: list[dict]) -> bool:
+        for event in history:
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            if action.get("name") == "run_command":
+                return True
+            if isinstance(observation.get("metadata", {}).get("post_patch_test"), dict):
+                return True
+        return False
+
+    @staticmethod
+    def _deduplicate_navigation(history: list[dict]) -> tuple[list[dict], int]:
+        """Keep the latest copy of repeated read/search evidence in model context."""
+        seen: set[tuple] = set()
+        selected: list[dict] = []
+        deduplicated = 0
+        for event in reversed(history):
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            metadata = observation.get("metadata", {})
+            name = action.get("name")
+            signature: tuple | None = None
+            if name == "read" and metadata.get("path"):
+                signature = (
+                    name,
+                    metadata["path"],
+                    metadata.get("start_line"),
+                    metadata.get("end_line"),
+                )
+            elif name == "search" and metadata.get("query") is not None:
+                signature = (name, metadata.get("path", "."), metadata["query"])
+            if signature is not None:
+                if signature in seen:
+                    deduplicated += 1
+                    continue
+                seen.add(signature)
+            selected.append(event)
+        selected.reverse()
+        return selected, deduplicated
 
     def _preflight_section(self) -> str:
         if self.preflight is None:

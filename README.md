@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V2.8 针对 V2.7 的长轨迹做不调用模型的 Harness 优化：出现更新的 pytest 证据后，初始 baseline 输出降为状态/命令摘要；重复 read/search 只在模型上下文保留最新副本，原始 trace 不删；首轮本地 import 扩展优先选择失败行实际引用的符号。重放 V2.7 成功轨迹时，第 8–11 步合计减少约 11,531 个上下文字符；h11 首轮源码选择收敛为测试文件、`ChunkedReader` 和 `LocalProtocolError` 三个直接相关来源。该结果是确定性机制验证，不是新的模型成功率。详见 [V2.8 context compaction](docs/v2.8-context-compaction.md)。
+
 V2.7 新增第六个 checksum-qualified 真实上游修复，也是首个协议解析状态机案例：h11 的 `ChunkedReader` 会无条件丢弃 chunk body 后两个字节，却不验证它们是否为必须的 CRLF。四次预先区分的预算校准依次为 auto 42k：0/1、non-thinking 42k：0/1、non-thinking 60k：0/1、non-thinking 72k：1/1；最后一次在 12/12 请求边界完成，独立完整验收为 78 passed。该结果说明复杂增量状态修复对轨迹和预算敏感，只能作为能力边界与预算校准，不能宣称稳定成功。详见 [V2.7 upstream h11 chunk footer calibration](docs/v2.7-upstream-h11-chunk-footer.md)。
 
 V2.6 新增第五个 checksum-qualified 真实上游修复：`numeric_range.__reversed__()` 在空 range 上错误抛出 `IndexError`。指定门禁 1/1 verified，用 5 requests / 16,163 tokens 完成；随后独立重复三次得到 3/3 verified、3/3 精确范围、14 requests / 44,353 tokens。两组实验各有 1 次已恢复的 format retry，完整验收均为 716 passed、19,896 subtests passed；指定门禁与稳定性 follow-up 分开报告。详见 [V2.6 upstream numeric range gate](docs/v2.6-upstream-numeric-range.md)。
@@ -68,8 +70,8 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 - 真实 OpenAI-compatible provider，可切换 DeepSeek、Gemini 等服务
 - 独立 baseline/final pytest，不接受模型口头宣称“已修复”
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
-- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会通过本地 import 定位入口函数，并补充该函数实际调用的一跳本地实现，同时过滤外部路径与控制目录
-- 有界 context、工具输出头尾压缩、最近进度摘要
+- 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会优先解析失败行实际使用的本地 import，再定位入口函数并补充该函数实际调用的一跳本地实现，同时过滤外部路径与控制目录
+- 有界 context、工具输出头尾压缩、最近进度摘要；新 pytest 证据会替代重复的初始 baseline 正文，重复 read/search 在模型上下文只保留最新证据
 - 每步持久化 context 选择元数据，记录自动选中文件、原因、行号与字符预算，但不重复保存源码正文
 - step/request/token 预算、成本估算、限流与超时重试
 - suite 可声明总请求授权值；理论最坏请求量在运行前按 repetitions 展开校验

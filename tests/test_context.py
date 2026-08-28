@@ -64,6 +64,57 @@ def test_context_includes_bounded_independent_baseline():
     assert "chars omitted" in context
 
 
+def test_context_collapses_baseline_output_after_new_pytest_evidence():
+    baseline = Snapshot(
+        False,
+        "OLD-TRACEBACK\n" + "x" * 1_000 + "\nOLD-SUMMARY",
+        command="pytest -q tests/unit",
+    )
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "run_command"},
+            "observation": {"success": False, "output": "NEW-TRACEBACK"},
+        }
+    ]
+
+    result = ContextBuilder(
+        "repo", "fix tests", baseline=baseline, max_baseline_chars=2_000
+    ).build_with_metadata(history)
+
+    assert "output superseded by newer pytest evidence" in result.text
+    assert "Baseline command: pytest -q tests/unit" in result.text
+    assert "OLD-TRACEBACK" not in result.text
+    assert "NEW-TRACEBACK" in result.text
+    assert result.metadata["baseline_section_chars"] < 200
+    assert result.metadata["baseline_output_superseded"] is True
+
+
+def test_context_collapses_baseline_after_automatic_post_patch_test():
+    baseline = Snapshot(False, "OLD-FAILURE", command="pytest -q tests/unit")
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "output": "PATCHED\nNEW-FAILURE",
+                "metadata": {
+                    "changed": True,
+                    "path": "src/parser.py",
+                    "post_patch_test": {"success": False},
+                },
+            },
+        }
+    ]
+
+    context = ContextBuilder("repo", "fix tests", baseline=baseline).build(history)
+
+    assert "output superseded by newer pytest evidence" in context
+    assert "OLD-FAILURE" not in context
+    assert "NEW-FAILURE" in context
+
+
 def test_context_includes_preflight_warnings():
     preflight = PreflightState(
         True,
@@ -281,3 +332,51 @@ def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():
     assert "EARLY-LANDMARK" in context
     assert len(context) <= 1_000
     assert result.metadata["history_events_skipped_oversized"] == 1
+
+
+def test_context_keeps_only_latest_repeated_navigation_evidence():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "read"},
+            "observation": {
+                "output": "OLD-SOURCE",
+                "metadata": {"path": "src/parser.py", "start_line": 10, "end_line": 20},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "search"},
+            "observation": {
+                "output": "OLD-SEARCH",
+                "metadata": {"path": ".", "query": "parse", "matches": 1},
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "read"},
+            "observation": {
+                "output": "CURRENT-SOURCE",
+                "metadata": {"path": "src/parser.py", "start_line": 10, "end_line": 20},
+            },
+        },
+        {
+            "step": 4,
+            "action": {"name": "search"},
+            "observation": {
+                "output": "CURRENT-SEARCH",
+                "metadata": {"path": ".", "query": "parse", "matches": 1},
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert "CURRENT-SOURCE" in result.text
+    assert "CURRENT-SEARCH" in result.text
+    assert "OLD-SOURCE" not in result.text
+    assert "OLD-SEARCH" not in result.text
+    assert result.metadata["history_events_total"] == 4
+    assert result.metadata["history_events_included"] == 2
+    assert result.metadata["history_events_omitted"] == 2
+    assert result.metadata["history_events_deduplicated"] == 2
