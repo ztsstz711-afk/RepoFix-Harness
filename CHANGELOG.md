@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.3.0 - 2026-08-28
+
 - Reject exact-replacement `apply_patch` actions whose `old_text` and `new_text` are identical before they consume an Agent tool step.
 - Make zero-result searches explicit evidence misses and force `list/read` after three misses instead of allowing empty searches to create patch readiness.
 
