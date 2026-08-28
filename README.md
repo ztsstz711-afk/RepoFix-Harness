@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V2.7 新增第六个 checksum-qualified 真实上游修复，也是首个协议解析状态机案例：h11 的 `ChunkedReader` 会无条件丢弃 chunk body 后两个字节，却不验证它们是否为必须的 CRLF。四次预先区分的预算校准依次为 auto 42k：0/1、non-thinking 42k：0/1、non-thinking 60k：0/1、non-thinking 72k：1/1；最后一次在 12/12 请求边界完成，独立完整验收为 78 passed。该结果说明复杂增量状态修复对轨迹和预算敏感，只能作为能力边界与预算校准，不能宣称稳定成功。详见 [V2.7 upstream h11 chunk footer calibration](docs/v2.7-upstream-h11-chunk-footer.md)。
+
 V2.6 新增第五个 checksum-qualified 真实上游修复：`numeric_range.__reversed__()` 在空 range 上错误抛出 `IndexError`。指定门禁 1/1 verified，用 5 requests / 16,163 tokens 完成；随后独立重复三次得到 3/3 verified、3/3 精确范围、14 requests / 44,353 tokens。两组实验各有 1 次已恢复的 format retry，完整验收均为 716 passed、19,896 subtests passed；指定门禁与稳定性 follow-up 分开报告。详见 [V2.6 upstream numeric range gate](docs/v2.6-upstream-numeric-range.md)。
 
 V2.5 新增第四个 checksum-qualified 真实上游修复：`more-itertools.last()` 在 `__reversed__ = None` 时错误进入 `reversed()` 路径。DeepSeek 在一次冻结门禁中用 6 requests / 23,337 tokens 完成修复，0 format retries，只修改预期源码文件；独立完整验收为 679 passed、1 skipped、12,078 subtests passed。随后独立重复三次，得到 3/3 verified、3/3 精确范围、14 requests / 46,080 tokens 和 1 次已恢复的 format retry。单次门禁与重复 follow-up 分开报告，不合并选择结果。详见 [V2.5 upstream `last()` gate](docs/v2.5-upstream-last.md)。
