@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V2.4 将冻结策略移到未参与近期调参的三个 Bug family：h11 第三方源码注入回归、`src/` 跨模块订单 fixture、assertion-only 配置 fixture，各运行三次。结果为 9/9 verified、9/9 精确范围、31 requests / 72,547 tokens、0 format retries，估算成本 $0.02419832。只有 h11 使用第三方真实源码，其余为自建场景，因此该结果是泛化 smoke gate，不是 9 个真实 upstream issue。详见 [V2.4 generalization gate](docs/v2.4-generalization.md)。
+
 V2.3 在与 V2.0 相同的三个上游 Bug、九次交错 trial 上完成可比复验：verified repairs 从 4/9 提升到 8/9，requests 从 74 降至 66，tokens 从 342,070 降至 239,833，format retries 从 31 降至 0，估算成本下降 54.6%。唯一失败揭示空搜索被误当作证据的问题；独立 search-evidence follow-up 修复后 Tomli 1/1 完成。主结果与 follow-up 不合并。详见 [V2.3 comparable stability](docs/v2.3-comparable-stability.md)。
 
 V2.2 在冻结的 DeepSeek non-thinking 配置上对两个困难上游 Bug 各重复三次，主稳定性门禁完成 4/6 verified repairs、6/6 改动范围命中，53 requests / 231,784 tokens，且没有格式重试。随后针对两条预算失败轨迹加入 patch 后最多两次导航的 revision cap，独立 follow-up 为 2/2。主门禁与 follow-up 分开报告，不合并选择结果。详见 [V2.2 non-thinking stability](docs/v2.2-nonthinking-stability.md)。
@@ -290,3 +292,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V2.1 Provider 恢复与 thinking 对照](docs/v2.1-provider-recovery.md)
 - [V2.2 non-thinking 重复稳定性与 revision cap](docs/v2.2-nonthinking-stability.md)
 - [V2.3 与 V2.0 同案例可比稳定性复验](docs/v2.3-comparable-stability.md)
+- [V2.4 新 Bug family 泛化门禁](docs/v2.4-generalization.md)
