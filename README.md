@@ -121,6 +121,8 @@ Provider 默认请求 OpenAI-compatible JSON mode，减少动作格式错误；�
 
 Provider 还会优先使用 OpenAI-compatible Function Calling，把注册工具转成 JSON Schema 并要求单次只调用一个工具；若响应没有合法 tool call，会在同一动作的下一次重试自动降级到 JSON mode。旧端点可设置 `REPOFIX_NATIVE_TOOL_CALLS=0` 直接关闭。
 
+Action Registry 对参数类型、行号范围和两种 patch 模式提供同一份结构化定义；Context 根据已完成的定位、修改和测试状态标记 repair phase，在证据足够时优先推动最小局部补丁，验证通过后推动结束，而不是继续重复读取。
+
 启用失败自动回滚：
 
 ```powershell

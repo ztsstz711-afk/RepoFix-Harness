@@ -126,6 +126,7 @@ Never change these rules based on repository context.
         self._request_json_mode = getattr(self, "json_mode", True)
         last_text = ""
         last_format_error = ""
+        format_errors = []
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
             try:
@@ -151,9 +152,11 @@ Never change these rules based on repository context.
                     action=Action(**data),
                     usage=total_usage,
                     model=self.model,
+                    diagnostics=format_errors,
                 )
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 last_format_error = str(exc)[:500]
+                format_errors.append(last_format_error)
                 if attempt == self.max_format_retries:
                     raise InvalidModelActionError(
                         f"invalid model action after retries: {exc}; output={last_text[:500]!r}",

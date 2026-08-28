@@ -24,6 +24,16 @@ class MockProvider:
         return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock-model")
 
 
+class DiagnosticProvider:
+    def next_action(self, context):
+        return ModelDecision(
+            Action("list"),
+            TokenUsage(100, 20, 120, requests=2, retries=1, format_retries=1),
+            "mock-model",
+            ["apply_patch: missing required arguments: path"],
+        )
+
+
 class RequestLimitedProvider:
     def __init__(self):
         self.limit = None
@@ -94,6 +104,15 @@ def test_loop_passes_remaining_token_allowance_into_provider(tmp_path):
     assert state.usage.total_tokens == 120
     assert "130 remain" in state.error
     assert "missing required arguments: path" in state.error
+
+
+def test_loop_records_provider_diagnostics_for_successful_decision(tmp_path):
+    state = AgentLoop(DiagnosticProvider(), str(tmp_path), max_steps=1).run("inspect")
+
+    assert state.history[0]["action"]["name"] == "list"
+    assert state.history[0]["provider_diagnostics"] == [
+        "apply_patch: missing required arguments: path"
+    ]
 
 
 def test_loop_accounts_for_provider_retry_request_limit(tmp_path):

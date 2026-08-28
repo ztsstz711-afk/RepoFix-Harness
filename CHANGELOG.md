@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Replace prompt-example type inference with explicit action argument schemas, including descriptions, numeric bounds, and mutually exclusive localized/full-file patch modes.
+- Persist bounded Provider format diagnostics even when a later retry returns a valid action.
+- Add deterministic repair phases and next-action guidance so accumulated search/read evidence transitions toward a minimal patch and verified patches transition toward finish.
+- Add an offline Tomli-style facade-to-parser repair trajectory covering baseline seeding, localized patching, automatic focused verification, and final acceptance.
+
 ## 1.6.0 - 2026-08-28
 
 - Persist compact read-range and search-query navigation memory in every model context and context snapshot.

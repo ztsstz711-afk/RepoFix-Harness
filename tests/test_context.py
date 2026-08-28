@@ -29,6 +29,7 @@ def test_context_preserves_progress_summary_and_output_head_tail():
     context = ContextBuilder("repo", "task", max_chars=700, max_observation_chars=120).build(history)
     assert "changed_files=a.py" in context
     assert "latest_agent_pytest=failed" in context
+    assert "repair_phase=patch_needs_revision" in context
     assert "TRACEBACK-START" in context
     assert "SUMMARY-END" in context
     assert "chars omitted" in context
@@ -97,6 +98,7 @@ def test_context_seeds_traceback_source_only_on_first_model_request(tmp_path):
     assert metadata["failure_context"]["sources"][0]["path"] == "calculator.py"
     assert metadata["failure_context"]["sources"][0]["reason"] == "traceback"
     assert metadata["history_events_total"] == 0
+    assert metadata["repair_phase"] == "locating"
 
 
 def test_context_can_disable_failure_source_seeding(tmp_path):
@@ -151,6 +153,30 @@ def test_context_keeps_compact_navigation_memory():
     assert metadata["navigation_summary"] == (
         "navigation_reads=[src/parser.py:440-485]; searches=[parse_key@.(1)]"
     )
+    assert metadata["repair_phase"] == "ready_to_patch"
+    assert "apply the smallest localized patch now" in context
+
+
+def test_context_guides_verified_patch_toward_finish():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {
+                    "changed": True,
+                    "path": "src/parser.py",
+                    "post_patch_test": {"success": True},
+                },
+            },
+        }
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "verified_patch"
+    assert "then finish with the verification summary" in result.text
 
 
 def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():

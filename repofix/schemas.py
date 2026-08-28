@@ -41,6 +41,7 @@ class ModelDecision:
     action: Action
     usage: TokenUsage = field(default_factory=TokenUsage)
     model: str = ""
+    diagnostics: list[str] = field(default_factory=list)
 
 @dataclass
 class Observation:

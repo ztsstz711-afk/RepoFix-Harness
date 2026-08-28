@@ -2,62 +2,153 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ArgumentSpec:
+    prompt: str
+    description: str
+    type: str = "string"
+    minimum: int | None = None
+
+    def json_schema(self) -> dict:
+        schema = {"type": self.type, "description": self.description}
+        if self.minimum is not None:
+            schema["minimum"] = self.minimum
+        return schema
+
+
+@dataclass(frozen=True)
 class ActionSpec:
     name: str
     description: str
-    arguments: dict[str, str]
+    arguments: dict[str, ArgumentSpec]
     required: tuple[str, ...] = ()
 
     def prompt_line(self) -> str:
-        shape = ", ".join(f'"{key}": {value}' for key, value in self.arguments.items())
+        shape = ", ".join(
+            f'"{key}": {value.prompt}' for key, value in self.arguments.items()
+        )
         return f'- {self.name}: {{{shape}}} — {self.description}'
 
     def tool_definition(self) -> dict:
-        properties = {}
-        for name, example in self.arguments.items():
-            schema = {"type": "integer", "minimum": 1} if "integer" in example else {"type": "string"}
-            properties[name] = schema
+        parameters = {
+            "type": "object",
+            "properties": {
+                name: argument.json_schema()
+                for name, argument in self.arguments.items()
+            },
+            "required": list(self.required),
+            "additionalProperties": False,
+        }
+        if self.name == "apply_patch":
+            parameters["oneOf"] = [
+                {
+                    "required": ["old_text", "new_text"],
+                    "not": {"required": ["content"]},
+                },
+                {
+                    "required": ["content"],
+                    "not": {
+                        "anyOf": [
+                            {"required": ["old_text"]},
+                            {"required": ["new_text"]},
+                        ]
+                    },
+                },
+            ]
         return {
             "type": "function",
             "function": {
                 "name": self.name,
                 "description": self.description,
-                "parameters": {
-                    "type": "object",
-                    "properties": properties,
-                    "required": list(self.required),
-                    "additionalProperties": False,
-                },
+                "parameters": parameters,
             },
         }
+
+
+def text_argument(prompt: str, description: str) -> ArgumentSpec:
+    return ArgumentSpec(prompt, description)
+
+
+def line_argument(description: str) -> ArgumentSpec:
+    return ArgumentSpec("optional integer", description, type="integer", minimum=1)
 
 
 ACTION_SPECS = {
     spec.name: spec
     for spec in (
-        ActionSpec("list", "List repository files while excluding control and cache directories.", {}),
-        ActionSpec("search", "Search Python source text.", {"query": '"text"', "path": '"optional/subdir"'}, ("query",)),
+        ActionSpec(
+            "list",
+            "List repository files while excluding control and cache directories.",
+            {},
+        ),
+        ActionSpec(
+            "search",
+            "Search Python source text. Prefer this before reading a large file.",
+            {
+                "query": text_argument('"text"', "Exact text or symbol to find."),
+                "path": text_argument(
+                    '"optional/subdir"',
+                    "Optional repository-relative file or directory scope.",
+                ),
+            },
+            ("query",),
+        ),
         ActionSpec(
             "read",
-            "Read a UTF-8 text file, optionally by inclusive line range.",
-            {"path": '"relative/path.py"', "start_line": "optional integer", "end_line": "optional integer"},
+            "Read a UTF-8 text file. Prefer a narrow inclusive line range after search.",
+            {
+                "path": text_argument(
+                    '"relative/path.py"', "Repository-relative UTF-8 text file."
+                ),
+                "start_line": line_argument("Optional first line, inclusive."),
+                "end_line": line_argument("Optional last line, inclusive."),
+            },
             ("path",),
         ),
         ActionSpec(
             "apply_patch",
-            "Edit one text file. Prefer an exact, unique old_text/new_text replacement; content remains available for creating or replacing a complete file.",
+            "Edit exactly one text file using one mode only. For an existing file, use a small exact old_text/new_text replacement and omit content. Use content only to create a new file or replace a complete file.",
             {
-                "path": '"relative/path.py"',
-                "old_text": '"exact existing text (localized mode)"',
-                "new_text": '"replacement text (localized mode)"',
-                "content": '"complete file content (full-file mode)"',
+                "path": text_argument(
+                    '"relative/path.py"', "Repository-relative file to edit."
+                ),
+                "old_text": text_argument(
+                    '"exact existing text (localized mode)"',
+                    "Exact, non-empty, unique text copied from the latest read. Use together with new_text and omit content.",
+                ),
+                "new_text": text_argument(
+                    '"replacement text (localized mode)"',
+                    "Replacement for old_text. Use together with old_text and omit content.",
+                ),
+                "content": text_argument(
+                    '"complete file content (full-file mode)"',
+                    "Complete file text. Use only for a new file or intentional whole-file replacement; omit old_text and new_text.",
+                ),
             },
             ("path",),
         ),
-        ActionSpec("run_command", "Run pytest only.", {"command": '"pytest -q"'}, ("command",)),
+        ActionSpec(
+            "run_command",
+            "Run a focused pytest command only.",
+            {
+                "command": text_argument(
+                    '"pytest -q"', "A pytest command scoped inside the repository."
+                )
+            },
+            ("command",),
+        ),
         ActionSpec("git_diff", "Show the current repository diff.", {}),
         ActionSpec("git_status", "Show concise repository status.", {}),
-        ActionSpec("finish", "Finish with a verified repair summary.", {"summary": '"what changed and how it was verified"'}, ("summary",)),
+        ActionSpec(
+            "finish",
+            "Finish only after tests verify the repair.",
+            {
+                "summary": text_argument(
+                    '"what changed and how it was verified"',
+                    "Concise repair and verification summary.",
+                )
+            },
+            ("summary",),
+        ),
     )
 }
 
@@ -74,6 +165,16 @@ def validate_action(name: str, arguments: dict) -> str | None:
     unknown = [key for key in arguments if key not in spec.arguments]
     if unknown:
         return f"unknown arguments for {name}: {', '.join(unknown)}"
+    for key, value in arguments.items():
+        argument = spec.arguments[key]
+        if argument.type == "string" and not isinstance(value, str):
+            return f"{name} {key} must be a string"
+        if argument.type == "integer" and (
+            not isinstance(value, int) or isinstance(value, bool)
+        ):
+            return f"{name} {key} must be an integer"
+        if argument.minimum is not None and value < argument.minimum:
+            return f"{name} {key} must be at least {argument.minimum}"
     if name == "apply_patch":
         has_content = "content" in arguments
         has_old = "old_text" in arguments

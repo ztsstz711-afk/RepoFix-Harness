@@ -44,6 +44,8 @@ class ContextBuilder:
 
     def build_with_metadata(self, history: list[dict]) -> ContextBuildResult:
         progress = self._progress_summary(history)
+        repair_phase = self._repair_phase(history)
+        next_priority = self._next_priority(repair_phase)
         preflight = self._preflight_section()
         baseline = self._baseline_section()
         failure_context, failure_result = self._failure_context_section(history)
@@ -52,6 +54,7 @@ class ContextBuilder:
             "Use the baseline and source snippets as inspection evidence. "
             "Call tools only for missing information, and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"\nNext priority: {next_priority}"
             f"{preflight}"
             f"{baseline}"
             f"{failure_context}"
@@ -64,6 +67,7 @@ class ContextBuilder:
             "Use the baseline and source snippets as inspection evidence. "
             "Call tools only for missing information, and verify with pytest.\n"
             f"Progress summary: {progress}"
+            f"\nNext priority: {next_priority}"
             f"{preflight}"
             f"{baseline}"
             f"{failure_context}"
@@ -103,6 +107,7 @@ class ContextBuilder:
                 "history_events_omitted": omitted,
                 "history_events_skipped_oversized": oversized_skipped,
                 "navigation_summary": self._navigation_summary(history),
+                "repair_phase": repair_phase,
                 "failure_context": {
                     "enabled": self.seed_failure_context,
                     "included": bool(failure_result.text),
@@ -165,8 +170,62 @@ class ContextBuilder:
         navigation = ContextBuilder._navigation_summary(history)
         return (
             f"changed_files={files}; latest_agent_pytest={latest_pytest}; "
-            f"{navigation}"
+            f"repair_phase={ContextBuilder._repair_phase(history)}; {navigation}"
         )
+
+    @staticmethod
+    def _repair_phase(history: list[dict]) -> str:
+        changed = False
+        latest_pytest: bool | None = None
+        successful_reads = 0
+        successful_searches = 0
+        failed_patches = 0
+        for event in history:
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            name = action.get("name")
+            success = bool(observation.get("success", True))
+            if name == "read" and success:
+                successful_reads += 1
+            elif name == "search" and success:
+                successful_searches += 1
+            elif name == "apply_patch":
+                if success and observation.get("metadata", {}).get("changed"):
+                    changed = True
+                elif not success:
+                    failed_patches += 1
+            elif name == "run_command":
+                latest_pytest = success
+            post_patch_test = observation.get("metadata", {}).get("post_patch_test")
+            if isinstance(post_patch_test, dict):
+                latest_pytest = bool(post_patch_test.get("success"))
+
+        if changed and latest_pytest is True:
+            return "verified_patch"
+        if changed and latest_pytest is False:
+            return "patch_needs_revision"
+        if changed:
+            return "patch_needs_verification"
+        if failed_patches:
+            return "patch_attempt_failed"
+        if successful_reads >= 2 or (successful_reads and successful_searches):
+            return "ready_to_patch"
+        if successful_reads or successful_searches:
+            return "inspecting"
+        return "locating"
+
+    @staticmethod
+    def _next_priority(repair_phase: str) -> str:
+        priorities = {
+            "locating": "Locate the smallest relevant source area.",
+            "inspecting": "Read only the missing narrow source range needed for a repair.",
+            "ready_to_patch": "If the evidence supports the cause, apply the smallest localized patch now instead of rereading known code.",
+            "patch_attempt_failed": "Use the patch failure observation to correct the localized edit without broadening scope.",
+            "patch_needs_verification": "Run the focused pytest command for the changed behavior.",
+            "patch_needs_revision": "Use the latest pytest failure to revise the existing localized patch.",
+            "verified_patch": "Inspect the diff if needed, then finish with the verification summary.",
+        }
+        return priorities[repair_phase]
 
     @staticmethod
     def _navigation_summary(history: list[dict]) -> str:

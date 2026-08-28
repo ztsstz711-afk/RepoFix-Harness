@@ -229,13 +229,16 @@ class AgentLoop:
             self.state.model = decision.model or self.state.model
             self.state.usage.add(decision.usage)
             self.state.estimated_cost_usd = self.pricing.estimate_usd(self.state.usage)
+            decision_metadata = {"usage": asdict(decision.usage)}
+            if decision.diagnostics:
+                decision_metadata["provider_diagnostics"] = decision.diagnostics
             repeated_action = self.repeated_action_guard.reason(self.state.history, action)
             if repeated_action:
                 self._record({
                     "step": self.state.step,
                     "action": asdict(action),
                     "guard": "repeated_action",
-                    "usage": asdict(decision.usage),
+                    **decision_metadata,
                 })
                 self._finish_stalled("repeated_action", repeated_action)
                 break
@@ -245,7 +248,13 @@ class AgentLoop:
                 self.state.evaluation.changed_files = self.evaluator.changed_files(self.state.history)
                 self.state.status = "success" if self.state.evaluation.final.success else "verification_failed"
                 self.state.failure_kind = "" if self.state.status == "success" else "verification"
-                self._record({"step": self.state.step, "action": asdict(action), "usage": asdict(decision.usage)})
+                self._record(
+                    {
+                        "step": self.state.step,
+                        "action": asdict(action),
+                        **decision_metadata,
+                    }
+                )
                 break
             obs = self.runtime.execute(action.name, action.arguments)
             if (
@@ -255,7 +264,14 @@ class AgentLoop:
                 and obs.metadata.get("changed")
             ):
                 self._attach_post_patch_verification(obs)
-            self._record({"step": self.state.step, "action": asdict(action), "observation": asdict(obs), "usage": asdict(decision.usage)})
+            self._record(
+                {
+                    "step": self.state.step,
+                    "action": asdict(action),
+                    "observation": asdict(obs),
+                    **decision_metadata,
+                }
+            )
         else:
             self.state.status = "budget_exhausted"
             self.state.failure_kind = "step_budget"
