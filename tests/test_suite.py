@@ -155,6 +155,19 @@ def test_v18_phase_policy_gate_covers_three_upstream_cases_with_fixed_budget():
     assert all(task.test_command != task.final_test_command for task in suite.tasks)
 
 
+def test_v20_stability_suite_authorizes_nine_interleaved_trials():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "stability-v2.0.json"))
+
+    assert suite.max_total_requests == 108
+    assert len(suite.tasks) == 3
+    assert sum(task.repetitions for task in suite.tasks) == 9
+    assert sum(task.repetitions * task.max_requests for task in suite.tasks) == 108
+    assert all(task.repetitions == 3 for task in suite.tasks)
+    assert all(task.variant == "phase_policy_v2" for task in suite.tasks)
+    assert all(task.verify_after_patch is True for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
