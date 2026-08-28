@@ -123,7 +123,10 @@ def test_v16_navigation_memory_gate_is_single_case_and_bounded():
     assert task.test_command != task.final_test_command
 
 
-def test_suite_runner_aggregates_results_without_mutating_source(tmp_path):
+def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
+    monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
+    monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
+    monkeypatch.setenv("REPOFIX_CACHED_INPUT_COST_PER_MILLION", "0")
     repo = tmp_path / "source_repo"
     repo.mkdir()
     (repo / "calculator.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")

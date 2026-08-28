@@ -7,6 +7,7 @@
 - Add structured read/search telemetry for file ranges, total lines, query scope, match counts, and truncation.
 - Add optional Harness-owned focused pytest feedback after each changed patch, while keeping full-suite final acceptance independent.
 - Follow actually called module attributes through up to three local facade/re-export files when seeding failure context, scoped to the traceback's failing function and parsed without importing repository code.
+- Prefer provider-native single-tool calls generated from the central action registry, with schema validation and automatic fallback to JSON mode for compatible endpoints that do not return a valid tool call.
 
 ## 1.5.0 - 2026-08-28
 

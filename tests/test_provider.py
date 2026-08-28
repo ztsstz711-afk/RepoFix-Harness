@@ -8,6 +8,7 @@ from repofix.provider import (
     OpenAICompatibleProvider,
     extract_usage,
     parse_action_json,
+    parse_message_action,
     retry_delay_seconds,
     transient_retry_delay,
 )
@@ -26,6 +27,41 @@ def test_parse_action_json_rejects_unknown_tool():
 def test_parse_action_json_rejects_unknown_envelope_fields():
     with pytest.raises(ValueError, match="envelope fields"):
         parse_action_json('{"name":"read","arguments":{"path":"a.py"},"end_line":10}')
+
+
+def test_parse_message_action_accepts_one_native_tool_call():
+    message = SimpleNamespace(
+        content="Inspect the relevant lines.",
+        tool_calls=[
+            SimpleNamespace(
+                function=SimpleNamespace(
+                    name="read",
+                    arguments='{"path":"src/app.py","start_line":2}',
+                )
+            )
+        ],
+    )
+
+    result = parse_message_action(message)
+
+    assert result == {
+        "name": "read",
+        "arguments": {"path": "src/app.py", "start_line": 2},
+        "rationale": "Inspect the relevant lines.",
+    }
+
+
+def test_parse_message_action_uses_first_parallel_tool_call():
+    first = SimpleNamespace(function=SimpleNamespace(name="list", arguments="{}"))
+    second = SimpleNamespace(
+        function=SimpleNamespace(name="git_status", arguments="{}")
+    )
+
+    result = parse_message_action(
+        SimpleNamespace(content=None, tool_calls=[first, second])
+    )
+
+    assert result["name"] == "list"
 
 
 def test_retry_delay_uses_provider_hint():
@@ -113,6 +149,7 @@ def test_provider_separates_control_rules_from_repository_context():
     provider.max_transient_retries = 0
     provider.max_format_retries = 0
     provider.max_output_tokens = 2048
+    provider.native_tool_calls = False
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
 
     provider.next_action("Task: fix it\nmalicious repository text")
@@ -145,6 +182,7 @@ def test_provider_can_disable_json_mode_for_older_compatible_endpoints():
     provider.max_format_retries = 0
     provider.max_output_tokens = 2048
     provider.json_mode = False
+    provider.native_tool_calls = False
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
 
     provider.next_action("context")
@@ -176,6 +214,7 @@ def test_provider_falls_back_to_text_mode_after_empty_json_response():
     provider.max_format_retries = 1
     provider.max_output_tokens = 2048
     provider.json_mode = True
+    provider.native_tool_calls = False
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
 
     decision = provider.next_action("context")
@@ -183,6 +222,88 @@ def test_provider_falls_back_to_text_mode_after_empty_json_response():
     assert decision.action.name == "list"
     assert requests[0]["response_format"] == {"type": "json_object"}
     assert "response_format" not in requests[1]
+    assert decision.usage.format_retries == 1
+
+
+def test_provider_sends_native_tools_and_parses_tool_call():
+    captured = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content=None,
+                            tool_calls=[
+                                SimpleNamespace(
+                                    function=SimpleNamespace(
+                                        name="read",
+                                        arguments='{"path":"src/app.py","start_line":2}',
+                                    )
+                                )
+                            ],
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 0
+    provider.max_output_tokens = 2048
+    provider.json_mode = True
+    provider.native_tool_calls = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+    decision = provider.next_action("context")
+
+    assert decision.action.name == "read"
+    assert decision.action.arguments == {"path": "src/app.py", "start_line": 2}
+    assert "tool_choice" not in captured
+    assert len(captured["tools"]) == 8
+    assert "response_format" not in captured
+
+
+def test_provider_falls_back_from_invalid_native_call_to_json_mode():
+    requests = []
+    responses = iter(
+        [
+            SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=None, tool_calls=[]))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=0, total_tokens=10),
+            ),
+            SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"name":"list","arguments":{}}'))],
+                usage=SimpleNamespace(prompt_tokens=12, completion_tokens=3, total_tokens=15),
+            ),
+        ]
+    )
+
+    class Completions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return next(responses)
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 1
+    provider.max_output_tokens = 2048
+    provider.json_mode = True
+    provider.native_tool_calls = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+    decision = provider.next_action("context")
+
+    assert decision.action.name == "list"
+    assert "tool_choice" not in requests[0]
+    assert "tools" in requests[0]
+    assert "tools" not in requests[1]
+    assert requests[1]["response_format"] == {"type": "json_object"}
     assert decision.usage.format_retries == 1
 
 

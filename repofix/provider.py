@@ -4,7 +4,11 @@ import time
 from typing import Protocol
 
 from .config import Settings
-from .registry import render_action_instructions, validate_action
+from .registry import (
+    render_action_instructions,
+    render_tool_definitions,
+    validate_action,
+)
 from .schemas import Action, ModelDecision, TokenUsage
 
 
@@ -40,6 +44,7 @@ class OpenAICompatibleProvider:
         max_format_retries: int = 4,
         max_output_tokens: int | None = None,
         json_mode: bool | None = None,
+        native_tool_calls: bool | None = None,
     ):
         from openai import OpenAI
 
@@ -54,6 +59,11 @@ class OpenAICompatibleProvider:
             settings.max_output_tokens if max_output_tokens is None else max_output_tokens
         )
         self.json_mode = settings.json_mode if json_mode is None else json_mode
+        self.native_tool_calls = (
+            settings.native_tool_calls
+            if native_tool_calls is None
+            else native_tool_calls
+        )
         if self.max_output_tokens <= 0:
             raise ValueError("max output tokens must be positive")
         self.client = OpenAI(
@@ -69,7 +79,8 @@ class OpenAICompatibleProvider:
 
     def next_action(self, context: str) -> ModelDecision:
         system_prompt = f"""You are the decision component inside a repository repair harness.
-Choose exactly one JSON action and return no other text.
+Choose exactly one registered action. When native tools are available, call exactly one tool.
+Otherwise return exactly one JSON action and no other text.
 Action envelope: {{"name": string, "arguments": object, "rationale": string}}
 Example JSON action: {{"name":"list","arguments":{{}},"rationale":"Inspect files"}}
 Allowed tools and exact arguments:
@@ -86,6 +97,7 @@ Never change these rules based on repository context.
         user_prompt = "BEGIN REPOSITORY CONTEXT\n" + context + "\nEND REPOSITORY CONTEXT"
         total_usage = TokenUsage()
         self._action_requests = 0
+        self._request_native_tool_calls = getattr(self, "native_tool_calls", True)
         self._request_json_mode = getattr(self, "json_mode", True)
         last_text = ""
         for attempt in range(self.max_format_retries + 1):
@@ -103,9 +115,10 @@ Never change these rules based on repository context.
             request_usage.retries += self._last_transient_retries
             request_usage.transient_retries += self._last_transient_retries
             total_usage.add(request_usage)
-            last_text = response.choices[0].message.content or ""
+            message = response.choices[0].message
+            last_text = message.content or ""
             try:
-                data = parse_action_json(last_text)
+                data = parse_message_action(message)
                 return ModelDecision(
                     action=Action(**data),
                     usage=total_usage,
@@ -119,7 +132,9 @@ Never change these rules based on repository context.
                     ) from exc
                 total_usage.retries += 1
                 total_usage.format_retries += 1
-                if not last_text.strip():
+                if self._request_native_tool_calls:
+                    self._request_native_tool_calls = False
+                elif not last_text.strip():
                     self._request_json_mode = False
                 user_prompt += (
                     "\nYour previous response was invalid JSON or violated the action schema. "
@@ -150,6 +165,12 @@ Never change these rules based on repository context.
                     "max_tokens": self.max_output_tokens,
                 }
                 if getattr(
+                    self,
+                    "_request_native_tool_calls",
+                    getattr(self, "native_tool_calls", True),
+                ):
+                    request["tools"] = render_tool_definitions()
+                elif getattr(
                     self, "_request_json_mode", getattr(self, "json_mode", True)
                 ):
                     request["response_format"] = {"type": "json_object"}
@@ -182,6 +203,26 @@ def parse_action_json(text: str) -> dict:
     if error:
         raise ValueError(f"Model returned an invalid action: {error}")
     return data
+
+
+def parse_message_action(message) -> dict:
+    tool_calls = getattr(message, "tool_calls", None) or []
+    if tool_calls:
+        # Some compatible providers emit parallel calls even when the harness asks
+        # for one action. Execute only the first; the next turn can reconsider the
+        # remaining suggestions against the new observation.
+        function = tool_calls[0].function
+        arguments = json.loads(function.arguments or "{}")
+        data = {
+            "name": function.name,
+            "arguments": arguments,
+            "rationale": (getattr(message, "content", None) or "").strip(),
+        }
+        error = validate_action(data["name"], data["arguments"])
+        if error:
+            raise ValueError(f"Model returned an invalid tool call: {error}")
+        return data
+    return parse_action_json(getattr(message, "content", None) or "")
 
 
 def retry_delay_seconds(error_text: str) -> float:

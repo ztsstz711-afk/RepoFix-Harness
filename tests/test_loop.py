@@ -95,9 +95,12 @@ class InvalidActionProvider:
 
 
 def test_loop_accounts_for_exhausted_format_retries(tmp_path):
-    state = AgentLoop(InvalidActionProvider(), str(tmp_path), max_requests=8).run(
-        "fix tests"
-    )
+    state = AgentLoop(
+        InvalidActionProvider(),
+        str(tmp_path),
+        max_requests=8,
+        pricing=ModelPricing(),
+    ).run("fix tests")
 
     assert state.status == "error"
     assert state.failure_kind == "invalid_model_output"

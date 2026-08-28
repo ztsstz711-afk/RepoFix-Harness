@@ -1,4 +1,8 @@
-from repofix.registry import render_action_instructions, validate_action
+from repofix.registry import (
+    render_action_instructions,
+    render_tool_definitions,
+    validate_action,
+)
 
 
 def test_registry_renders_prompt_and_validates_arguments():
@@ -23,3 +27,15 @@ def test_apply_patch_registry_accepts_exactly_one_edit_mode():
     assert "must not be empty" in validate_action(
         "apply_patch", {"path": "a.py", "old_text": "", "new_text": "new"}
     )
+
+
+def test_registry_renders_openai_compatible_function_tools():
+    tools = render_tool_definitions()
+    definitions = {tool["function"]["name"]: tool["function"] for tool in tools}
+
+    assert set(definitions) >= {"read", "apply_patch", "run_command", "finish"}
+    read = definitions["read"]["parameters"]
+    assert read["required"] == ["path"]
+    assert read["properties"]["start_line"] == {"type": "integer", "minimum": 1}
+    assert read["additionalProperties"] is False
+    assert definitions["list"]["parameters"]["properties"] == {}

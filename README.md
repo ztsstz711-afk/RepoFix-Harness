@@ -119,6 +119,8 @@ Local backend 仅用于可信仓库；它会移除 `REPOFIX_*` 以及常见 key/
 
 Provider 默认请求 OpenAI-compatible JSON mode，减少动作格式错误；若服务返回已知的空 JSON content，同一动作的下一次重试会自动降级为普通文本模式。若某个旧兼容端点完全不支持 `response_format: json_object`，可设置 `REPOFIX_JSON_MODE=0` 退回纯 prompt 约束。
 
+Provider 还会优先使用 OpenAI-compatible Function Calling，把注册工具转成 JSON Schema 并要求单次只调用一个工具；若响应没有合法 tool call，会在同一动作的下一次重试自动降级到 JSON mode。旧端点可设置 `REPOFIX_NATIVE_TOOL_CALLS=0` 直接关闭。
+
 启用失败自动回滚：
 
 ```powershell

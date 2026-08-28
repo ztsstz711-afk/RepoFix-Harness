@@ -12,6 +12,25 @@ class ActionSpec:
         shape = ", ".join(f'"{key}": {value}' for key, value in self.arguments.items())
         return f'- {self.name}: {{{shape}}} — {self.description}'
 
+    def tool_definition(self) -> dict:
+        properties = {}
+        for name, example in self.arguments.items():
+            schema = {"type": "integer", "minimum": 1} if "integer" in example else {"type": "string"}
+            properties[name] = schema
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": list(self.required),
+                    "additionalProperties": False,
+                },
+            },
+        }
+
 
 ACTION_SPECS = {
     spec.name: spec
@@ -76,3 +95,7 @@ def validate_action(name: str, arguments: dict) -> str | None:
 
 def render_action_instructions() -> str:
     return "\n".join(spec.prompt_line() for spec in ACTION_SPECS.values())
+
+
+def render_tool_definitions() -> list[dict]:
+    return [spec.tool_definition() for spec in ACTION_SPECS.values()]
