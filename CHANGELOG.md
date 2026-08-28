@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+## 1.8.0 - 2026-08-28
+
 - Enforce phase-aware action availability across native Function Calling and JSON fallback instead of relying on prompt guidance alone.
 - Restrict `patch_due` to `apply_patch`, verified repairs to diff/status/finish, and revision/verification phases to the smallest relevant tool subsets.
 - Reject model actions outside the current repair phase even if a compatible endpoint returns an undeclared tool call.
+- Validate the phase policy once across three checksum-qualified upstream bugs: two exact-scope full-suite repairs, including the first designated Tomli success, within 26 of 36 authorized requests.
 
 ## 1.7.0 - 2026-08-28
 

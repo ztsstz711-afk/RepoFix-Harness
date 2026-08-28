@@ -260,3 +260,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V1.5 真实上游 Bug 集](docs/v1.5-upstream-bug-suite.md)
 - [V1.6 导航记忆与原生工具调用](docs/v1.6-navigation-and-native-tools.md)
 - [V1.7 Patch readiness 定向实验](docs/v1.7-patch-readiness.md)
+- [V1.8 阶段工具策略真实门禁](docs/v1.8-phase-policy-results.md)
