@@ -1,4 +1,5 @@
 from repofix.registry import (
+    allowed_actions_for_phase,
     render_action_instructions,
     render_action_names,
     render_tool_definitions,
@@ -55,3 +56,15 @@ def test_registry_renders_openai_compatible_function_tools():
     assert patch["oneOf"][0]["required"] == ["old_text", "new_text"]
     assert patch["oneOf"][1]["required"] == ["content"]
     assert "omit content" in patch["properties"]["old_text"]["description"]
+
+
+def test_registry_limits_actions_for_terminal_repair_phases():
+    assert allowed_actions_for_phase("locating")[0] == "list"
+    assert allowed_actions_for_phase("patch_due") == ("apply_patch",)
+    assert allowed_actions_for_phase("verified_patch") == (
+        "git_diff",
+        "git_status",
+        "finish",
+    )
+    tools = render_tool_definitions(allowed_actions_for_phase("patch_due"))
+    assert [tool["function"]["name"] for tool in tools] == ["apply_patch"]

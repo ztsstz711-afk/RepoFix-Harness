@@ -178,6 +178,9 @@ class AgentLoop:
                 token_limiter = getattr(self.provider, "limit_next_action_tokens", None)
                 if token_limiter is not None:
                     token_limiter(self.budget.remaining_tokens(self.state.usage))
+                policy_setter = getattr(self.provider, "set_action_policy", None)
+                if policy_setter is not None:
+                    policy_setter(context_result.metadata["repair_phase"])
                 decision = self.provider.next_action(context)
             except ModelRequestLimitReached as exc:
                 self.state.usage.add(exc.usage)

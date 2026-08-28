@@ -70,6 +70,20 @@ def test_parse_message_action_explains_empty_response():
         parse_message_action(SimpleNamespace(content="", tool_calls=[]))
 
 
+def test_parse_message_action_rejects_action_outside_phase_policy():
+    message = SimpleNamespace(
+        content=None,
+        tool_calls=[
+            SimpleNamespace(
+                function=SimpleNamespace(name="read", arguments='{"path":"a.py"}')
+            )
+        ],
+    )
+
+    with pytest.raises(ValueError, match="not allowed"):
+        parse_message_action(message, allowed_actions=("apply_patch",))
+
+
 def test_parse_message_action_skips_invalid_parallel_tool_call():
     invalid = SimpleNamespace(
         function=SimpleNamespace(name="read", arguments='{"start_line":2}')
@@ -293,6 +307,55 @@ def test_provider_sends_native_tools_and_parses_tool_call():
     assert "response_format" not in captured
     assert "Registered action names" in captured["messages"][0]["content"]
     assert "Allowed tools and exact arguments" not in captured["messages"][0]["content"]
+
+
+def test_provider_exposes_only_patch_tool_when_patch_is_due():
+    captured = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content=None,
+                            tool_calls=[
+                                SimpleNamespace(
+                                    function=SimpleNamespace(
+                                        name="apply_patch",
+                                        arguments=(
+                                            '{"path":"a.py","old_text":"old",'
+                                            '"new_text":"new"}'
+                                        ),
+                                    )
+                                )
+                            ],
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 0
+    provider.max_output_tokens = 2048
+    provider.json_mode = True
+    provider.native_tool_calls = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    provider.set_action_policy("patch_due")
+
+    decision = provider.next_action("repair_phase=patch_due")
+
+    assert decision.action.name == "apply_patch"
+    assert [tool["function"]["name"] for tool in captured["tools"]] == [
+        "apply_patch"
+    ]
+    assert "Registered action names: apply_patch" in captured["messages"][0][
+        "content"
+    ]
 
 
 def test_provider_falls_back_from_invalid_native_call_to_json_mode():

@@ -152,6 +152,26 @@ ACTION_SPECS = {
     )
 }
 
+ALL_ACTION_NAMES = tuple(ACTION_SPECS)
+
+PHASE_ACTIONS = {
+    "patch_due": ("apply_patch",),
+    "patch_attempt_failed": ("read", "apply_patch", "git_diff"),
+    "patch_needs_verification": ("run_command", "git_diff", "git_status"),
+    "patch_needs_revision": (
+        "search",
+        "read",
+        "apply_patch",
+        "run_command",
+        "git_diff",
+    ),
+    "verified_patch": ("git_diff", "git_status", "finish"),
+}
+
+
+def allowed_actions_for_phase(phase: str) -> tuple[str, ...]:
+    return PHASE_ACTIONS.get(phase, ALL_ACTION_NAMES)
+
 
 def validate_action(name: str, arguments: dict) -> str | None:
     spec = ACTION_SPECS.get(name)
@@ -194,13 +214,15 @@ def validate_action(name: str, arguments: dict) -> str | None:
     return None
 
 
-def render_action_instructions() -> str:
-    return "\n".join(spec.prompt_line() for spec in ACTION_SPECS.values())
+def render_action_instructions(names: tuple[str, ...] | None = None) -> str:
+    selected = names or ALL_ACTION_NAMES
+    return "\n".join(ACTION_SPECS[name].prompt_line() for name in selected)
 
 
-def render_action_names() -> str:
-    return ", ".join(ACTION_SPECS)
+def render_action_names(names: tuple[str, ...] | None = None) -> str:
+    return ", ".join(names or ALL_ACTION_NAMES)
 
 
-def render_tool_definitions() -> list[dict]:
-    return [spec.tool_definition() for spec in ACTION_SPECS.values()]
+def render_tool_definitions(names: tuple[str, ...] | None = None) -> list[dict]:
+    selected = names or ALL_ACTION_NAMES
+    return [ACTION_SPECS[name].tool_definition() for name in selected]

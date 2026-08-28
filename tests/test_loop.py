@@ -34,6 +34,17 @@ class DiagnosticProvider:
         )
 
 
+class PolicyAwareProvider:
+    def __init__(self):
+        self.phase = ""
+
+    def set_action_policy(self, phase):
+        self.phase = phase
+
+    def next_action(self, context):
+        return ModelDecision(Action("list"), model="mock-model")
+
+
 class RequestLimitedProvider:
     def __init__(self):
         self.limit = None
@@ -113,6 +124,14 @@ def test_loop_records_provider_diagnostics_for_successful_decision(tmp_path):
     assert state.history[0]["provider_diagnostics"] == [
         "apply_patch: missing required arguments: path"
     ]
+
+
+def test_loop_passes_repair_phase_to_policy_aware_provider(tmp_path):
+    provider = PolicyAwareProvider()
+
+    AgentLoop(provider, str(tmp_path), max_steps=1).run("inspect")
+
+    assert provider.phase == "locating"
 
 
 def test_loop_accounts_for_provider_retry_request_limit(tmp_path):

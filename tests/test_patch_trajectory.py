@@ -5,6 +5,7 @@ from repofix.schemas import Action, ModelDecision, TokenUsage
 class ParserRepairProvider:
     def __init__(self):
         self.contexts = []
+        self.phases = []
         self.actions = iter(
             [
                 Action("search", {"query": "def parse_key", "path": "src"}),
@@ -34,6 +35,9 @@ class ParserRepairProvider:
                 Action("finish", {"summary": "bounded dotted key parts"}),
             ]
         )
+
+    def set_action_policy(self, phase):
+        self.phases.append(phase)
 
     def next_action(self, context):
         self.contexts.append(context)
@@ -88,3 +92,9 @@ def test_tomli_style_patch_trajectory_reaches_verified_finish(tmp_path):
     assert "repair_phase=ready_to_patch" in provider.contexts[2]
     assert "apply the smallest localized patch now" in provider.contexts[2]
     assert "repair_phase=verified_patch" in provider.contexts[3]
+    assert provider.phases == [
+        "locating",
+        "inspecting",
+        "ready_to_patch",
+        "verified_patch",
+    ]

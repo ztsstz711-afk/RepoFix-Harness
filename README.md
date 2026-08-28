@@ -123,6 +123,8 @@ Provider 还会优先使用 OpenAI-compatible Function Calling，把注册工具
 
 Action Registry 对参数类型、行号范围和两种 patch 模式提供同一份结构化定义；Context 根据已完成的定位、修改和测试状态标记 repair phase，在证据足够时优先推动最小局部补丁，验证通过后推动结束，而不是继续重复读取。
 
+Harness 还会把 repair phase 变成实际工具策略：例如 `patch_due` 请求只向模型暴露 `apply_patch`，`verified_patch` 只暴露 diff/status/finish。该限制同时作用于原生 Function Calling 和 JSON fallback，阶段外动作会被 Provider 拒绝。
+
 启用失败自动回滚：
 
 ```powershell
