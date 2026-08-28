@@ -168,6 +168,21 @@ def test_v20_stability_suite_authorizes_nine_interleaved_trials():
     assert all(task.verify_after_patch is True for task in suite.tasks)
 
 
+def test_v21_provider_recovery_gate_is_bounded_to_two_difficult_cases():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "provider-recovery-v2.1.json"))
+
+    assert suite.max_total_requests == 24
+    assert len(suite.tasks) == 2
+    assert sum(task.max_requests for task in suite.tasks) == 24
+    assert {task.case for task in suite.tasks} == {
+        "running_min_max_stability",
+        "tomli_key_parts_limit",
+    }
+    assert all(task.variant == "native_retry_patch_4096" for task in suite.tasks)
+    assert all(task.verify_after_patch is True for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")

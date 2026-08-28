@@ -230,6 +230,7 @@ def render_evaluation_markdown(report: dict) -> str:
         "harness_version",
         "harness_source_sha256",
         "max_output_tokens",
+        "patch_max_output_tokens",
         "input_cost_per_million",
         "cached_input_cost_per_million",
         "output_cost_per_million",

@@ -116,6 +116,8 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 Provider 优先使用中央 registry 生成的原生 Function Calling schema；非法或空 tool response 会回退 JSON mode，再按需回退纯文本。每次格式纠错都占用同一个 run 的 request/token 预算，且下一重试必须通过 Provider 级 token admission。错误模式与原因写入 trace；如果失败前已经产生文件修改，Harness 会执行一次独立 final pytest，只有真实通过才将任务恢复为成功。
 
+原生工具响应首次为空或参数被截断时，Provider 会先在同一原生 schema 下纠错一次，第二次仍失败才降级到 JSON。导航阶段使用 `REPOFIX_MAX_OUTPUT_TOKENS`，补丁阶段单独使用 `REPOFIX_PATCH_MAX_OUTPUT_TOKENS`；后者默认更高，以容纳 reasoning 与 patch 参数，并同步进入 retry token admission 和评测实验身份。
+
 ## Why a custom loop
 
 V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

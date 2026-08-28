@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Retry one malformed native tool response in native mode before falling back to JSON, with mode-specific correction guidance.
+- Allow a separate, recorded patch-phase output ceiling so reasoning models can complete tool arguments without increasing navigation-call output limits.
+
 ## 2.0.0 - 2026-08-28
 
 - Add an idempotent Windows project setup script that creates `.venv`, installs editable development dependencies, and optionally builds the Docker pytest image.

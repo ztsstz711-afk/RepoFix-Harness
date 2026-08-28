@@ -375,8 +375,66 @@ def test_provider_falls_back_from_invalid_native_call_to_json_mode():
                 usage=SimpleNamespace(prompt_tokens=10, completion_tokens=0, total_tokens=10),
             ),
             SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=None, tool_calls=[]))],
+                usage=SimpleNamespace(prompt_tokens=11, completion_tokens=0, total_tokens=11),
+            ),
+            SimpleNamespace(
                 choices=[SimpleNamespace(message=SimpleNamespace(content='{"name":"list","arguments":{}}'))],
                 usage=SimpleNamespace(prompt_tokens=12, completion_tokens=3, total_tokens=15),
+            ),
+        ]
+    )
+
+    class Completions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return next(responses)
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 2
+    provider.max_output_tokens = 2048
+    provider.json_mode = True
+    provider.native_tool_calls = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+
+    decision = provider.next_action("context")
+
+    assert decision.action.name == "list"
+    assert "tool_choice" not in requests[0]
+    assert "tools" in requests[0]
+    assert "tools" in requests[1]
+    assert "native tool response" in requests[1]["messages"][1]["content"]
+    assert "tools" not in requests[2]
+    assert requests[2]["response_format"] == {"type": "json_object"}
+    assert "Fallback JSON action contract" in requests[2]["messages"][1]["content"]
+    assert "old_text" in requests[2]["messages"][1]["content"]
+    assert decision.usage.format_retries == 2
+
+
+def test_provider_recovers_one_empty_native_response_without_mode_fallback():
+    requests = []
+    responses = iter(
+        [
+            SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=None, tool_calls=[]))],
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=0, total_tokens=10),
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content=None,
+                            tool_calls=[
+                                SimpleNamespace(
+                                    function=SimpleNamespace(name="list", arguments="{}")
+                                )
+                            ],
+                        )
+                    )
+                ],
+                usage=SimpleNamespace(prompt_tokens=12, completion_tokens=2, total_tokens=14),
             ),
         ]
     )
@@ -398,12 +456,9 @@ def test_provider_falls_back_from_invalid_native_call_to_json_mode():
     decision = provider.next_action("context")
 
     assert decision.action.name == "list"
-    assert "tool_choice" not in requests[0]
-    assert "tools" in requests[0]
-    assert "tools" not in requests[1]
-    assert requests[1]["response_format"] == {"type": "json_object"}
-    assert "Fallback JSON action contract" in requests[1]["messages"][1]["content"]
-    assert "old_text" in requests[1]["messages"][1]["content"]
+    assert all("tools" in request for request in requests)
+    assert all("response_format" not in request for request in requests)
+    assert decision.usage.requests == 2
     assert decision.usage.format_retries == 1
 
 
@@ -411,6 +466,60 @@ def test_provider_rejects_zero_output_limit(monkeypatch):
     monkeypatch.setenv("REPOFIX_API_KEY", "test-key")
     with pytest.raises(ValueError, match="output tokens must be positive"):
         OpenAICompatibleProvider(max_output_tokens=0)
+
+
+def test_provider_rejects_zero_patch_output_limit(monkeypatch):
+    monkeypatch.setenv("REPOFIX_API_KEY", "test-key")
+    with pytest.raises(ValueError, match="patch max output tokens must be positive"):
+        OpenAICompatibleProvider(patch_max_output_tokens=0)
+
+
+def test_provider_uses_larger_output_allowance_only_for_patch_phase():
+    requests = []
+
+    class Completions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content=None,
+                            tool_calls=[
+                                SimpleNamespace(
+                                    function=SimpleNamespace(
+                                        name="apply_patch",
+                                        arguments=(
+                                            '{"path":"a.py","old_text":"old",'
+                                            '"new_text":"new"}'
+                                        ),
+                                    )
+                                )
+                            ],
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 0
+    provider.max_output_tokens = 2048
+    provider.patch_max_output_tokens = 4096
+    provider.json_mode = True
+    provider.native_tool_calls = True
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    provider.set_action_policy("patch_due")
+
+    decision = provider.next_action("repair_phase=patch_due")
+
+    assert decision.action.name == "apply_patch"
+    assert requests[0]["max_tokens"] == 4096
+
+    provider.set_action_policy("locating")
+    assert provider._current_max_output_tokens() == 2048
 
 
 def test_provider_format_retry_cannot_exceed_request_allowance():

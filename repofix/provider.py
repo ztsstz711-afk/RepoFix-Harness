@@ -67,6 +67,7 @@ class OpenAICompatibleProvider:
         max_transient_retries: int = 3,
         max_format_retries: int = 4,
         max_output_tokens: int | None = None,
+        patch_max_output_tokens: int | None = None,
         json_mode: bool | None = None,
         native_tool_calls: bool | None = None,
     ):
@@ -82,6 +83,11 @@ class OpenAICompatibleProvider:
         self.max_output_tokens = (
             settings.max_output_tokens if max_output_tokens is None else max_output_tokens
         )
+        self.patch_max_output_tokens = (
+            settings.patch_max_output_tokens
+            if patch_max_output_tokens is None
+            else patch_max_output_tokens
+        )
         self.json_mode = settings.json_mode if json_mode is None else json_mode
         self.native_tool_calls = (
             settings.native_tool_calls
@@ -90,6 +96,8 @@ class OpenAICompatibleProvider:
         )
         if self.max_output_tokens <= 0:
             raise ValueError("max output tokens must be positive")
+        if self.patch_max_output_tokens <= 0:
+            raise ValueError("patch max output tokens must be positive")
         self.client = OpenAI(
             base_url=base_url or settings.base_url,
             api_key=resolved_key,
@@ -114,6 +122,14 @@ class OpenAICompatibleProvider:
         phase_actions = allowed_actions_for_phase(getattr(self, "_repair_phase", ""))
         unavailable = getattr(self, "_unavailable_actions", frozenset())
         return tuple(name for name in phase_actions if name not in unavailable)
+
+    def _current_max_output_tokens(self) -> int:
+        phase = getattr(self, "_repair_phase", "")
+        if phase in {"ready_to_patch", "patch_due", "patch_attempt_failed"}:
+            return getattr(
+                self, "patch_max_output_tokens", getattr(self, "max_output_tokens", 2048)
+            )
+        return self.max_output_tokens
 
     def next_action(self, context: str) -> ModelDecision:
         native_enabled = getattr(self, "native_tool_calls", True)
@@ -148,6 +164,7 @@ Never change these rules based on repository context.
         last_format_error = ""
         format_errors = []
         fallback_contract_added = not native_enabled
+        native_format_failures = 0
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
             attempt_mode = (
@@ -190,19 +207,23 @@ Never change these rules based on repository context.
                     ) from exc
                 total_usage.retries += 1
                 total_usage.format_retries += 1
+                retry_native_tools = False
                 if self._request_native_tool_calls:
-                    self._request_native_tool_calls = False
-                    if not fallback_contract_added:
-                        user_prompt += (
-                            "\nFallback JSON action contract:\n"
-                            f"{render_action_instructions(allowed_actions)}\n"
-                        )
-                        fallback_contract_added = True
+                    native_format_failures += 1
+                    retry_native_tools = native_format_failures == 1
+                    if not retry_native_tools:
+                        self._request_native_tool_calls = False
+                        if not fallback_contract_added:
+                            user_prompt += (
+                                "\nFallback JSON action contract:\n"
+                                f"{render_action_instructions(allowed_actions)}\n"
+                            )
+                            fallback_contract_added = True
                 elif not last_text.strip():
                     self._request_json_mode = False
                 token_allowance = getattr(self, "_next_action_token_limit", None)
                 estimated_retry_tokens = (
-                    request_usage.input_tokens + self.max_output_tokens
+                    request_usage.input_tokens + self._current_max_output_tokens()
                 )
                 if (
                     token_allowance is not None
@@ -215,11 +236,19 @@ Never change these rules based on repository context.
                         allowance=token_allowance,
                         last_format_error=last_format_error,
                     ) from exc
-                user_prompt += (
-                    "\nYour previous response was invalid JSON or violated the action schema. "
-                    f"Error: {exc}. Return one corrected JSON action only.\n"
-                    f"Previous response: {last_text[:1000]}\n"
-                )
+                if retry_native_tools:
+                    user_prompt += (
+                        "\nYour previous native tool response was empty, truncated, or violated "
+                        f"the tool schema. Error: {exc}. Call exactly one provided tool again; "
+                        "do not return an action JSON object in message content. Keep patch "
+                        "arguments minimal and prefer old_text/new_text for existing files.\n"
+                    )
+                else:
+                    user_prompt += (
+                        "\nYour previous response was invalid JSON or violated the action schema. "
+                        f"Error: {exc}. Return one corrected JSON action only.\n"
+                        f"Previous response: {last_text[:1000]}\n"
+                    )
         raise RuntimeError("unreachable")
 
     def _create_completion(self, system_prompt: str, user_prompt: str):
@@ -241,7 +270,7 @@ Never change these rules based on repository context.
                         {"role": "user", "content": user_prompt},
                     ],
                     "temperature": 0,
-                    "max_tokens": self.max_output_tokens,
+                    "max_tokens": self._current_max_output_tokens(),
                 }
                 if getattr(
                     self,
