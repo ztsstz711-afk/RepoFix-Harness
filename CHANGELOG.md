@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 1.9.0 - 2026-08-28
+
+- Add a human-readable single-run progress view with repair phase, remaining request/token budget, action targets, focused patch verification, and Provider retry counts.
+- Replace the one-line final output with an outcome-first summary covering baseline-to-final tests, changed files, usage, cost, backend, failure/rollback details, and the result artifact path.
+- Add `--json` for a progress-free machine-readable final RunState while retaining `--quiet` for a concise human summary.
+- Hide Git actions from the Provider when preflight determines the target is not a Git worktree.
+
 ## 1.8.0 - 2026-08-28
 
 - Enforce phase-aware action availability across native Function Calling and JSON fallback instead of relying on prompt guidance alone.

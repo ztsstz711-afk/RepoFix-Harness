@@ -125,6 +125,8 @@ Action Registry 对参数类型、行号范围和两种 patch 模式提供同一
 
 Harness 还会把 repair phase 变成实际工具策略：例如 `patch_due` 请求只向模型暴露 `apply_patch`，`verified_patch` 只暴露 diff/status/finish。该限制同时作用于原生 Function Calling 和 JSON fallback，阶段外动作会被 Provider 拒绝。
 
+单仓库 CLI 默认显示实时 repair phase、剩余预算、动作、补丁后定向测试及最终 before/after 摘要；`--quiet` 隐藏实时步骤但保留摘要，`--json` 只输出最终 RunState JSON。Preflight 判定目标不是 Git worktree 时，Provider 不再看到不可用的 git 工具。
+
 启用失败自动回滚：
 
 ```powershell
@@ -261,3 +263,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V1.6 导航记忆与原生工具调用](docs/v1.6-navigation-and-native-tools.md)
 - [V1.7 Patch readiness 定向实验](docs/v1.7-patch-readiness.md)
 - [V1.8 阶段工具策略真实门禁](docs/v1.8-phase-policy-results.md)
+- [V1.9 CLI 真实演示](docs/v1.9-cli-demo.md)

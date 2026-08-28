@@ -37,9 +37,13 @@ class DiagnosticProvider:
 class PolicyAwareProvider:
     def __init__(self):
         self.phase = ""
+        self.unavailable = ()
 
     def set_action_policy(self, phase):
         self.phase = phase
+
+    def set_unavailable_actions(self, names):
+        self.unavailable = names
 
     def next_action(self, context):
         return ModelDecision(Action("list"), model="mock-model")
@@ -132,6 +136,7 @@ def test_loop_passes_repair_phase_to_policy_aware_provider(tmp_path):
     AgentLoop(provider, str(tmp_path), max_steps=1).run("inspect")
 
     assert provider.phase == "locating"
+    assert provider.unavailable == ("git_diff", "git_status")
 
 
 def test_loop_accounts_for_provider_retry_request_limit(tmp_path):

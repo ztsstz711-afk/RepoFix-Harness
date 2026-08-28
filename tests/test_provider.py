@@ -358,6 +358,14 @@ def test_provider_exposes_only_patch_tool_when_patch_is_due():
     ]
 
 
+def test_provider_removes_unavailable_git_tools_from_verified_phase():
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.set_action_policy("verified_patch")
+    provider.set_unavailable_actions(("git_diff", "git_status"))
+
+    assert provider._allowed_actions() == ("finish",)
+
+
 def test_provider_falls_back_from_invalid_native_call_to_json_mode():
     requests = []
     responses = iter(

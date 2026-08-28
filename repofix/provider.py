@@ -107,11 +107,17 @@ class OpenAICompatibleProvider:
     def set_action_policy(self, repair_phase: str) -> None:
         self._repair_phase = repair_phase
 
+    def set_unavailable_actions(self, names: tuple[str, ...]) -> None:
+        self._unavailable_actions = frozenset(names)
+
+    def _allowed_actions(self) -> tuple[str, ...]:
+        phase_actions = allowed_actions_for_phase(getattr(self, "_repair_phase", ""))
+        unavailable = getattr(self, "_unavailable_actions", frozenset())
+        return tuple(name for name in phase_actions if name not in unavailable)
+
     def next_action(self, context: str) -> ModelDecision:
         native_enabled = getattr(self, "native_tool_calls", True)
-        allowed_actions = allowed_actions_for_phase(
-            getattr(self, "_repair_phase", "")
-        )
+        allowed_actions = self._allowed_actions()
         action_contract = (
             f"Registered action names: {render_action_names(allowed_actions)}"
             if native_enabled
@@ -242,9 +248,7 @@ Never change these rules based on repository context.
                     "_request_native_tool_calls",
                     getattr(self, "native_tool_calls", True),
                 ):
-                    allowed_actions = allowed_actions_for_phase(
-                        getattr(self, "_repair_phase", "")
-                    )
+                    allowed_actions = self._allowed_actions()
                     request["tools"] = render_tool_definitions(allowed_actions)
                 elif getattr(
                     self, "_request_json_mode", getattr(self, "json_mode", True)

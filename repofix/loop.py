@@ -170,6 +170,9 @@ class AgentLoop:
                 "step": self.state.step,
                 "context_chars": context_result.metadata["context_chars"],
                 "seeded_sources": source_count,
+                "repair_phase": context_result.metadata["repair_phase"],
+                "remaining_requests": self.budget.remaining_requests(self.state.usage),
+                "remaining_tokens": self.budget.remaining_tokens(self.state.usage),
             })
             try:
                 request_limiter = getattr(self.provider, "limit_next_action_requests", None)
@@ -181,6 +184,11 @@ class AgentLoop:
                 policy_setter = getattr(self.provider, "set_action_policy", None)
                 if policy_setter is not None:
                     policy_setter(context_result.metadata["repair_phase"])
+                availability_setter = getattr(
+                    self.provider, "set_unavailable_actions", None
+                )
+                if availability_setter is not None:
+                    availability_setter(self._unavailable_actions())
                 decision = self.provider.next_action(context)
             except ModelRequestLimitReached as exc:
                 self.state.usage.add(exc.usage)
@@ -299,6 +307,12 @@ class AgentLoop:
         self.evaluator = RepairEvaluator(
             self.runtime, self.test_command, self.final_test_command
         )
+
+    def _unavailable_actions(self) -> tuple[str, ...]:
+        checks = {check.name: check.status for check in self.state.preflight.checks}
+        if checks.get("git_repository") != "pass":
+            return ("git_diff", "git_status")
+        return ()
 
     def _maybe_rollback(self) -> None:
         if self.state.status == "success" or not self.rollback_on_failure:

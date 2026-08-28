@@ -1,47 +1,17 @@
 import argparse
+import json
 from .config import Settings
 from .loop import AgentLoop
+from .presentation import format_progress, format_run_summary
 from .provider import OpenAICompatibleProvider
 
 
 def print_progress(state, event):
-    if event["type"] == "preflight":
-        warnings = sum(check.status == "warning" for check in state.preflight.checks)
-        print(f"preflight success={event['success']} warnings={warnings}")
-        for check in state.preflight.checks:
-            if check.status == "fail":
-                print(f"preflight failed {check.name}: {check.message}")
-    elif event["type"] == "baseline":
-        print(
-            f"baseline pytest success={event['success']} "
-            f"backend={event['execution_backend']}"
-        )
-    elif event["type"] == "model_request":
-        print(
-            f"step={event['step']} requesting model action... "
-            f"context_chars={event.get('context_chars', 0)} "
-            f"seeded_sources={event.get('seeded_sources', 0)}"
-        )
-    elif event["type"] == "budget":
-        print(f"stopped by {event['failure_kind']}: {event['error']}")
-    elif event["type"] == "stalled":
-        print(f"stalled by {event['failure_kind']}: {event['error']}")
-    elif event["type"] == "rollback":
-        print(f"rolled back files={','.join(event['files'])}")
-    elif event["type"] == "rollback_error":
-        print(f"rollback failed: {event['error']}")
-    elif event["type"] == "step":
-        action = event.get("action", {}).get("name")
-        observation = event.get("observation")
-        if action:
-            suffix = f" success={observation['success']}" if observation else ""
-            print(f"step={event['step']} action={action}{suffix}")
-        elif event.get("error"):
-            print(f"step={event['step']} error={event['error']}")
+    for line in format_progress(state, event):
+        print(line)
 
 
-def main():
-    settings = Settings.from_env()
+def build_parser(settings: Settings) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Repair a Python repository with an LLM agent")
     p.add_argument("--repo", required=True)
     p.add_argument("--task", required=True)
@@ -88,13 +58,20 @@ def main():
     )
     p.add_argument("--resume", action="store_true", help="continue from repo/.repofix/trace.json")
     p.add_argument("--quiet", action="store_true", help="only print the final result")
+    p.add_argument("--json", action="store_true", help="print only the final RunState JSON")
+    return p
+
+
+def main():
+    settings = Settings.from_env()
+    p = build_parser(settings)
     a = p.parse_args()
     state = AgentLoop(
         OpenAICompatibleProvider(),
         a.repo,
         a.max_steps,
         settings.max_context_chars,
-        on_event=None if a.quiet else print_progress,
+        on_event=None if (a.quiet or a.json) else print_progress,
         max_requests=a.max_requests,
         max_tokens=a.max_tokens,
         max_identical_actions=a.max_identical_actions,
@@ -108,22 +85,10 @@ def main():
         seed_failure_context=a.failure_context,
         verify_after_patch=a.verify_after_patch,
     ).run(a.task, resume=a.resume)
-    print(
-        f"status={state.status} steps={state.step} requests={state.usage.requests} "
-        f"tokens={state.usage.total_tokens} "
-        f"retries={state.usage.retries} cost_usd={state.estimated_cost_usd:.6f} "
-        f"failure={state.failure_kind or 'none'} "
-        f"preflight={state.preflight.success} "
-        f"rollback={state.evaluation.rollback_performed} "
-        f"rollback_error={state.evaluation.rollback_error or 'none'} "
-        f"baseline={getattr(state.evaluation.baseline, 'success', None)} "
-        f"final={getattr(state.evaluation.final, 'success', None)} "
-        f"test_command={state.test_command!r} "
-        f"final_test_command={state.final_test_command!r} "
-        f"backend={state.execution_backend} "
-        f"verify_after_patch={state.verify_after_patch} "
-        f"result={state.repo}/.repofix/result.json"
-    )
+    if a.json:
+        print(json.dumps(state.to_dict(), ensure_ascii=False))
+    else:
+        print(format_run_summary(state))
     return 0 if state.status == "success" else 1
 
 
