@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+## 1.7.0 - 2026-08-28
+
 - Replace prompt-example type inference with explicit action argument schemas, including descriptions, numeric bounds, and mutually exclusive localized/full-file patch modes.
 - Persist bounded Provider format diagnostics even when a later retry returns a valid action.
 - Add deterministic repair phases and next-action guidance so accumulated search/read evidence transitions toward a minimal patch and verified patches transition toward finish.
 - Add an offline Tomli-style facade-to-parser repair trajectory covering baseline seeding, localized patching, automatic focused verification, and final acceptance.
+- Stop duplicating the full action contract in native-tool system prompts; inject it only when a failed native response falls back to JSON mode.
+- Escalate five successful navigation actions without a change from `ready_to_patch` to `patch_due`, explicitly directing the model to patch from observed exact text.
+- Label format diagnostics by native/JSON/text mode and report empty compatible responses explicitly.
 
 ## 1.6.0 - 2026-08-28
 

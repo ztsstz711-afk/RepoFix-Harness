@@ -179,6 +179,31 @@ def test_context_guides_verified_patch_toward_finish():
     assert "then finish with the verification summary" in result.text
 
 
+def test_context_marks_patch_due_after_excessive_successful_navigation():
+    history = []
+    for step in range(1, 6):
+        history.append(
+            {
+                "step": step,
+                "action": {"name": "read", "arguments": {"path": "src/parser.py"}},
+                "observation": {
+                    "success": True,
+                    "output": f"source-{step}",
+                    "metadata": {
+                        "path": "src/parser.py",
+                        "start_line": step * 10,
+                        "end_line": step * 10 + 5,
+                    },
+                },
+            }
+        )
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert "Do not call list, search, or read again" in result.text
+
+
 def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():
     history = [
         {"step": 1, "action": {"name": "search"}, "observation": {"output": "EARLY-LANDMARK"}},

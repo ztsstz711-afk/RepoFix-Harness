@@ -198,5 +198,9 @@ def render_action_instructions() -> str:
     return "\n".join(spec.prompt_line() for spec in ACTION_SPECS.values())
 
 
+def render_action_names() -> str:
+    return ", ".join(ACTION_SPECS)
+
+
 def render_tool_definitions() -> list[dict]:
     return [spec.tool_definition() for spec in ACTION_SPECS.values()]

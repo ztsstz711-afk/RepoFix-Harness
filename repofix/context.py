@@ -208,6 +208,8 @@ class ContextBuilder:
             return "patch_needs_verification"
         if failed_patches:
             return "patch_attempt_failed"
+        if successful_reads + successful_searches >= 5:
+            return "patch_due"
         if successful_reads >= 2 or (successful_reads and successful_searches):
             return "ready_to_patch"
         if successful_reads or successful_searches:
@@ -220,6 +222,7 @@ class ContextBuilder:
             "locating": "Locate the smallest relevant source area.",
             "inspecting": "Read only the missing narrow source range needed for a repair.",
             "ready_to_patch": "If the evidence supports the cause, apply the smallest localized patch now instead of rereading known code.",
+            "patch_due": "Do not call list, search, or read again. Apply the smallest localized patch now using exact text already observed.",
             "patch_attempt_failed": "Use the patch failure observation to correct the localized edit without broadening scope.",
             "patch_needs_verification": "Run the focused pytest command for the changed behavior.",
             "patch_needs_revision": "Use the latest pytest failure to revise the existing localized patch.",

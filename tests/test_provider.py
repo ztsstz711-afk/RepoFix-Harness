@@ -65,6 +65,11 @@ def test_parse_message_action_uses_first_parallel_tool_call():
     assert result["name"] == "list"
 
 
+def test_parse_message_action_explains_empty_response():
+    with pytest.raises(ValueError, match="neither tool calls nor content"):
+        parse_message_action(SimpleNamespace(content="", tool_calls=[]))
+
+
 def test_parse_message_action_skips_invalid_parallel_tool_call():
     invalid = SimpleNamespace(
         function=SimpleNamespace(name="read", arguments='{"start_line":2}')
@@ -120,6 +125,8 @@ def test_provider_retries_malformed_action_and_accumulates_usage():
     provider.model = "mock-model"
     provider.max_format_retries = 2
     provider.max_output_tokens = 2048
+    provider.native_tool_calls = False
+    provider.json_mode = True
     provider._create_completion = lambda system_prompt, user_prompt: next(responses)
     decision = provider.next_action("context")
     assert decision.action.name == "list"
@@ -128,7 +135,7 @@ def test_provider_retries_malformed_action_and_accumulates_usage():
     assert decision.usage.retries == 1
     assert decision.usage.format_retries == 1
     assert len(decision.diagnostics) == 1
-    assert "Expecting ':' delimiter" in decision.diagnostics[0]
+    assert "json: Expecting ':' delimiter" in decision.diagnostics[0]
 
 
 def test_provider_exposes_usage_when_all_format_attempts_fail():
@@ -284,6 +291,8 @@ def test_provider_sends_native_tools_and_parses_tool_call():
     assert "tool_choice" not in captured
     assert len(captured["tools"]) == 8
     assert "response_format" not in captured
+    assert "Registered action names" in captured["messages"][0]["content"]
+    assert "Allowed tools and exact arguments" not in captured["messages"][0]["content"]
 
 
 def test_provider_falls_back_from_invalid_native_call_to_json_mode():
@@ -322,6 +331,8 @@ def test_provider_falls_back_from_invalid_native_call_to_json_mode():
     assert "tools" in requests[0]
     assert "tools" not in requests[1]
     assert requests[1]["response_format"] == {"type": "json_object"}
+    assert "Fallback JSON action contract" in requests[1]["messages"][1]["content"]
+    assert "old_text" in requests[1]["messages"][1]["content"]
     assert decision.usage.format_retries == 1
 
 

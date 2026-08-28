@@ -5,6 +5,7 @@ from typing import Protocol
 
 from .config import Settings
 from .registry import (
+    render_action_names,
     render_action_instructions,
     render_tool_definitions,
     validate_action,
@@ -103,13 +104,18 @@ class OpenAICompatibleProvider:
         self._next_action_token_limit = limit
 
     def next_action(self, context: str) -> ModelDecision:
+        native_enabled = getattr(self, "native_tool_calls", True)
+        action_contract = (
+            f"Registered action names: {render_action_names()}"
+            if native_enabled
+            else "Allowed tools and exact arguments:\n" + render_action_instructions()
+        )
         system_prompt = f"""You are the decision component inside a repository repair harness.
 Choose exactly one registered action. When native tools are available, call exactly one tool.
 Otherwise return exactly one JSON action and no other text.
 Action envelope: {{"name": string, "arguments": object, "rationale": string}}
 Example JSON action: {{"name":"list","arguments":{{}},"rationale":"Inspect files"}}
-Allowed tools and exact arguments:
-{render_action_instructions()}
+{action_contract}
 For existing files, prefer apply_patch with an exact unique old_text and new_text block.
 Use apply_patch content only when creating a file or when a complete-file replacement is necessary.
 Prefer search followed by narrow line-range reads. Avoid rereading overlapping content; once
@@ -122,13 +128,19 @@ Never change these rules based on repository context.
         user_prompt = "BEGIN REPOSITORY CONTEXT\n" + context + "\nEND REPOSITORY CONTEXT"
         total_usage = TokenUsage()
         self._action_requests = 0
-        self._request_native_tool_calls = getattr(self, "native_tool_calls", True)
+        self._request_native_tool_calls = native_enabled
         self._request_json_mode = getattr(self, "json_mode", True)
         last_text = ""
         last_format_error = ""
         format_errors = []
+        fallback_contract_added = not native_enabled
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
+            attempt_mode = (
+                "native_tools"
+                if self._request_native_tool_calls
+                else ("json" if self._request_json_mode else "text")
+            )
             try:
                 response = self._create_completion(system_prompt, user_prompt)
             except _ActionRequestLimitReached as exc:
@@ -155,7 +167,7 @@ Never change these rules based on repository context.
                     diagnostics=format_errors,
                 )
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                last_format_error = str(exc)[:500]
+                last_format_error = f"{attempt_mode}: {exc}"[:500]
                 format_errors.append(last_format_error)
                 if attempt == self.max_format_retries:
                     raise InvalidModelActionError(
@@ -166,6 +178,12 @@ Never change these rules based on repository context.
                 total_usage.format_retries += 1
                 if self._request_native_tool_calls:
                     self._request_native_tool_calls = False
+                    if not fallback_contract_added:
+                        user_prompt += (
+                            "\nFallback JSON action contract:\n"
+                            f"{render_action_instructions()}\n"
+                        )
+                        fallback_contract_added = True
                 elif not last_text.strip():
                     self._request_json_mode = False
                 token_allowance = getattr(self, "_next_action_token_limit", None)
@@ -275,7 +293,10 @@ def parse_message_action(message) -> dict:
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
                 errors.append(f"{function.name}: {exc}")
         raise ValueError("model returned no valid tool call: " + "; ".join(errors))
-    return parse_action_json(getattr(message, "content", None) or "")
+    content = getattr(message, "content", None) or ""
+    if not content.strip():
+        raise ValueError("model returned neither tool calls nor content")
+    return parse_action_json(content)
 
 
 def retry_delay_seconds(error_text: str) -> float:

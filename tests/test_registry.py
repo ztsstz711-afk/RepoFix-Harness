@@ -1,5 +1,6 @@
 from repofix.registry import (
     render_action_instructions,
+    render_action_names,
     render_tool_definitions,
     validate_action,
 )
@@ -12,6 +13,7 @@ def test_registry_renders_prompt_and_validates_arguments():
     assert validate_action("read", {"path": "a.py"}) is None
     assert "missing required" in validate_action("read", {})
     assert "unknown arguments" in validate_action("list", {"extra": True})
+    assert render_action_names().startswith("list, search, read, apply_patch")
     assert "must be an integer" in validate_action(
         "read", {"path": "a.py", "start_line": "2"}
     )
