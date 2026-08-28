@@ -138,6 +138,23 @@ def test_v17_patch_readiness_gate_keeps_original_budget_contract():
     assert task.test_command != task.final_test_command
 
 
+def test_v18_phase_policy_gate_covers_three_upstream_cases_with_fixed_budget():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "phase-policy-v1.8.json"))
+
+    assert suite.max_total_requests == 36
+    assert len(suite.tasks) == 3
+    assert {task.case for task in suite.tasks} == {
+        "sliced_negative_size",
+        "running_min_max_stability",
+        "tomli_key_parts_limit",
+    }
+    assert sum(task.max_requests for task in suite.tasks) == 36
+    assert all(task.variant == "phase_tool_policy" for task in suite.tasks)
+    assert all(task.verify_after_patch is True for task in suite.tasks)
+    assert all(task.test_command != task.final_test_command for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
