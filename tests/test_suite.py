@@ -185,6 +185,18 @@ def test_v21_provider_recovery_gate_is_bounded_to_two_difficult_cases():
     assert all(task.verify_after_patch is True for task in suite.tasks)
 
 
+def test_v22_nonthinking_stability_suite_authorizes_six_interleaved_trials():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "nonthinking-stability-v2.2.json"))
+
+    assert suite.max_total_requests == 72
+    assert len(suite.tasks) == 2
+    assert sum(task.repetitions for task in suite.tasks) == 6
+    assert sum(task.repetitions * task.max_requests for task in suite.tasks) == 72
+    assert all(task.repetitions == 3 for task in suite.tasks)
+    assert all(task.variant == "deepseek_nonthinking" for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
