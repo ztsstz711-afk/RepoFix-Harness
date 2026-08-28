@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 2.0.0 - 2026-08-28
+
+- Add an idempotent Windows project setup script that creates `.venv`, installs editable development dependencies, and optionally builds the Docker pytest image.
+- Publish a three-case, nine-trial real-upstream stability gate with honest per-case reliability and failure distributions.
+- Refresh architecture, README, and interview guidance to describe native tools, repair phases, CLI presentation, and current model limitations.
+
 ## 1.9.0 - 2026-08-28
 
 - Add a human-readable single-run progress view with repair phase, remaining request/token budget, action targets, focused patch verification, and Provider retry counts.

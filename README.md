@@ -6,6 +6,17 @@
 
 ## 实测结果
 
+V2.0 使用 `deepseek-v4-flash` 对三个 checksum-qualified 真实上游 Bug 各运行三次，共 9 个交错 trial：
+
+| 案例 | 完整修复 | 范围命中 |
+|---|---:|---:|
+| more-itertools `sliced()` 负数边界 | 3/3 | 3/3 |
+| more-itertools running min/max 稳定性 | 1/3 | 1/3 |
+| Tomli dotted-key parts 上限 | 0/3 | 0/3 |
+| **总计** | **4/9（44.4%）** | **4/9** |
+
+整套实际使用 74/108 授权请求、342,070 tokens，估算成本 $0.19253849。所有成功任务均通过独立完整上游 pytest，并只修改预期实现文件；失败由 3 次 invalid model output 和 2 次 token reserve 构成。这是当前真实稳定性边界，不等同于 SWE-bench 或生产成功率。详见 [V2.0 stability gate](docs/v2.0-stability-results.md)。
+
 2026-08-26 使用 `deepseek-v4-flash` 运行五任务隔离回归集：
 
 | 指标 | 结果 |
@@ -71,9 +82,13 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 
 ```powershell
 cd <project-path>\RepoFix-Harness
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+.\scripts\setup_project.ps1
+```
+
+同时构建 Docker pytest 镜像：
+
+```powershell
+.\scripts\setup_project.ps1 -BuildSandbox
 ```
 
 配置 DeepSeek（Key 隐藏输入，不写入项目）：
@@ -264,3 +279,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V1.7 Patch readiness 定向实验](docs/v1.7-patch-readiness.md)
 - [V1.8 阶段工具策略真实门禁](docs/v1.8-phase-policy-results.md)
 - [V1.9 CLI 真实演示](docs/v1.9-cli-demo.md)
+- [V2.0 三案例九次稳定性门禁](docs/v2.0-stability-results.md)

@@ -8,6 +8,13 @@ After installing the project and configuring a provider:
 .\scripts\run_demo.ps1
 ```
 
+Fresh Windows setup can be completed with:
+
+```powershell
+.\scripts\setup_project.ps1 -BuildSandbox
+.\scripts\setup_deepseek.ps1
+```
+
 The script runs one real-model task with an eight-request and 12,000-token ceiling. `EvaluationRunner` copies `examples/toy_repo` to a temporary workspace, so the source fixture remains buggy and reusable.
 
 ## What to point out during the demo

@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主决定查看文件、搜索代码、运行 pytest 和修改实现；我负责实现模型之外的工程系统，包括有界上下文、工具权限、预算、checkpoint、受限 Docker 测试、写前快照、安全回滚和独立评测。项目在五类自建 Bug 上使用 DeepSeek 完成 5/5 修复和 5/5 改动范围命中，并在真实 h11 源码的注入回归上完成受限容器闭环。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。最终使用 DeepSeek 对三个真实上游 Bug 各运行三次，完成 4/9 个完整套件修复；简单边界案例 3/3，复杂 parser 案例 0/3，结果如实展示了 Harness 已完整、模型稳定性仍有限。
 
 ## 3 分钟版本
 
@@ -14,7 +14,7 @@ RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness
 6. **成本与稳定性**：限制 step/request/token，统计缓存和成本，对限流/超时退避重试，并阻止第三次相同动作。
    批量 suite 还会把每个 task 的请求上限乘以 repetitions；理论总量超过 manifest 明确授权时，模型调用前直接拒绝。
 7. **可观测性**：每次调用都记录 context 长度、历史裁剪和自动源码选择依据，但这些诊断不进入模型 history。
-8. **评测**：五任务在临时副本运行，同时检查 pytest 和隐藏的期望改动文件。真实 DeepSeek 结果是 5/5、33 次请求、41,299 tokens；h11 注入回归另以 5 次请求从 2 项失败修复到 78 项全通过。
+8. **评测**：先用自建 deterministic suite 验证闭环，再转向 checksum-qualified 真实上游 commit。最终 9-trial gate 是 4/9 成功、4/9 精确范围，74 次请求、342,070 tokens；每个成功都通过完整上游 pytest。
 9. **对照实验**：五类 Bug 各做三次 context-on/off 配对，共 30 次真实修复；两组都是 15/15 成功和范围命中，context-on 平均请求减少 23.81%、token 减少 22.80%，但间接定位场景也出现反例。
 
 ## 最值得展开的技术点
@@ -45,6 +45,10 @@ V1.4 的目标是可解释的 repair Harness。pytest 已足够形成执行反�
 
 > 在五类自建 deterministic Python Bug 上完成 5/5 真实模型修复，并同时验证改动文件范围。
 
+也可以说：
+
+> 在三个真实上游 Bug 的九次冻结评测中完成 4/9 verified repairs；简单边界问题 3/3，复杂 parser 问题 0/3，因此项目证明的是 Harness 的可信闭环，而不是模型已经达到生产级修复率。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -62,4 +66,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** 在固定版本的真实开源 issue 集上验证调用感知 context 的泛化；不是先堆 multi-agent。
+- **下一步是什么？** 更换或对照更稳定的 coding model，并针对长 reasoning 导致的空响应/截断 action 做 Provider 层实验；不是先堆 multi-agent。

@@ -29,8 +29,8 @@ flowchart LR
 | Module | Responsibility |
 |---|---|
 | `loop.py` | Agent 状态机、终止条件、checkpoint 和事件流 |
-| `provider.py` | OpenAI-compatible API、JSON action 解析、格式/网络重试 |
-| `context.py` | 有界 prompt、独立 baseline、最近 trace 和稳定进度摘要 |
+| `provider.py` | OpenAI-compatible API、原生 Function Calling、JSON fallback、阶段工具策略和格式/网络重试 |
+| `context.py` | 有界 prompt、独立 baseline、导航记忆、repair phase 和下一动作优先级 |
 | `failure_context.py` | 从 baseline traceback 安全提取仓库内源码位置与有界行号片段 |
 | `registry.py` | 单一 action schema 来源和参数验证 |
 | `permissions.py` | 仓库路径、控制目录和 pytest 参数边界 |
@@ -44,6 +44,7 @@ flowchart LR
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
 | `preflight.py` | 模型调用前检查解释器、pytest、命令和仓库形态 |
 | `execution.py` | 本地或受限 Docker pytest 执行后端 |
+| `presentation.py` | 单任务实时进度和 outcome-first 最终摘要 |
 
 ## State transitions
 
@@ -62,11 +63,12 @@ running
 ## Trust boundaries
 
 1. 模型输出永远先经过 action schema 验证。
-2. 所有路径必须解析到目标仓库内部，`.git/.repofix/.venv` 等控制目录不可访问。
-3. 命令工具只接受 pytest；不向模型开放任意 shell。
-4. `finish` 不能决定成功，最终状态由独立 pytest 决定。
-5. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
-6. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
+2. Context repair phase 决定本轮向 Provider 暴露的工具子集；阶段外动作会在解析后再次拒绝。
+3. 所有路径必须解析到目标仓库内部，`.git/.repofix/.venv` 等控制目录不可访问。
+4. 命令工具只接受 pytest；不向模型开放任意 shell。
+5. `finish` 不能决定成功，最终状态由独立 pytest 决定。
+6. 写入前保留原始字节；恢复前一次性预检全部文件，防止覆盖后续用户修改或半回滚。
+7. evaluation suite 使用临时副本，源 fixture 永不被 Agent 修改。
 
 Preflight 不执行仓库代码，也不调用模型。它只检查本地运行前提，并把结果写入同一个 RunState；pytest 缺失或验证命令越权会以 `preflight_failed` 停止，项目元数据或传统测试文件缺失只作为 warning。
 
@@ -84,7 +86,7 @@ Token 预算除了检查累计用量，还会根据当前 context 与历史请�
 
 baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后的头尾输出会固定保留在 context 中。模型因此可以直接根据 traceback 开始定位，不需要先消耗一次 action 重跑完整测试。仓库内容、测试输出和历史 observation 均在 provider prompt 中明确标记为不可信数据。
 
-首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。若 traceback 只指向测试文件，Harness 使用 Python AST 解析本地 import，在仓库根目录、`src/` 或相对 package 中寻找入口函数，并把片段居中到导入符号定义。若该入口函数实际调用了另一个本地导入函数，再补充这一条调用边对应的实现片段；未调用的 import 不会进入 context。该过程不会 import 或执行仓库代码，调用扩展只执行一跳且不递归，所有片段继续服从同一文件数和字符数上限。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
+首轮请求还会解析 baseline 中的 Python 文件位置，并读取少量带行号的上下文。路径必须经过同一仓库边界与控制目录策略，容器路径 `/workspace/...` 会映射回目标仓库，外部依赖栈帧会被忽略；文件去重且总字符数受限。若 traceback 只指向测试文件，Harness 使用 Python AST 解析本地 import，在仓库根目录、`src/` 或相对 package 中寻找入口函数，并把片段居中到导入符号定义。若入口经过本地 facade/re-export，再沿实际调用的模块属性最多补充三跳实现片段；未调用的 import 不会进入 context。该过程不会 import 或执行仓库代码，所有片段继续服从同一文件数和字符数上限。完成第一个模型 action 后不再重复注入这些片段，避免后续轮次持续增加 token。
 
 上下文提示明确说明 baseline 与自动附带的源码片段已经构成 inspection evidence，模型只在信息不足时调用 list/read/search。这样 context optimization 才能转化为更短的 action path，而不是提供了源码后仍机械重复读取。
 
@@ -112,7 +114,7 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 `list` 会先按目录深度再按路径排序，并把单次输出限制在 4,000 字符。这样 `src/`、顶层测试和项目元数据会出现在大型 fixture/data 子树之前；被省略的深层文件数量写入 observation，模型仍可通过 `search` 或已知路径 `read` 精确访问。该策略只减少导航噪声，不隐藏普通仓库文件的后续读取能力。
 
-Provider 对无效 action JSON 最多执行四次格式纠错重试，每一次都占用同一个 run 的 request/token 预算。若全部失败，异常会携带累计 usage 回到 Agent Loop 并写入 trace/report，避免失败请求被漏计；如果失败前已经产生文件修改，Harness 会执行一次独立 final pytest，只有真实通过才将任务恢复为成功。
+Provider 优先使用中央 registry 生成的原生 Function Calling schema；非法或空 tool response 会回退 JSON mode，再按需回退纯文本。每次格式纠错都占用同一个 run 的 request/token 预算，且下一重试必须通过 Provider 级 token admission。错误模式与原因写入 trace；如果失败前已经产生文件修改，Harness 会执行一次独立 final pytest，只有真实通过才将任务恢复为成功。
 
 ## Why a custom loop
 
