@@ -1,0 +1,40 @@
+{
+  "name": "revision-cap-v2.2",
+  "max_total_requests": 24,
+  "tasks": [
+    {
+      "id": "running-min-max-revision-cap",
+      "case": "running_min_max_stability",
+      "variant": "nonthinking_revision_cap",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/more-itertools-running-stability/buggy",
+      "task": "Fix sliding-window running_min() and running_max() stability so equal values preserve the first value just like built-in min() and max(), including equal values with different numeric types. Use the focused regression tests while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_more.py::TestRunningMin::test_stability tests/test_more.py::TestRunningMax::test_stability",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 45000,
+      "expected_changed_files": ["more_itertools/recipes.py"],
+      "tags": ["external", "revision-cap", "nonthinking", "more-itertools"]
+    },
+    {
+      "id": "tomli-key-parts-revision-cap",
+      "case": "tomli_key_parts_limit",
+      "variant": "nonthinking_revision_cap",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/tomli-key-parts-limit/buggy",
+      "task": "Prevent pathologically excessive dotted key parts while preserving valid keys near the recursion limit. Raise RecursionError with a clear limit message when the allowed number of parts is exceeded. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q -o pythonpath=src tests/test_misc.py::TestMiscellaneous::test_key_recursion_limit",
+      "final_test_command": "pytest -q -o pythonpath=src tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 80000,
+      "expected_changed_files": ["src/tomli/_parser.py"],
+      "tags": ["external", "revision-cap", "nonthinking", "tomli"]
+    }
+  ]
+}

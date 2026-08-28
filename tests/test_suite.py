@@ -197,6 +197,16 @@ def test_v22_nonthinking_stability_suite_authorizes_six_interleaved_trials():
     assert all(task.variant == "deepseek_nonthinking" for task in suite.tasks)
 
 
+def test_v22_revision_cap_gate_keeps_two_task_request_ceiling():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "revision-cap-v2.2.json"))
+
+    assert suite.max_total_requests == 24
+    assert len(suite.tasks) == 2
+    assert sum(task.max_requests for task in suite.tasks) == 24
+    assert all(task.variant == "nonthinking_revision_cap" for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")

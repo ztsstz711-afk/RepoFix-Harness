@@ -204,6 +204,46 @@ def test_context_marks_patch_due_after_excessive_successful_navigation():
     assert "Do not call list, search, or read again" in result.text
 
 
+def test_context_forces_revision_after_two_reads_following_failed_verification():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {
+                    "changed": True,
+                    "path": "src/parser.py",
+                    "post_patch_test": {"success": False},
+                },
+            },
+        },
+        {"step": 2, "action": {"name": "read"}, "observation": {"success": True}},
+        {"step": 3, "action": {"name": "search"}, "observation": {"success": True}},
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert "Do not call list, search, or read again" in result.text
+
+
+def test_context_forces_retry_after_two_reads_following_rejected_patch():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {"success": False, "output": "old_text was not unique"},
+        },
+        {"step": 2, "action": {"name": "read"}, "observation": {"success": True}},
+        {"step": 3, "action": {"name": "read"}, "observation": {"success": True}},
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+
+
 def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():
     history = [
         {"step": 1, "action": {"name": "search"}, "observation": {"output": "EARLY-LANDMARK"}},

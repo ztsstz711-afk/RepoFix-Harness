@@ -180,6 +180,7 @@ class ContextBuilder:
         successful_reads = 0
         successful_searches = 0
         failed_patches = 0
+        navigation_since_patch = 0
         for event in history:
             action = event.get("action", {})
             observation = event.get("observation", {})
@@ -187,9 +188,12 @@ class ContextBuilder:
             success = bool(observation.get("success", True))
             if name == "read" and success:
                 successful_reads += 1
+                navigation_since_patch += 1
             elif name == "search" and success:
                 successful_searches += 1
+                navigation_since_patch += 1
             elif name == "apply_patch":
+                navigation_since_patch = 0
                 if success and observation.get("metadata", {}).get("changed"):
                     changed = True
                 elif not success:
@@ -203,10 +207,14 @@ class ContextBuilder:
         if changed and latest_pytest is True:
             return "verified_patch"
         if changed and latest_pytest is False:
+            if navigation_since_patch >= 2:
+                return "patch_due"
             return "patch_needs_revision"
         if changed:
             return "patch_needs_verification"
         if failed_patches:
+            if navigation_since_patch >= 2:
+                return "patch_due"
             return "patch_attempt_failed"
         if successful_reads + successful_searches >= 5:
             return "patch_due"
