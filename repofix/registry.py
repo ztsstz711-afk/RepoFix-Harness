@@ -211,6 +211,8 @@ def validate_action(name: str, arguments: dict) -> str | None:
             return "apply_patch content must be a string"
         if has_old and arguments["old_text"] == "":
             return "apply_patch old_text must not be empty"
+        if has_old and has_new and arguments["old_text"] == arguments["new_text"]:
+            return "apply_patch new_text must differ from old_text"
     return None
 
 

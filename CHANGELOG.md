@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject exact-replacement `apply_patch` actions whose `old_text` and `new_text` are identical before they consume an Agent tool step.
+
 ## 2.2.0 - 2026-08-28
 
 - Bound post-patch and rejected-patch navigation to two successful read/search actions before the phase policy exposes only `apply_patch` again.

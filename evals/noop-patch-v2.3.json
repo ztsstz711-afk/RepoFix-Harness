@@ -1,0 +1,23 @@
+{
+  "name": "noop-patch-v2.3",
+  "max_total_requests": 12,
+  "tasks": [
+    {
+      "id": "tomli-noop-patch-recovery",
+      "case": "tomli_key_parts_limit",
+      "variant": "nonthinking_noop_rejection",
+      "repo": "../external-workspaces/upstream-bugs-v1.5/tomli-key-parts-limit/buggy",
+      "task": "Prevent pathologically excessive dotted key parts while preserving valid keys near the recursion limit. Raise RecursionError with a clear limit message when the allowed number of parts is exceeded. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q -o pythonpath=src tests/test_misc.py::TestMiscellaneous::test_key_recursion_limit",
+      "final_test_command": "pytest -q -o pythonpath=src tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 80000,
+      "expected_changed_files": ["src/tomli/_parser.py"],
+      "tags": ["external", "follow-up", "nonthinking", "noop-rejection"]
+    }
+  ]
+}

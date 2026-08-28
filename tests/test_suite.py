@@ -223,6 +223,16 @@ def test_v23_comparable_gate_matches_v20_case_and_trial_count():
     assert all(task.variant == "nonthinking_revision_cap" for task in suite.tasks)
 
 
+def test_v23_noop_patch_followup_has_one_task_ceiling():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "noop-patch-v2.3.json"))
+
+    assert suite.max_total_requests == 12
+    assert len(suite.tasks) == 1
+    assert suite.tasks[0].case == "tomli_key_parts_limit"
+    assert suite.tasks[0].variant == "nonthinking_noop_rejection"
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")

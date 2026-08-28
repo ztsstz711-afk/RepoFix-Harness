@@ -36,6 +36,9 @@ def test_apply_patch_registry_accepts_exactly_one_edit_mode():
     assert "must not be empty" in validate_action(
         "apply_patch", {"path": "a.py", "old_text": "", "new_text": "new"}
     )
+    assert "must differ" in validate_action(
+        "apply_patch", {"path": "a.py", "old_text": "same", "new_text": "same"}
+    )
 
 
 def test_registry_renders_openai_compatible_function_tools():
