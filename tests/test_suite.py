@@ -179,7 +179,9 @@ def test_v21_provider_recovery_gate_is_bounded_to_two_difficult_cases():
         "running_min_max_stability",
         "tomli_key_parts_limit",
     }
-    assert all(task.variant == "native_retry_patch_4096" for task in suite.tasks)
+    assert all(
+        task.variant == "native_retry_patch_4096_nonthinking" for task in suite.tasks
+    )
     assert all(task.verify_after_patch is True for task in suite.tasks)
 
 

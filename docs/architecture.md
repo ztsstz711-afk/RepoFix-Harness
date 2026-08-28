@@ -118,6 +118,8 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 原生工具响应首次为空或参数被截断时，Provider 会先在同一原生 schema 下纠错一次，第二次仍失败才降级到 JSON。导航阶段使用 `REPOFIX_MAX_OUTPUT_TOKENS`，补丁阶段单独使用 `REPOFIX_PATCH_MAX_OUTPUT_TOKENS`；后者默认更高，以容纳 reasoning 与 patch 参数，并同步进入 retry token admission 和评测实验身份。
 
+`REPOFIX_THINKING_MODE` 默认为跨 Provider 安全的 `auto`，也可显式设为 `enabled` 或 `disabled`。DeepSeek 的项目配置选择 `disabled`，避免默认 high thinking 在短工具调用中耗尽输出上限；该值与实际 Python executable、模块路径一起写入 evaluation identity。
+
 ## Why a custom loop
 
 V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

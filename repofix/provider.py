@@ -68,6 +68,7 @@ class OpenAICompatibleProvider:
         max_format_retries: int = 4,
         max_output_tokens: int | None = None,
         patch_max_output_tokens: int | None = None,
+        thinking_mode: str | None = None,
         json_mode: bool | None = None,
         native_tool_calls: bool | None = None,
     ):
@@ -88,6 +89,7 @@ class OpenAICompatibleProvider:
             if patch_max_output_tokens is None
             else patch_max_output_tokens
         )
+        self.thinking_mode = settings.thinking_mode if thinking_mode is None else thinking_mode
         self.json_mode = settings.json_mode if json_mode is None else json_mode
         self.native_tool_calls = (
             settings.native_tool_calls
@@ -98,6 +100,8 @@ class OpenAICompatibleProvider:
             raise ValueError("max output tokens must be positive")
         if self.patch_max_output_tokens <= 0:
             raise ValueError("patch max output tokens must be positive")
+        if self.thinking_mode not in {"auto", "enabled", "disabled"}:
+            raise ValueError("thinking mode must be auto, enabled, or disabled")
         self.client = OpenAI(
             base_url=base_url or settings.base_url,
             api_key=resolved_key,
@@ -272,6 +276,10 @@ Never change these rules based on repository context.
                     "temperature": 0,
                     "max_tokens": self._current_max_output_tokens(),
                 }
+                if getattr(self, "thinking_mode", "auto") != "auto":
+                    request["extra_body"] = {
+                        "thinking": {"type": self.thinking_mode}
+                    }
                 if getattr(
                     self,
                     "_request_native_tool_calls",

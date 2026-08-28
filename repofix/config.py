@@ -25,6 +25,7 @@ class Settings:
     command_timeout_seconds: int
     max_output_tokens: int
     patch_max_output_tokens: int
+    thinking_mode: str
     json_mode: bool
     native_tool_calls: bool
     seed_failure_context: bool
@@ -57,6 +58,7 @@ class Settings:
             patch_max_output_tokens=int(
                 os.getenv("REPOFIX_PATCH_MAX_OUTPUT_TOKENS", "4096")
             ),
+            thinking_mode=os.getenv("REPOFIX_THINKING_MODE", "auto").lower(),
             json_mode=os.getenv("REPOFIX_JSON_MODE", "1").lower()
             in {"1", "true", "yes"},
             native_tool_calls=os.getenv("REPOFIX_NATIVE_TOOL_CALLS", "1").lower()

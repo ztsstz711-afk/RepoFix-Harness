@@ -474,6 +474,12 @@ def test_provider_rejects_zero_patch_output_limit(monkeypatch):
         OpenAICompatibleProvider(patch_max_output_tokens=0)
 
 
+def test_provider_rejects_unknown_thinking_mode(monkeypatch):
+    monkeypatch.setenv("REPOFIX_API_KEY", "test-key")
+    with pytest.raises(ValueError, match="thinking mode must be"):
+        OpenAICompatibleProvider(thinking_mode="sometimes")
+
+
 def test_provider_uses_larger_output_allowance_only_for_patch_phase():
     requests = []
 
@@ -508,6 +514,7 @@ def test_provider_uses_larger_output_allowance_only_for_patch_phase():
     provider.max_format_retries = 0
     provider.max_output_tokens = 2048
     provider.patch_max_output_tokens = 4096
+    provider.thinking_mode = "disabled"
     provider.json_mode = True
     provider.native_tool_calls = True
     provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
@@ -517,6 +524,7 @@ def test_provider_uses_larger_output_allowance_only_for_patch_phase():
 
     assert decision.action.name == "apply_patch"
     assert requests[0]["max_tokens"] == 4096
+    assert requests[0]["extra_body"] == {"thinking": {"type": "disabled"}}
 
     provider.set_action_policy("locating")
     assert provider._current_max_output_tokens() == 2048

@@ -19,6 +19,7 @@ $outputPrice = "1.32"
 [Environment]::SetEnvironmentVariable("REPOFIX_API_KEY", $plainKey, "User")
 [Environment]::SetEnvironmentVariable("REPOFIX_BASE_URL", $baseUrl, "User")
 [Environment]::SetEnvironmentVariable("REPOFIX_MODEL", $Model, "User")
+[Environment]::SetEnvironmentVariable("REPOFIX_THINKING_MODE", "disabled", "User")
 [Environment]::SetEnvironmentVariable("REPOFIX_INPUT_COST_PER_MILLION", $inputPrice, "User")
 [Environment]::SetEnvironmentVariable("REPOFIX_CACHED_INPUT_COST_PER_MILLION", $cachedInputPrice, "User")
 [Environment]::SetEnvironmentVariable("REPOFIX_OUTPUT_COST_PER_MILLION", $outputPrice, "User")
@@ -26,6 +27,7 @@ $outputPrice = "1.32"
 $env:REPOFIX_API_KEY = $plainKey
 $env:REPOFIX_BASE_URL = $baseUrl
 $env:REPOFIX_MODEL = $Model
+$env:REPOFIX_THINKING_MODE = "disabled"
 $env:REPOFIX_INPUT_COST_PER_MILLION = $inputPrice
 $env:REPOFIX_CACHED_INPUT_COST_PER_MILLION = $cachedInputPrice
 $env:REPOFIX_OUTPUT_COST_PER_MILLION = $outputPrice
@@ -34,5 +36,6 @@ Remove-Variable plainKey
 Remove-Variable secureKey
 Write-Host "DeepSeek configuration saved for RepoFix-Harness."
 Write-Host "Model: $Model"
+Write-Host "Thinking mode: disabled (optimized for bounded tool calls)"
 Write-Host "Cost estimate uses conservative peak-hour prices."
 Write-Host "Open a new terminal before running RepoFix outside this script."

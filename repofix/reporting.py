@@ -233,6 +233,7 @@ def render_evaluation_markdown(report: dict) -> str:
         "harness_module_path",
         "max_output_tokens",
         "patch_max_output_tokens",
+        "thinking_mode",
         "input_cost_per_million",
         "cached_input_cost_per_million",
         "output_cost_per_million",
