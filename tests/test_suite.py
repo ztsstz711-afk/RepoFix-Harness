@@ -207,6 +207,22 @@ def test_v22_revision_cap_gate_keeps_two_task_request_ceiling():
     assert all(task.variant == "nonthinking_revision_cap" for task in suite.tasks)
 
 
+def test_v23_comparable_gate_matches_v20_case_and_trial_count():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "comparable-stability-v2.3.json"))
+
+    assert suite.max_total_requests == 108
+    assert len(suite.tasks) == 3
+    assert sum(task.repetitions for task in suite.tasks) == 9
+    assert sum(task.repetitions * task.max_requests for task in suite.tasks) == 108
+    assert {task.case for task in suite.tasks} == {
+        "sliced_negative_size",
+        "running_min_max_stability",
+        "tomli_key_parts_limit",
+    }
+    assert all(task.variant == "nonthinking_revision_cap" for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
