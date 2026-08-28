@@ -1,0 +1,23 @@
+{
+  "name": "upstream-numeric-range-stability-v2.6",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "more-itertools-numeric-range-empty-reversed-v26",
+      "case": "numeric_range_empty_reversed",
+      "variant": "frozen_v2_6_default_thinking",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-numeric-range-v2.6/buggy",
+      "task": "Fix numeric_range.__reversed__() so reversing an empty numeric_range returns an empty iterator instead of raising IndexError. Preserve the existing reversed sequence for non-empty ranges. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_more.py::NumericRangeTests::test_empty_reversed",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["more_itertools/more.py"],
+      "tags": ["external", "upstream-regression", "stability", "more-itertools", "empty-input"]
+    }
+  ]
+}
