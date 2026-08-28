@@ -243,6 +243,22 @@ def test_v23_search_evidence_followup_has_one_task_ceiling():
     assert suite.tasks[0].variant == "nonthinking_search_evidence"
 
 
+def test_v24_generalization_gate_has_three_families_and_nine_trials():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "generalization-v2.4.json"))
+
+    assert suite.max_total_requests == 90
+    assert len(suite.tasks) == 3
+    assert sum(task.repetitions for task in suite.tasks) == 9
+    assert sum(task.repetitions * task.max_requests for task in suite.tasks) == 90
+    assert {task.case for task in suite.tasks} == {
+        "h11_expect_http_version_boundary",
+        "order_pipeline_discount_scope",
+        "optional_config_override",
+    }
+    assert all(task.variant == "nonthinking_search_evidence" for task in suite.tasks)
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")

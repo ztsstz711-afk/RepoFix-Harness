@@ -1,0 +1,60 @@
+{
+  "name": "generalization-v2.4",
+  "max_total_requests": 90,
+  "tasks": [
+    {
+      "id": "h11-expect-boundary-v24",
+      "case": "h11_expect_http_version_boundary",
+      "variant": "nonthinking_search_evidence",
+      "repetitions": 3,
+      "repo": "../external-workspaces/h11-benchmark/buggy",
+      "task": "Fix the regression where valid HTTP/1.1 requests with Expect: 100-continue are not recognized, while preserving HTTP/1.0 behavior and case-insensitive header handling. Run the full h11 test suite.",
+      "test_command": "pytest -q h11",
+      "final_test_command": "pytest -q h11",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 30000,
+      "expected_changed_files": ["h11/_headers.py"],
+      "tags": ["external-source", "injected-regression", "protocol", "nonthinking"]
+    },
+    {
+      "id": "order-pipeline-v24",
+      "case": "order_pipeline_discount_scope",
+      "variant": "nonthinking_search_evidence",
+      "repetitions": 3,
+      "repo": "../examples/order_pipeline_repo",
+      "task": "Fix the failing order quote behavior so loyalty discounts apply to the correct amount without changing shipping thresholds or standard-customer totals. Inspect the package boundaries and verify the full test suite.",
+      "test_command": "pytest -q tests",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 14,
+      "max_requests": 10,
+      "max_tokens": 22000,
+      "expected_changed_files": ["src/order_pipeline/service.py"],
+      "tags": ["authored-fixture", "src-layout", "cross-module", "nonthinking"]
+    },
+    {
+      "id": "config-merge-v24",
+      "case": "optional_config_override",
+      "variant": "nonthinking_search_evidence",
+      "repetitions": 3,
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "test_command": "pytest -q",
+      "final_test_command": "pytest -q",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 12,
+      "max_requests": 8,
+      "max_tokens": 16000,
+      "expected_changed_files": ["config_loader.py"],
+      "tags": ["authored-fixture", "assertion-only-traceback", "none-handling", "nonthinking"]
+    }
+  ]
+}
