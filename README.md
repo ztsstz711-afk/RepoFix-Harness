@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V2.5 新增第四个 checksum-qualified 真实上游修复：`more-itertools.last()` 在 `__reversed__ = None` 时错误进入 `reversed()` 路径。DeepSeek 在一次冻结门禁中用 6 requests / 23,337 tokens 完成修复，0 format retries，只修改预期源码文件；独立完整验收为 679 passed、1 skipped、12,078 subtests passed。单次结果只证明可行性，不代表稳定成功率。详见 [V2.5 upstream `last()` gate](docs/v2.5-upstream-last.md)。
+V2.5 新增第四个 checksum-qualified 真实上游修复：`more-itertools.last()` 在 `__reversed__ = None` 时错误进入 `reversed()` 路径。DeepSeek 在一次冻结门禁中用 6 requests / 23,337 tokens 完成修复，0 format retries，只修改预期源码文件；独立完整验收为 679 passed、1 skipped、12,078 subtests passed。随后独立重复三次，得到 3/3 verified、3/3 精确范围、14 requests / 46,080 tokens 和 1 次已恢复的 format retry。单次门禁与重复 follow-up 分开报告，不合并选择结果。详见 [V2.5 upstream `last()` gate](docs/v2.5-upstream-last.md)。
 
 V2.4 将冻结策略移到未参与近期调参的三个 Bug family：h11 第三方源码注入回归、`src/` 跨模块订单 fixture、assertion-only 配置 fixture，各运行三次。结果为 9/9 verified、9/9 精确范围、31 requests / 72,547 tokens、0 format retries，估算成本 $0.02419832。只有 h11 使用第三方真实源码，其余为自建场景，因此该结果是泛化 smoke gate，不是 9 个真实 upstream issue。详见 [V2.4 generalization gate](docs/v2.4-generalization.md)。
 
