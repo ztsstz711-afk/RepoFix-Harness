@@ -179,6 +179,7 @@ class ContextBuilder:
         latest_pytest: bool | None = None
         successful_reads = 0
         successful_searches = 0
+        empty_searches = 0
         failed_patches = 0
         navigation_since_patch = 0
         for event in history:
@@ -190,8 +191,11 @@ class ContextBuilder:
                 successful_reads += 1
                 navigation_since_patch += 1
             elif name == "search" and success:
-                successful_searches += 1
-                navigation_since_patch += 1
+                if observation.get("metadata", {}).get("matches", 0) > 0:
+                    successful_searches += 1
+                    navigation_since_patch += 1
+                else:
+                    empty_searches += 1
             elif name == "apply_patch":
                 navigation_since_patch = 0
                 if success and observation.get("metadata", {}).get("changed"):
@@ -216,6 +220,8 @@ class ContextBuilder:
             if navigation_since_patch >= 2:
                 return "patch_due"
             return "patch_attempt_failed"
+        if empty_searches >= 3 and not successful_reads and not successful_searches:
+            return "search_exhausted"
         if successful_reads + successful_searches >= 5:
             return "patch_due"
         if successful_reads >= 2 or (successful_reads and successful_searches):
@@ -228,6 +234,7 @@ class ContextBuilder:
     def _next_priority(repair_phase: str) -> str:
         priorities = {
             "locating": "Locate the smallest relevant source area.",
+            "search_exhausted": "Stop guessing symbol names. List files or read a known likely source path.",
             "inspecting": "Read only the missing narrow source range needed for a repair.",
             "ready_to_patch": "If the evidence supports the cause, apply the smallest localized patch now instead of rereading known code.",
             "patch_due": "Do not call list, search, or read again. Apply the smallest localized patch now using exact text already observed.",

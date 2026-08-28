@@ -63,6 +63,7 @@ def test_registry_renders_openai_compatible_function_tools():
 
 def test_registry_limits_actions_for_terminal_repair_phases():
     assert allowed_actions_for_phase("locating")[0] == "list"
+    assert allowed_actions_for_phase("search_exhausted") == ("list", "read")
     assert allowed_actions_for_phase("patch_due") == ("apply_patch",)
     assert allowed_actions_for_phase("verified_patch") == (
         "git_diff",

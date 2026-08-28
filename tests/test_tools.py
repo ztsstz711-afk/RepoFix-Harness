@@ -21,6 +21,15 @@ def test_read_and_search(tmp_path):
     assert read.metadata["end_line"] == 1
     assert read.metadata["total_lines"] == 1
 
+
+def test_search_reports_zero_matches_explicitly(tmp_path):
+    (tmp_path / "a.py").write_text("value = 1\n", encoding="utf-8")
+    result = ToolRuntime(str(tmp_path)).execute("search", {"query": "missing_symbol"})
+
+    assert result.success is True
+    assert result.output == "No matches found."
+    assert result.metadata["matches"] == 0
+
 def test_path_cannot_escape(tmp_path):
     t = ToolRuntime(str(tmp_path))
     result = t.execute("read", {"path": "../outside.txt"})

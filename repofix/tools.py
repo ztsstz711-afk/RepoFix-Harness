@@ -77,7 +77,7 @@ class ToolRuntime:
                         break
                 if truncated:
                     break
-            output = "\n".join(hits)
+            output = "\n".join(hits) if hits else "No matches found."
             if truncated:
                 output += "\n[results truncated at 100 matches]"
             return Observation(

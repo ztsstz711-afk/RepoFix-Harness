@@ -219,7 +219,11 @@ def test_context_forces_revision_after_two_reads_following_failed_verification()
             },
         },
         {"step": 2, "action": {"name": "read"}, "observation": {"success": True}},
-        {"step": 3, "action": {"name": "search"}, "observation": {"success": True}},
+        {
+            "step": 3,
+            "action": {"name": "search"},
+            "observation": {"success": True, "metadata": {"matches": 1}},
+        },
     ]
 
     result = ContextBuilder("repo", "task").build_with_metadata(history)
@@ -242,6 +246,22 @@ def test_context_forces_retry_after_two_reads_following_rejected_patch():
     result = ContextBuilder("repo", "task").build_with_metadata(history)
 
     assert result.metadata["repair_phase"] == "patch_due"
+
+
+def test_empty_searches_do_not_create_patch_readiness_and_eventually_force_read():
+    history = [
+        {
+            "step": step,
+            "action": {"name": "search", "arguments": {"query": f"guess_{step}"}},
+            "observation": {"success": True, "metadata": {"matches": 0}},
+        }
+        for step in range(1, 4)
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "search_exhausted"
+    assert "Stop guessing symbol names" in result.text
 
 
 def test_context_skips_oversized_middle_event_and_keeps_smaller_evidence():

@@ -155,6 +155,7 @@ ACTION_SPECS = {
 ALL_ACTION_NAMES = tuple(ACTION_SPECS)
 
 PHASE_ACTIONS = {
+    "search_exhausted": ("list", "read"),
     "patch_due": ("apply_patch",),
     "patch_attempt_failed": ("read", "apply_patch", "git_diff"),
     "patch_needs_verification": ("run_command", "git_diff", "git_status"),

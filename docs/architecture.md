@@ -122,6 +122,8 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 补丁被工具拒绝或 focused pytest 失败后，Agent 最多再执行两次成功的 `read/search`；随后 repair phase 强制回到 `patch_due`，本轮只暴露 `apply_patch`。该限制按“最近一次 patch 之后”计数，不影响首次问题定位。
 
+`search` 零匹配时返回明确的 `No matches found` 和 `matches=0`。零匹配不计入 patch readiness；在尚未读取源码的情况下累计三次会进入 `search_exhausted`，工具集合收敛为 `list/read`，防止猜测出来的符号把 Agent 推进到强制 patch。
+
 ## Why a custom loop
 
 V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

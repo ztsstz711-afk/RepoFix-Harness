@@ -233,6 +233,16 @@ def test_v23_noop_patch_followup_has_one_task_ceiling():
     assert suite.tasks[0].variant == "nonthinking_noop_rejection"
 
 
+def test_v23_search_evidence_followup_has_one_task_ceiling():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "search-evidence-v2.3.json"))
+
+    assert suite.max_total_requests == 12
+    assert len(suite.tasks) == 1
+    assert suite.tasks[0].case == "tomli_key_parts_limit"
+    assert suite.tasks[0].variant == "nonthinking_search_evidence"
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
