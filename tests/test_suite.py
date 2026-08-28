@@ -123,6 +123,21 @@ def test_v16_navigation_memory_gate_is_single_case_and_bounded():
     assert task.test_command != task.final_test_command
 
 
+def test_v17_patch_readiness_gate_keeps_original_budget_contract():
+    root = Path(__file__).resolve().parents[1]
+    suite = load_suite(str(root / "evals" / "patch-readiness-v1.7.json"))
+
+    assert suite.max_total_requests == 12
+    assert len(suite.tasks) == 1
+    task = suite.tasks[0]
+    assert task.variant == "typed_schema_repair_phase"
+    assert task.max_requests == 12
+    assert task.max_tokens == 68_000
+    assert task.verify_after_patch is True
+    assert task.expected_changed_files == ("src/tomli/_parser.py",)
+    assert task.test_command != task.final_test_command
+
+
 def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monkeypatch):
     monkeypatch.setenv("REPOFIX_INPUT_COST_PER_MILLION", "0")
     monkeypatch.setenv("REPOFIX_OUTPUT_COST_PER_MILLION", "0")
