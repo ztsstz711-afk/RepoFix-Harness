@@ -1,0 +1,22 @@
+{
+  "name": "upstream-last-v2.5",
+  "max_total_requests": 12,
+  "tasks": [
+    {
+      "id": "more-itertools-last-reversed-none",
+      "case": "last_reversed_none",
+      "variant": "upstream_parent_plus_regression_test",
+      "repo": "../external-workspaces/upstream-last-v2.5/buggy",
+      "task": "Fix last() so an iterable whose __reversed__ attribute is explicitly None falls back to normal iteration and returns its final item. Preserve the optimized path for genuinely reversible iterables and existing empty/default behavior. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_more.py::LastTests::test_reversed_is_none",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["more_itertools/more.py"],
+      "tags": ["external", "upstream-regression", "more-itertools", "protocol", "fallback"]
+    }
+  ]
+}
