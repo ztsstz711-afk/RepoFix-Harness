@@ -7,7 +7,11 @@ from .config import Settings
 from .context import ContextBuilder
 from .evaluation import RepairEvaluator
 from .preflight import RepositoryPreflight
-from .provider import InvalidModelActionError, ModelRequestLimitReached
+from .provider import (
+    InvalidModelActionError,
+    ModelRequestLimitReached,
+    ModelTokenLimitReached,
+)
 from .schemas import RunState
 from .stability import RepeatedActionGuard
 from .storage import RunStore
@@ -171,6 +175,9 @@ class AgentLoop:
                 request_limiter = getattr(self.provider, "limit_next_action_requests", None)
                 if request_limiter is not None:
                     request_limiter(self.budget.remaining_requests(self.state.usage))
+                token_limiter = getattr(self.provider, "limit_next_action_tokens", None)
+                if token_limiter is not None:
+                    token_limiter(self.budget.remaining_tokens(self.state.usage))
                 decision = self.provider.next_action(context)
             except ModelRequestLimitReached as exc:
                 self.state.usage.add(exc.usage)
@@ -178,7 +185,26 @@ class AgentLoop:
                 self._finish_budget(
                     "request_budget",
                     f"model request budget reached during provider retry "
-                    f"({self.state.usage.requests}/{self.budget.max_requests})",
+                    f"({self.state.usage.requests}/{self.budget.max_requests})"
+                    + (
+                        f"; last format error: {exc.last_format_error}"
+                        if exc.last_format_error
+                        else ""
+                    ),
+                )
+                break
+            except ModelTokenLimitReached as exc:
+                self.state.usage.add(exc.usage)
+                self.state.estimated_cost_usd = self.pricing.estimate_usd(self.state.usage)
+                self._finish_budget(
+                    "token_budget_reserve",
+                    f"provider retry estimated at {exc.estimated_next_tokens} tokens but "
+                    f"only {max(exc.allowance - exc.usage.total_tokens, 0)} remain"
+                    + (
+                        f"; last format error: {exc.last_format_error}"
+                        if exc.last_format_error
+                        else ""
+                    ),
                 )
                 break
             except InvalidModelActionError as exc:

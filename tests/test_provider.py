@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from repofix.provider import (
     InvalidModelActionError,
     ModelRequestLimitReached,
+    ModelTokenLimitReached,
     OpenAICompatibleProvider,
     extract_usage,
     parse_action_json,
@@ -62,6 +63,21 @@ def test_parse_message_action_uses_first_parallel_tool_call():
     )
 
     assert result["name"] == "list"
+
+
+def test_parse_message_action_skips_invalid_parallel_tool_call():
+    invalid = SimpleNamespace(
+        function=SimpleNamespace(name="read", arguments='{"start_line":2}')
+    )
+    valid = SimpleNamespace(
+        function=SimpleNamespace(name="git_status", arguments="{}")
+    )
+
+    result = parse_message_action(
+        SimpleNamespace(content=None, tool_calls=[invalid, valid])
+    )
+
+    assert result["name"] == "git_status"
 
 
 def test_retry_delay_uses_provider_hint():
@@ -341,3 +357,76 @@ def test_provider_format_retry_cannot_exceed_request_allowance():
     assert raised.value.usage.requests == 1
     assert raised.value.usage.retries == 1
     assert raised.value.usage.format_retries == 1
+
+
+def test_provider_preserves_last_format_error_when_request_limit_interrupts_retry():
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 2
+    provider.max_output_tokens = 2048
+    provider.native_tool_calls = False
+    provider.json_mode = True
+    provider._next_action_request_limit = None
+    provider.client = SimpleNamespace(
+        chat=SimpleNamespace(
+            completions=SimpleNamespace(
+                create=lambda **kwargs: SimpleNamespace(
+                    choices=[
+                        SimpleNamespace(
+                            message=SimpleNamespace(content='{"name" "list"}')
+                        )
+                    ],
+                    usage=SimpleNamespace(
+                        prompt_tokens=10, completion_tokens=2, total_tokens=12
+                    ),
+                )
+            )
+        )
+    )
+    provider.limit_next_action_requests(1)
+
+    with pytest.raises(ModelRequestLimitReached) as raised:
+        provider.next_action("context")
+
+    assert raised.value.last_format_error
+    assert "last format error" in str(raised.value)
+
+
+def test_provider_refuses_format_retry_that_exceeds_token_allowance():
+    calls = 0
+
+    class Completions:
+        def create(self, **kwargs):
+            nonlocal calls
+            calls += 1
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(content='{"name" "list"}')
+                    )
+                ],
+                usage=SimpleNamespace(
+                    prompt_tokens=100, completion_tokens=20, total_tokens=120
+                ),
+            )
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 2
+    provider.max_output_tokens = 80
+    provider.native_tool_calls = False
+    provider.json_mode = True
+    provider._next_action_request_limit = None
+    provider._next_action_token_limit = None
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    provider.limit_next_action_tokens(250)
+
+    with pytest.raises(ModelTokenLimitReached) as raised:
+        provider.next_action("context")
+
+    assert calls == 1
+    assert raised.value.usage.total_tokens == 120
+    assert raised.value.estimated_next_tokens == 180
+    assert raised.value.last_format_error

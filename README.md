@@ -222,6 +222,8 @@ V1.5 开始验证真实上游 Bug，而不是继续人工注入错误。准备�
 
 V1.5 指定发布闸门使用 `deepseek-v4-flash` 完成 2/3：两个 more-itertools 修复均通过完整上游套件并准确命中预期文件；Tomli 在 11 次请求内未产生补丁。整套实际使用 27/36 次授权请求、115,977 tokens，保守估算成本 $0.04467383。该结果按原样发布，不用探索性重跑拼接成功率。
 
+V1.6 针对 Tomli 暴露的长仓库导航问题加入紧凑导航记忆、最多三跳的本地 facade 追踪、补丁后的 Harness 自动定向验证，以及 DeepSeek/OpenAI-compatible 原生 Function Calling。真实原生工具冒烟用 1 次请求返回合法 `list` 动作；固定 Tomli 门禁仍在第 7 步因 Provider 格式重试耗尽 12 次请求，未产生补丁。这个失败结果保留为当前能力边界，不通过扩大预算或挑选重跑改写结论。详见 [V1.6 navigation and native tools](docs/v1.6-navigation-and-native-tools.md)。
+
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
 
 长批量在进程中断后可续跑。指定原输出目录后，Runner 会校验 suite、模型、manifest 和全部 source SHA-256，复用已完成 trial，只执行缺失项：
@@ -252,3 +254,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V1.3 五场景 context 配对实验](docs/v1.3-context-matrix-results.md)
 - [V1.4 调用感知 context 定向 A/B](docs/v1.4-call-context-results.md)
 - [V1.5 真实上游 Bug 集](docs/v1.5-upstream-bug-suite.md)
+- [V1.6 导航记忆与原生工具调用](docs/v1.6-navigation-and-native-tools.md)

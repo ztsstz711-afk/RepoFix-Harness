@@ -2,7 +2,11 @@ import pytest
 
 from repofix.budget import ModelPricing
 from repofix.loop import AgentLoop
-from repofix.provider import InvalidModelActionError, ModelRequestLimitReached
+from repofix.provider import (
+    InvalidModelActionError,
+    ModelRequestLimitReached,
+    ModelTokenLimitReached,
+)
 from repofix.schemas import Action, ModelDecision, TokenUsage
 
 class MockProvider:
@@ -28,7 +32,26 @@ class RequestLimitedProvider:
         self.limit = limit
 
     def next_action(self, context):
-        raise ModelRequestLimitReached(TokenUsage(total_tokens=12, requests=1))
+        raise ModelRequestLimitReached(
+            TokenUsage(total_tokens=12, requests=1),
+            last_format_error="missing required arguments: path",
+        )
+
+
+class TokenLimitedProvider:
+    def __init__(self):
+        self.limit = None
+
+    def limit_next_action_tokens(self, limit):
+        self.limit = limit
+
+    def next_action(self, context):
+        raise ModelTokenLimitReached(
+            TokenUsage(total_tokens=120, requests=1),
+            estimated_next_tokens=180,
+            allowance=self.limit,
+            last_format_error="missing required arguments: path",
+        )
 
 
 def test_loop_completes_repair_cycle(tmp_path):
@@ -61,6 +84,18 @@ def test_loop_completes_repair_cycle(tmp_path):
     assert (tmp_path / ".repofix" / "runs" / state.run_id / "result.json").exists()
 
 
+def test_loop_passes_remaining_token_allowance_into_provider(tmp_path):
+    provider = TokenLimitedProvider()
+    state = AgentLoop(provider, str(tmp_path), max_tokens=250).run("fix tests")
+
+    assert provider.limit == 250
+    assert state.status == "budget_exhausted"
+    assert state.failure_kind == "token_budget_reserve"
+    assert state.usage.total_tokens == 120
+    assert "130 remain" in state.error
+    assert "missing required arguments: path" in state.error
+
+
 def test_loop_accounts_for_provider_retry_request_limit(tmp_path):
     provider = RequestLimitedProvider()
     state = AgentLoop(provider, str(tmp_path), max_requests=1).run("fix tests")
@@ -71,6 +106,7 @@ def test_loop_accounts_for_provider_retry_request_limit(tmp_path):
     assert state.usage.requests == 1
     assert state.usage.total_tokens == 12
     assert "1/1" in state.error
+    assert "missing required arguments: path" in state.error
 
 
 class FailingProvider:

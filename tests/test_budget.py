@@ -36,6 +36,13 @@ def test_remaining_request_allowance_is_bounded_at_zero():
     assert BudgetLimits().remaining_requests(TokenUsage(requests=5)) is None
 
 
+def test_remaining_token_allowance_is_bounded_at_zero():
+    limits = BudgetLimits(max_tokens=500)
+    assert limits.remaining_tokens(TokenUsage(total_tokens=125)) == 375
+    assert limits.remaining_tokens(TokenUsage(total_tokens=600)) == 0
+    assert BudgetLimits().remaining_tokens(TokenUsage(total_tokens=600)) is None
+
+
 def test_negative_budget_is_rejected():
     with pytest.raises(ValueError, match="zero or positive"):
         BudgetLimits(max_requests=-1)

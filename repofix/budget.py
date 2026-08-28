@@ -45,6 +45,11 @@ class BudgetLimits:
             return None
         return max(self.max_requests - usage.requests, 0)
 
+    def remaining_tokens(self, usage: TokenUsage) -> int | None:
+        if not self.max_tokens:
+            return None
+        return max(self.max_tokens - usage.total_tokens, 0)
+
 
 @dataclass(frozen=True)
 class ModelPricing:

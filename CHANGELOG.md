@@ -2,12 +2,16 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-08-28
+
 - Persist compact read-range and search-query navigation memory in every model context and context snapshot.
 - Skip oversized middle observations while selecting bounded history so smaller, older search and patch evidence can remain visible.
 - Add structured read/search telemetry for file ranges, total lines, query scope, match counts, and truncation.
 - Add optional Harness-owned focused pytest feedback after each changed patch, while keeping full-suite final acceptance independent.
 - Follow actually called module attributes through up to three local facade/re-export files when seeding failure context, scoped to the traceback's failing function and parsed without importing repository code.
 - Prefer provider-native single-tool calls generated from the central action registry, with schema validation and automatic fallback to JSON mode for compatible endpoints that do not return a valid tool call.
+- Preserve the last provider format error when a request budget interrupts a retry and select the first valid action from compatible providers that emit parallel tool calls.
+- Pass the remaining run-level token allowance into the Provider and deny an internal format retry whose estimated request would exceed it, preventing retries inside one Agent step from bypassing the Harness admission budget.
 
 ## 1.5.0 - 2026-08-28
 
