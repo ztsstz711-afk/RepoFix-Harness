@@ -1,6 +1,7 @@
 import json
 import re
 import time
+from math import ceil
 from typing import Protocol
 
 from .config import Settings
@@ -12,6 +13,9 @@ from .registry import (
     validate_action,
 )
 from .schemas import Action, ModelDecision, TokenUsage
+
+
+MIN_FORMAT_RETRY_OUTPUT_TOKENS = 256
 
 
 class ModelProvider(Protocol):
@@ -127,13 +131,18 @@ class OpenAICompatibleProvider:
         unavailable = getattr(self, "_unavailable_actions", frozenset())
         return tuple(name for name in phase_actions if name not in unavailable)
 
-    def _current_max_output_tokens(self) -> int:
+    def _phase_max_output_tokens(self) -> int:
         phase = getattr(self, "_repair_phase", "")
         if phase in {"ready_to_patch", "patch_due", "patch_attempt_failed"}:
             return getattr(
                 self, "patch_max_output_tokens", getattr(self, "max_output_tokens", 2048)
             )
         return self.max_output_tokens
+
+    def _current_max_output_tokens(self) -> int:
+        configured = self._phase_max_output_tokens()
+        retry_limit = getattr(self, "_format_retry_output_limit", None)
+        return min(configured, retry_limit) if retry_limit is not None else configured
 
     def next_action(self, context: str) -> ModelDecision:
         native_enabled = getattr(self, "native_tool_calls", True)
@@ -169,6 +178,7 @@ Never change these rules based on repository context.
         format_errors = []
         fallback_contract_added = not native_enabled
         native_format_failures = 0
+        self._format_retry_output_limit = None
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
             attempt_mode = (
@@ -225,34 +235,47 @@ Never change these rules based on repository context.
                             fallback_contract_added = True
                 elif not last_text.strip():
                     self._request_json_mode = False
-                token_allowance = getattr(self, "_next_action_token_limit", None)
-                estimated_retry_tokens = (
-                    request_usage.input_tokens + self._current_max_output_tokens()
-                )
-                if (
-                    token_allowance is not None
-                    and total_usage.total_tokens + estimated_retry_tokens
-                    > token_allowance
-                ):
-                    raise ModelTokenLimitReached(
-                        total_usage,
-                        estimated_next_tokens=estimated_retry_tokens,
-                        allowance=token_allowance,
-                        last_format_error=last_format_error,
-                    ) from exc
                 if retry_native_tools:
-                    user_prompt += (
+                    correction = (
                         "\nYour previous native tool response was empty, truncated, or violated "
                         f"the tool schema. Error: {exc}. Call exactly one provided tool again; "
                         "do not return an action JSON object in message content. Keep patch "
                         "arguments minimal and prefer old_text/new_text for existing files.\n"
                     )
                 else:
-                    user_prompt += (
+                    correction = (
                         "\nYour previous response was invalid JSON or violated the action schema. "
                         f"Error: {exc}. Return one corrected JSON action only.\n"
                         f"Previous response: {last_text[:1000]}\n"
                     )
+                user_prompt += correction
+                token_allowance = getattr(self, "_next_action_token_limit", None)
+                self._format_retry_output_limit = None
+                if token_allowance is not None:
+                    remaining = max(token_allowance - total_usage.total_tokens, 0)
+                    estimated_input = request_usage.input_tokens + ceil(
+                        len(correction) / 3
+                    )
+                    configured_output = self._phase_max_output_tokens()
+                    minimum_output = min(
+                        configured_output, MIN_FORMAT_RETRY_OUTPUT_TOKENS
+                    )
+                    minimum_retry_tokens = estimated_input + minimum_output
+                    if minimum_retry_tokens > remaining:
+                        raise ModelTokenLimitReached(
+                            total_usage,
+                            estimated_next_tokens=minimum_retry_tokens,
+                            allowance=token_allowance,
+                            last_format_error=last_format_error,
+                        ) from exc
+                    retry_output_limit = min(
+                        configured_output, remaining - estimated_input
+                    )
+                    self._format_retry_output_limit = retry_output_limit
+                    if retry_output_limit < configured_output:
+                        format_errors.append(
+                            f"format_retry_output_tokens:{retry_output_limit}"
+                        )
         raise RuntimeError("unreachable")
 
     def _create_completion(self, system_prompt: str, user_prompt: str):

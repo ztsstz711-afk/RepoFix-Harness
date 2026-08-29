@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.0 针对 V2.9 暴露的 residual-budget recovery：格式重试不再固定要求完整 4,096 patch output reserve，而是在保守估算重复输入和纠错提示后，将剩余硬 token 预算动态分配给输出；若不足最低 256 输出仍拒绝。缩减后的 allowance 写入 diagnostics，run-level token 上限不放松。V2.9 三条失败中有两条理论上可利用 7.5–9.5k 剩余预算继续纠错；真实门禁将单独冻结。详见 [V3.0 residual-budget format recovery](docs/v3.0-residual-format-recovery.md)。
+
 V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：pytest 已直接指向刚修改源码时，只允许一次窄读便强制再次补丁；仅指向测试断言时仍保留两次导航。离线重放准确改变三条失败轨迹，但后续冻结 60k 门禁仍为 0/3 verified、3/3 范围命中、27 requests / 156,017 tokens / 3 format retries，估算 $0.06299875。它比 V2.8 同预算少约 5.7% tokens，却暴露出补丁格式纠错所需的完整 4,096 output reserve 无法装入剩余预算；这是负结果，不宣称成功率改善。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
 
 V2.8 针对 V2.7 的长轨迹优化 Harness context：新 pytest 证据替代旧 baseline 正文，重复 read/search 只保留最新上下文副本，失败行实际使用的本地 import 优先。离线重放第 8–11 步减少 11,531 个上下文字符。后续冻结 DeepSeek 门禁仍揭示明确边界：non-thinking 60k 为 0/3 verified、3/3 范围命中、27 requests / 165,403 tokens；独立 72k follow-up 为 1/3 verified、3/3 范围命中、33 requests / 190,062 tokens，唯一成功通过完整 78 项 h11 测试。两组不合并，V2.8 没有证明该状态机修复已稳定。详见 [V2.8 context compaction and model gates](docs/v2.8-context-compaction.md)。
@@ -154,6 +156,8 @@ Local backend 仅用于可信仓库；它会移除 `REPOFIX_*` 以及常见 key/
 Provider 默认请求 OpenAI-compatible JSON mode，减少动作格式错误；若服务返回已知的空 JSON content，同一动作的下一次重试会自动降级为普通文本模式。若某个旧兼容端点完全不支持 `response_format: json_object`，可设置 `REPOFIX_JSON_MODE=0` 退回纯 prompt 约束。
 
 Provider 还会优先使用 OpenAI-compatible Function Calling，把注册工具转成 JSON Schema 并要求单次只调用一个工具；若响应没有合法 tool call，会在同一动作的下一次重试自动降级到 JSON mode。旧端点可设置 `REPOFIX_NATIVE_TOOL_CALLS=0` 直接关闭。
+
+格式纠错默认保留正常输出上限；接近 run token 边界时，会在估算重复输入后缩小该次 retry 的输出上限，最低 256 tokens。若最低额度也无法安全容纳，Harness 仍在请求前停止并执行独立最终验收。
 
 Action Registry 对参数类型、行号范围和两种 patch 模式提供同一份结构化定义；Context 根据已完成的定位、修改和测试状态标记 repair phase，在证据足够时优先推动最小局部补丁，验证通过后推动结束，而不是继续重复读取。
 

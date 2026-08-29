@@ -3,6 +3,7 @@ import pytest
 from types import SimpleNamespace
 
 from repofix.provider import (
+    MIN_FORMAT_RETRY_OUTPUT_TOKENS,
     InvalidModelActionError,
     ModelRequestLimitReached,
     ModelTokenLimitReached,
@@ -629,5 +630,66 @@ def test_provider_refuses_format_retry_that_exceeds_token_allowance():
 
     assert calls == 1
     assert raised.value.usage.total_tokens == 120
-    assert raised.value.estimated_next_tokens == 180
+    assert raised.value.estimated_next_tokens > 130
     assert raised.value.last_format_error
+
+
+def test_provider_shrinks_format_retry_output_to_use_residual_budget():
+    requests = []
+    responses = iter(
+        [
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(message=SimpleNamespace(content='{"name" "apply_patch"}'))
+                ],
+                usage=SimpleNamespace(
+                    prompt_tokens=100, completion_tokens=20, total_tokens=120
+                ),
+            ),
+            SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=SimpleNamespace(
+                            content=(
+                                '{"name":"apply_patch","arguments":'
+                                '{"path":"a.py","old_text":"old",'
+                                '"new_text":"new"}}'
+                            )
+                        )
+                    )
+                ],
+                usage=SimpleNamespace(
+                    prompt_tokens=180, completion_tokens=40, total_tokens=220
+                ),
+            ),
+        ]
+    )
+
+    class Completions:
+        def create(self, **kwargs):
+            requests.append(kwargs)
+            return next(responses)
+
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.model = "mock-model"
+    provider.max_transient_retries = 0
+    provider.max_format_retries = 1
+    provider.max_output_tokens = 2048
+    provider.patch_max_output_tokens = 4096
+    provider.native_tool_calls = False
+    provider.json_mode = True
+    provider._next_action_request_limit = None
+    provider._next_action_token_limit = None
+    provider.client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
+    provider.set_action_policy("patch_due")
+    provider.limit_next_action_tokens(1000)
+
+    decision = provider.next_action("repair_phase=patch_due")
+
+    assert decision.action.name == "apply_patch"
+    assert requests[0]["max_tokens"] == 4096
+    assert MIN_FORMAT_RETRY_OUTPUT_TOKENS <= requests[1]["max_tokens"] < 4096
+    assert any(
+        item.startswith("format_retry_output_tokens:")
+        for item in decision.diagnostics
+    )
