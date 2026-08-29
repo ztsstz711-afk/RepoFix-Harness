@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V3.4 将 working set 扩展到 `patch_needs_verification`：只向模型保留当前补丁及其后的工具事件，旧导航仍留在完整 trace；同时记录通用的 working-set kind，并让请求准入使用当前紧凑 context。离线重放 V3.3 的 5 个真实验证请求时，context 从 22–24k 降到 2.5–10.2k，单次减少 13.1k–20.9k 字符。真实门禁独立冻结，详见 [V3.4 verification working set](docs/v3.4-verification-working-set.md)。
+V3.4 将 working set 扩展到 `patch_needs_verification`：只向模型保留当前补丁及其后的工具事件，旧导航仍留在完整 trace。离线重放 V3.3 的 5 个验证请求时，context 从 22–24k 降到 2.5–10.2k；真实门禁也降到 3.3–11.2k，但结果为 0/3 verified、3/3 范围命中，使用 35 requests / 164,905 tokens / 2 format retries，估算 $0.06341088。三次都写出第二补丁但仍未通过，瓶颈已转为有限请求内的补丁质量与显式验证开销。详见 [V3.4 verification working set](docs/v3.4-verification-working-set.md)。
 
 V3.3 针对 V3.2 两条轨迹中的 evidence provenance 缺陷：只有带实际返回码或超时标记的 `run_command` 才算 pytest 证据；被权限层拒绝的命令仍写入 trace，但不改变测试状态。冻结 h11 三次门禁为 1/3 verified、3/3 范围命中，使用 30 requests / 161,327 tokens / 1 format retry，估算 $0.06474308；成功项通过完整 78 项验收。另两项都在第二补丁的真实 pytest 仍失败后触及 token reserve，并暴露验证请求重新膨胀到 22–24k context 的成本问题。详见 [V3.3 test evidence provenance](docs/v3.3-test-evidence-provenance.md)。
 
