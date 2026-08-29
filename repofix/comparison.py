@@ -70,7 +70,7 @@ def compare_evaluation_reports(
     ]
 
     return {
-        "comparison_schema_version": 1,
+        "comparison_schema_version": 2,
         "comparison_dimension": dimension,
         "suite": baseline["suite"],
         "manifest_sha256": baseline["manifest"]["sha256"],
@@ -103,6 +103,13 @@ def compare_evaluation_reports(
         "paired_outcomes": _paired_outcomes(baseline_tasks, candidate_tasks),
         "paired_requests": _paired_resource_summary(request_deltas),
         "paired_tokens": _paired_resource_summary(token_deltas),
+        "phase_telemetry_delta": _phase_telemetry_delta(
+            baseline.get("phase_telemetry"), candidate.get("phase_telemetry")
+        ),
+        "phase_telemetry_by_case_delta": _grouped_phase_telemetry_delta(
+            baseline.get("phase_telemetry_by_case"),
+            candidate.get("phase_telemetry_by_case"),
+        ),
         "trials": [
             {
                 "id": task_id,
@@ -119,6 +126,44 @@ def compare_evaluation_reports(
             }
             for task_id in task_ids
         ],
+    }
+
+
+def _phase_telemetry_delta(baseline: object, candidate: object) -> dict | None:
+    if not isinstance(baseline, dict) or not isinstance(candidate, dict):
+        return None
+    return {
+        "snapshot_count": candidate["snapshot_count"] - baseline["snapshot_count"],
+        "target_read_grace_activations": (
+            candidate["target_read_grace_activations"]
+            - baseline["target_read_grace_activations"]
+        ),
+        "phase_counts": _count_deltas(
+            baseline["phase_counts"], candidate["phase_counts"]
+        ),
+        "transition_counts": _count_deltas(
+            baseline["transition_counts"], candidate["transition_counts"]
+        ),
+    }
+
+
+def _grouped_phase_telemetry_delta(
+    baseline: object, candidate: object
+) -> dict[str, dict] | None:
+    if not isinstance(baseline, dict) or not isinstance(candidate, dict):
+        return None
+    if set(baseline) != set(candidate):
+        raise ValueError("phase telemetry case groups do not match")
+    return {
+        name: _phase_telemetry_delta(baseline[name], candidate[name])
+        for name in sorted(baseline)
+    }
+
+
+def _count_deltas(baseline: dict, candidate: dict) -> dict[str, int]:
+    return {
+        name: candidate.get(name, 0) - baseline.get(name, 0)
+        for name in sorted(set(baseline) | set(candidate))
     }
 
 

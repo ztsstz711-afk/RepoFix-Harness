@@ -4,6 +4,10 @@ import pytest
 
 from repofix.comparison import compare_evaluation_reports
 from repofix.comparison_cli import render_model_comparison_markdown
+from repofix.reporting import (
+    aggregate_grouped_phase_telemetry,
+    aggregate_phase_telemetry,
+)
 
 
 def _report(model, statuses, requests, tokens, costs):
@@ -116,6 +120,54 @@ def test_compare_reports_calculates_totals_and_paired_outcomes():
     assert comparison["paired_outcomes"]["candidate_only_success"] == 1
     assert comparison["paired_requests"]["candidate_better_pairs"] == 1
     assert comparison["paired_requests"]["baseline_better_pairs"] == 1
+
+
+def _with_phase_telemetry(report, phases):
+    report = copy.deepcopy(report)
+    report["report_schema_version"] = 3
+    for task, task_phases in zip(report["tasks"], phases, strict=True):
+        task["context_snapshots"] = [
+            {
+                "repair_phase": phase,
+                "target_read_grace": phase == "target_read_due",
+            }
+            for phase in task_phases
+        ]
+    tasks = report["tasks"]
+    report["phase_telemetry"] = aggregate_phase_telemetry(tasks)
+    report["phase_telemetry_by_variant"] = aggregate_grouped_phase_telemetry(
+        tasks, "variant"
+    )
+    report["phase_telemetry_by_case"] = aggregate_grouped_phase_telemetry(
+        tasks, "case"
+    )
+    return report
+
+
+def test_compare_reports_attributes_phase_deltas_overall_and_by_case():
+    baseline = _with_phase_telemetry(
+        _report("flash", ["success"], [3], [600], [0.01]),
+        [["locating", "inspecting", "verified_patch"]],
+    )
+    candidate = _with_phase_telemetry(
+        _report("pro", ["success"], [4], [700], [0.02]),
+        [["locating", "target_read_due", "patch_due", "verified_patch"]],
+    )
+
+    comparison = compare_evaluation_reports(baseline, candidate)
+
+    delta = comparison["phase_telemetry_delta"]
+    assert delta["snapshot_count"] == 1
+    assert delta["target_read_grace_activations"] == 1
+    assert delta["phase_counts"]["inspecting"] == -1
+    assert delta["phase_counts"]["target_read_due"] == 1
+    assert comparison["phase_telemetry_by_case_delta"]["case"] == delta
+
+    rendered = render_model_comparison_markdown(comparison)
+    assert "## Repair-phase delta" in rendered
+    assert "| Context snapshots | +1 |" in rendered
+    assert "| Phase `inspecting` | -1 |" in rendered
+    assert "| Case `case` snapshots | +1 |" in rendered
 
 
 def test_compare_reports_rejects_changed_experiment_identity():

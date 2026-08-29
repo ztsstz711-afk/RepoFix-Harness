@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.5.0 - 2026-08-30
+
+- Add overall and per-case repair-phase deltas to strict model/thinking report comparisons.
+- Surface non-zero phase-count differences and per-case snapshot deltas in comparison Markdown.
+- Keep phase deltas optional for historical schema-v1/v2 reports while publishing comparison schema v2.
+
 ## 4.4.0 - 2026-08-30
 
 - Add checksum-derived repair-phase telemetry grouped by evaluation case and variant.

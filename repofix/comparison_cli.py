@@ -10,8 +10,7 @@ def render_model_comparison_markdown(comparison: dict) -> str:
     candidate = comparison["candidate"]
     delta = comparison["delta"]
     outcomes = comparison["paired_outcomes"]
-    return "\n".join(
-        [
+    lines = [
             f"# Evaluation comparison: {comparison['suite']}",
             "",
             "| Metric | Baseline | Candidate | Delta |",
@@ -23,6 +22,34 @@ def render_model_comparison_markdown(comparison: dict) -> str:
             f"| Requests | {baseline['requests']:,} | {candidate['requests']:,} | {_delta_cell(delta['requests'])} |",
             f"| Tokens | {baseline['tokens']:,} | {candidate['tokens']:,} | {_delta_cell(delta['tokens'])} |",
             f"| Estimated cost | ${baseline['estimated_cost_usd']:.8f} | ${candidate['estimated_cost_usd']:.8f} | {_delta_cell(delta['estimated_cost_usd'], currency=True)} |",
+    ]
+    phase_delta = comparison.get("phase_telemetry_delta")
+    if phase_delta:
+        lines.extend([
+            "",
+            "## Repair-phase delta",
+            "",
+            "Positive values mean the candidate used more decision snapshots.",
+            "",
+            "| Metric | Candidate - baseline |",
+            "|---|---:|",
+            f"| Context snapshots | {phase_delta['snapshot_count']:+} |",
+            (
+                "| Target-read grace activations | "
+                f"{phase_delta['target_read_grace_activations']:+} |"
+            ),
+        ])
+        for phase, value in phase_delta["phase_counts"].items():
+            if value:
+                lines.append(f"| Phase `{phase}` | {value:+} |")
+        for case, case_delta in (
+            comparison.get("phase_telemetry_by_case_delta") or {}
+        ).items():
+            lines.append(
+                f"| Case `{case}` snapshots | {case_delta['snapshot_count']:+} |"
+            )
+
+    lines.extend([
             "",
             "## Paired outcomes",
             "",
@@ -42,8 +69,8 @@ def render_model_comparison_markdown(comparison: dict) -> str:
                 for fingerprint in comparison["docker_runtime_fingerprints"]
             ],
             "",
-        ]
-    )
+    ])
+    return "\n".join(lines)
 
 
 def _delta_cell(metric: dict, currency: bool = False) -> str:
