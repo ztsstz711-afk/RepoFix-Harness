@@ -44,7 +44,7 @@ class ContextBuilder:
 
     def build_with_metadata(self, history: list[dict]) -> ContextBuildResult:
         repair_phase = self._repair_phase(history)
-        working_history, working_set_pruned = self._revision_working_set(
+        working_history, working_set_pruned, working_set_kind = self._phase_working_set(
             history, repair_phase
         )
         progress = self._progress_summary(history, working_history)
@@ -115,8 +115,13 @@ class ContextBuilder:
                 "history_events_included": len(selected),
                 "history_events_omitted": omitted,
                 "history_events_deduplicated": deduplicated,
-                "revision_working_set_active": working_set_pruned > 0,
-                "revision_working_set_pruned": working_set_pruned,
+                "phase_working_set_active": working_set_kind != "none",
+                "phase_working_set_kind": working_set_kind,
+                "phase_working_set_pruned": working_set_pruned,
+                "revision_working_set_active": working_set_kind == "revision",
+                "revision_working_set_pruned": (
+                    working_set_pruned if working_set_kind == "revision" else 0
+                ),
                 "history_events_skipped_oversized": oversized_skipped,
                 "navigation_summary": self._navigation_summary(working_history),
                 "repair_phase": repair_phase,
@@ -216,11 +221,21 @@ class ContextBuilder:
         return selected, deduplicated
 
     @staticmethod
-    def _revision_working_set(
+    def _phase_working_set(
         history: list[dict], repair_phase: str
-    ) -> tuple[list[dict], int]:
+    ) -> tuple[list[dict], int, str]:
+        if repair_phase == "patch_needs_verification":
+            for index in range(len(history) - 1, -1, -1):
+                event = history[index]
+                action = event.get("action", {})
+                observation = event.get("observation", {})
+                if action.get("name") == "apply_patch" and observation.get(
+                    "metadata", {}
+                ).get("changed"):
+                    return history[index:], index, "verification"
+            return history, 0, "none"
         if repair_phase not in {"patch_needs_revision", "patch_due"}:
-            return history, 0
+            return history, 0, "none"
         changed_patch_indices: list[int] = []
         latest_failed_test: int | None = None
         for index, event in enumerate(history):
@@ -241,19 +256,19 @@ class ContextBuilder:
             ):
                 latest_failed_test = index
         if latest_failed_test is None:
-            return history, 0
+            return history, 0, "none"
         patch_candidates = [
             index for index in changed_patch_indices if index <= latest_failed_test
         ]
         if not patch_candidates:
-            return history, 0
+            return history, 0, "none"
         patch_index = patch_candidates[-1]
         selected_indices = {patch_index, latest_failed_test}
         selected_indices.update(range(latest_failed_test + 1, len(history)))
         selected = [
             event for index, event in enumerate(history) if index in selected_indices
         ]
-        return selected, len(history) - len(selected)
+        return selected, len(history) - len(selected), "revision"
 
     def _preflight_section(self) -> str:
         if self.preflight is None:

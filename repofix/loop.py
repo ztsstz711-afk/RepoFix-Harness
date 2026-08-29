@@ -156,7 +156,7 @@ class AgentLoop:
             estimated_next_tokens = self._estimate_next_request_tokens(
                 context,
                 prefer_context_estimate=context_result.metadata.get(
-                    "revision_working_set_active", False
+                    "phase_working_set_active", False
                 ),
             )
             denied = self.budget.admission_denied(self.state.usage, estimated_next_tokens)

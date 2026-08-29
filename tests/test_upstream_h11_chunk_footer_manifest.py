@@ -166,3 +166,23 @@ def test_v33_h11_gate_repeats_the_same_60k_case_three_times():
     assert task["test_command"].endswith("test_io.py::test_ChunkedReader")
     assert task["final_test_command"] == "pytest -q h11"
     assert task["expected_changed_files"] == ["h11/_readers.py"]
+
+
+def test_v34_h11_gate_repeats_the_same_60k_case_three_times():
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (
+            root / "evals" / "upstream-h11-chunk-footer-stability-v3.4.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert manifest["max_total_requests"] == 36
+    assert len(manifest["tasks"]) == 1
+    task = manifest["tasks"][0]
+    assert task["repetitions"] == 3
+    assert task["max_requests"] == 12
+    assert task["max_tokens"] == 60000
+    assert task["execution_backend"] == "docker"
+    assert task["test_command"].endswith("test_io.py::test_ChunkedReader")
+    assert task["final_test_command"] == "pytest -q h11"
+    assert task["expected_changed_files"] == ["h11/_readers.py"]

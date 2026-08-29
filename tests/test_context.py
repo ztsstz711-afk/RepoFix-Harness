@@ -577,6 +577,8 @@ def test_new_revision_patch_invalidates_older_failed_pytest_evidence():
     assert result.metadata["repair_phase"] == "patch_needs_verification"
     assert result.metadata["revision_navigation_cap"] is None
     assert result.metadata["revision_working_set_active"] is False
+    assert result.metadata["phase_working_set_active"] is True
+    assert result.metadata["phase_working_set_kind"] == "verification"
     assert "latest_agent_pytest=not run for current patch" in result.text
 
 
@@ -675,6 +677,8 @@ def test_denied_command_is_not_treated_as_pytest_evidence_for_current_patch():
     assert result.metadata["repair_phase"] == "patch_needs_verification"
     assert result.metadata["revision_navigation_cap"] is None
     assert result.metadata["revision_working_set_active"] is False
+    assert result.metadata["phase_working_set_active"] is True
+    assert result.metadata["phase_working_set_kind"] == "verification"
     assert "latest_agent_pytest=not run for current patch" in result.text
 
 
@@ -730,3 +734,67 @@ def test_denied_command_does_not_supersede_independent_baseline():
 
     assert result.metadata["baseline_output_superseded"] is False
     assert "ORIGINAL-BASELINE" in result.text
+
+
+def test_verification_working_set_keeps_only_current_patch_and_later_events():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "read"},
+            "observation": {"success": True, "output": "OLD-NAVIGATION"},
+        },
+        {
+            "step": 2,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "output": "OLD-PATCH",
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "OLD-FAILURE",
+                "metadata": {"return_code": 1, "timed_out": False},
+            },
+        },
+        {
+            "step": 4,
+            "action": {"name": "read"},
+            "observation": {"success": True, "output": "REVISION-EVIDENCE"},
+        },
+        {
+            "step": 5,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "output": "CURRENT-PATCH",
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 6,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "DENIED-ACTION",
+                "metadata": {"output_chars": 13, "output_truncated": False},
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_verification"
+    assert result.metadata["phase_working_set_kind"] == "verification"
+    assert result.metadata["phase_working_set_pruned"] == 4
+    assert result.metadata["history_events_included"] == 2
+    assert "CURRENT-PATCH" in result.text
+    assert "DENIED-ACTION" in result.text
+    assert "OLD-NAVIGATION" not in result.text
+    assert "OLD-PATCH" not in result.text
+    assert "OLD-FAILURE" not in result.text
+    assert "REVISION-EVIDENCE" not in result.text

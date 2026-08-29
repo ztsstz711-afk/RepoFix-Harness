@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.4.0 - 2026-08-29
+
+- Add a verification working set that keeps only the current changed patch and later tool events while focused pytest is still required.
+- Record a general phase working-set kind and pruning count while preserving the V3.1 revision-specific metadata fields for compatibility.
+- Use compact verification context for request admission instead of an obsolete historical-average floor.
+
 ## 3.3.0 - 2026-08-29
 
 - Count `run_command` as pytest evidence only when execution metadata proves the command actually ran or timed out.
