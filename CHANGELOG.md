@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.3.0 - 2026-08-30
+
+- Add report-level repair-phase counts, changed-phase transitions, and target-read grace activations derived from task context snapshots.
+- Introduce evaluation report schema v2 with backward-compatible v1 validation and resume support.
+- Reject schema-v2 reports whose phase telemetry was altered or no longer matches the underlying task snapshots.
+
 ## 4.2.0 - 2026-08-30
 
 - Add a nine-trial cross-project regression gate over three checksum-qualified upstream bug families.

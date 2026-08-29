@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.3 把 `context_snapshots` 中的修复阶段提升为可校验的 report-level telemetry：自动汇总阶段次数、真实阶段切换和 `target_read_due` 激活次数，并在发布 Markdown 前从 task 明细重新计算，手工篡改汇总会被拒绝。用冻结的 V4.2 九条真实轨迹离线回算得到 43 snapshots、0 次 target-read grace 激活；阶段明细现在无需逐条解析 JSON。evaluation report schema 升级到 v2，同时继续兼容读取和恢复 v1 报告。详见 [V4.3 phase telemetry](docs/v4.3-phase-telemetry.md)。
+
 V4.2 对 V4.1 做跨项目回归：复用 `more-itertools.last()`、`numeric_range.__reversed__()` 和 Click help rendering 三个 checksum-qualified 真实上游合同，各运行三次。默认 Flash/non-thinking 得到 9/9 verified、9/9 精确范围，43 requests / 103,631 tokens、0 retries，峰值保守成本 $0.03658515。九条轨迹都在 1–3 次导航内进入补丁，没有触发 `target_read_due`，说明新宽限只处理“第五次搜索刚发现未读目标”的边界，没有给历史稳定案例增加步骤。详见 [V4.2 cross-project regression](docs/v4.2-target-read-regression.md)。
 
 V4.1 修复 V4.0 三条 Pro 失败轨迹共同暴露的阶段策略缺陷：第 5 次导航刚搜索到尚未读取的源码行时，不再立即强制补丁，而进入一次性的 `target_read_due`，只允许 `read/apply_patch`；完成窄读后立刻回到 patch-only。离线重放把三条旧轨迹的 placeholder 补丁前移除；同一 ItsDangerous/Pro/non-thinking/40k/12-request 三次真实门禁从 0/3 提升到 3/3，requests 从 36 降到 24（-33.33%）、tokens 从 107,158 降到 76,799（-28.33%），0 format retries，完整 100 项测试和 3/3 范围均通过。详见 [V4.1 target-read grace](docs/v4.1-target-read-grace.md)。

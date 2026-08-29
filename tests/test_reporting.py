@@ -2,7 +2,11 @@ import copy
 
 import pytest
 
-from repofix.reporting import render_evaluation_markdown, validate_evaluation_report
+from repofix.reporting import (
+    aggregate_phase_telemetry,
+    render_evaluation_markdown,
+    validate_evaluation_report,
+)
 
 
 def test_render_evaluation_markdown_surfaces_paired_results_and_fingerprints():
@@ -190,6 +194,95 @@ def _valid_aggregate_report():
 
 def test_validate_evaluation_report_accepts_consistent_aggregates():
     validate_evaluation_report(_valid_aggregate_report())
+
+
+def test_phase_telemetry_aggregates_counts_transitions_and_grace_activations():
+    tasks = [
+        {
+            "context_snapshots": [
+                {"repair_phase": "locating", "target_read_grace": False},
+                {"repair_phase": "inspecting", "target_read_grace": False},
+                {"repair_phase": "inspecting", "target_read_grace": False},
+                {"repair_phase": "target_read_due", "target_read_grace": True},
+                {"repair_phase": "patch_due", "target_read_grace": False},
+            ]
+        },
+        {
+            "context_snapshots": [
+                {"repair_phase": "locating", "target_read_grace": False},
+                {"repair_phase": "target_read_due", "target_read_grace": True},
+            ]
+        },
+    ]
+
+    assert aggregate_phase_telemetry(tasks) == {
+        "snapshot_count": 7,
+        "phase_counts": {
+            "inspecting": 2,
+            "locating": 2,
+            "patch_due": 1,
+            "target_read_due": 2,
+        },
+        "transition_counts": {
+            "inspecting -> target_read_due": 1,
+            "locating -> inspecting": 1,
+            "locating -> target_read_due": 1,
+            "target_read_due -> patch_due": 1,
+        },
+        "target_read_grace_activations": 2,
+    }
+
+
+def test_validate_schema_v2_recomputes_phase_telemetry():
+    report = _valid_aggregate_report()
+    report["report_schema_version"] = 2
+    report["tasks"][0]["context_snapshots"] = [
+        {"repair_phase": "locating", "target_read_grace": False},
+        {"repair_phase": "target_read_due", "target_read_grace": True},
+    ]
+    report["phase_telemetry"] = aggregate_phase_telemetry(report["tasks"])
+
+    validate_evaluation_report(report)
+    report["phase_telemetry"]["target_read_grace_activations"] = 0
+
+    with pytest.raises(ValueError, match="phase telemetry"):
+        validate_evaluation_report(report)
+
+
+def test_render_evaluation_markdown_includes_phase_telemetry():
+    report = {
+        "report_schema_version": 2,
+        "suite": "phase-policy",
+        "completed": True,
+        "started_at": "start",
+        "completed_at": "end",
+        "experiment": {},
+        "successes": 1,
+        "task_count": 1,
+        "change_scope_matches": 1,
+        "change_scope_evaluated": 1,
+        "usage": {"requests": 2, "retries": 0, "total_tokens": 100},
+        "estimated_cost_usd": 0,
+        "variants": {},
+        "variant_comparisons": {},
+        "cases": {},
+        "manifest": {"sha256": "a" * 64},
+        "sources": {},
+        "failure_counts": {},
+        "phase_telemetry": {
+            "snapshot_count": 2,
+            "phase_counts": {"locating": 1, "target_read_due": 1},
+            "transition_counts": {"locating -> target_read_due": 1},
+            "target_read_grace_activations": 1,
+        },
+    }
+
+    rendered = render_evaluation_markdown(report)
+
+    assert "## Agent phase telemetry" in rendered
+    assert "Target-read grace activations: 1" in rendered
+    assert "| target_read_due | 1 |" in rendered
+    assert "| locating -> target_read_due | 1 |" in rendered
 
 
 @pytest.mark.parametrize(

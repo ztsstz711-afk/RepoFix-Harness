@@ -40,7 +40,7 @@ flowchart LR
 | `evaluation.py` | 使用持久化验证命令独立运行 baseline/final/post-rollback pytest |
 | `storage.py` | 原子保存 latest 与 per-run trace/result |
 | `suite.py` | 隔离复制、交错重复 trial、失败隔离、配对统计、实验指纹和聚合报告 |
-| `reporting.py` | 将稳定的 evaluation JSON 字段渲染为便于审阅的 Markdown 摘要 |
+| `reporting.py` | 从 task 明细重算聚合值与 repair-phase telemetry，并渲染 Markdown 摘要 |
 | `comparison.py` | 校验两份评测身份并计算跨模型整体/逐 trial 差异 |
 | `comparison_cli.py` | 读取两个 report，输出机器可读 JSON 与 Markdown 对照 |
 | `run_manager.py` | 历史 run 查询和事后安全回滚 |
@@ -112,7 +112,7 @@ CLI 将 provider model、单次最大输出 token，以及 input/cached-input/ou
 
 同一 metadata 还包含安装包版本和 Harness source SHA-256。后者按相对路径与原始字节哈希 `repofix/**/*.py` 和 `pyproject.toml`，因此即使开发者忘记提升版本号，任何控制逻辑变化也会让旧 progress 拒绝续跑。
 
-最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope 和 failure counts；聚合值不一致时拒绝发布。这样 Markdown 渲染和面试结论不会建立在内部损坏的汇总字段上，完整 trial 仍保留在 `progress.json` 供修复后续跑收尾。
+最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope、failure counts 和 repair-phase telemetry；聚合值不一致时拒绝发布。phase telemetry 包含所有决策前 context snapshot 的阶段次数、排除同阶段停留后的真实阶段切换，以及每个 task 进入 `target_read_due` 的次数。这样策略是否触发不再依赖手工遍历 trace，Markdown 渲染和面试结论也不会建立在内部损坏的汇总字段上。schema v2 强制校验这些字段，历史 v1 报告仍可验证和恢复。
 
 评测 identity 还包含 Provider request timeout，避免长思考模型因等待上限不同而形成不可见混杂。`repofix-compare` 不会直接相信两份报告标题相同：它会分别重验内部聚合，再要求 suite、manifest SHA-256、source snapshots、Harness 版本与源码哈希、输出/工具配置、Docker fingerprint、请求授权和逐 trial 任务定义一致。调用者必须显式选择 `model` 或 `thinking_mode` 维度；前者只允许模型和对应价格变化并锁定 thinking，后者只允许 thinking 变化并锁定模型与价格。通过后才计算 success/scope、requests/tokens/cost 和逐 trial better/tied/worse。
 

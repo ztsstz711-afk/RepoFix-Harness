@@ -15,11 +15,49 @@ _USAGE_FIELDS = (
 )
 
 
+def aggregate_phase_telemetry(tasks: list[dict]) -> dict:
+    """Derive report-level repair-phase telemetry from task snapshots."""
+    phase_counts: Counter[str] = Counter()
+    transition_counts: Counter[str] = Counter()
+    snapshot_count = 0
+    target_read_grace_activations = 0
+
+    for task in tasks:
+        previous_phase: str | None = None
+        for snapshot in task.get("context_snapshots", []):
+            if not isinstance(snapshot, dict):
+                raise ValueError("context snapshot must be an object")
+            phase = snapshot.get("repair_phase")
+            if not isinstance(phase, str) or not phase:
+                raise ValueError("context snapshot must declare repair_phase")
+            grace = snapshot.get("target_read_grace")
+            if not isinstance(grace, bool):
+                raise ValueError("context snapshot must declare target_read_grace")
+            if grace != (phase == "target_read_due"):
+                raise ValueError("target_read_grace does not match repair_phase")
+
+            snapshot_count += 1
+            phase_counts[phase] += 1
+            if previous_phase is not None and phase != previous_phase:
+                transition_counts[f"{previous_phase} -> {phase}"] += 1
+            if phase == "target_read_due" and previous_phase != phase:
+                target_read_grace_activations += 1
+            previous_phase = phase
+
+    return {
+        "snapshot_count": snapshot_count,
+        "phase_counts": dict(sorted(phase_counts.items())),
+        "transition_counts": dict(sorted(transition_counts.items())),
+        "target_read_grace_activations": target_read_grace_activations,
+    }
+
+
 def validate_evaluation_report(report: dict) -> None:
     """Reject internally inconsistent aggregate reports before publication."""
     errors = []
     tasks = report.get("tasks")
-    if report.get("report_schema_version") != 1:
+    schema_version = report.get("report_schema_version")
+    if schema_version not in {1, 2}:
         errors.append("unsupported report schema")
     if not isinstance(tasks, list):
         raise ValueError("invalid evaluation report: tasks must be a list")
@@ -104,6 +142,15 @@ def validate_evaluation_report(report: dict) -> None:
     if report.get("docker_runtime_fingerprints") != docker_fingerprints:
         errors.append("Docker runtime fingerprints do not match tasks")
 
+    if schema_version == 2:
+        try:
+            expected_telemetry = aggregate_phase_telemetry(tasks)
+        except ValueError as exc:
+            errors.append(f"invalid phase telemetry source: {exc}")
+        else:
+            if report.get("phase_telemetry") != expected_telemetry:
+                errors.append("phase telemetry does not match task snapshots")
+
     if errors:
         raise ValueError("invalid evaluation report: " + "; ".join(errors))
 
@@ -153,6 +200,33 @@ def render_evaluation_markdown(report: dict) -> str:
         f"| Total tokens | {_number(usage['total_tokens'])} |",
         f"| Estimated cost (USD) | ${report['estimated_cost_usd']:.8f} |",
     ])
+
+    telemetry = report.get("phase_telemetry")
+    if telemetry:
+        lines.extend([
+            "",
+            "## Agent phase telemetry",
+            "",
+            f"- Context snapshots: {_number(telemetry['snapshot_count'])}",
+            (
+                "- Target-read grace activations: "
+                f"{_number(telemetry['target_read_grace_activations'])}"
+            ),
+            "",
+            "| Repair phase | Snapshots |",
+            "|---|---:|",
+        ])
+        for phase, count in telemetry["phase_counts"].items():
+            lines.append(f"| {_cell(phase)} | {_number(count)} |")
+        transitions = telemetry["transition_counts"]
+        if transitions:
+            lines.extend([
+                "",
+                "| Phase transition | Count |",
+                "|---|---:|",
+            ])
+            for transition, count in transitions.items():
+                lines.append(f"| {_cell(transition)} | {_number(count)} |")
 
     variants = report.get("variants", {})
     if variants:

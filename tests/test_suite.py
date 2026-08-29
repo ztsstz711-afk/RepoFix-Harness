@@ -292,7 +292,7 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monke
     report = EvaluationRunner(SuiteMockProvider).run(load_suite(str(manifest)), str(output))
 
     assert report["success_rate"] == 1.0
-    assert report["report_schema_version"] == 1
+    assert report["report_schema_version"] == 2
     assert report["manifest"]["path"] == str(manifest.resolve())
     assert len(report["manifest"]["sha256"]) == 64
     assert report["sources"]["addition"] == {
@@ -305,6 +305,8 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monke
     assert report["failure_counts"] == {}
     assert report["models"] == {"mock-model": 1}
     assert report["docker_runtime_fingerprints"] == []
+    assert report["phase_telemetry"]["snapshot_count"] == 5
+    assert sum(report["phase_telemetry"]["phase_counts"].values()) == 5
     assert any(
         check["name"] == "execution_backend"
         for check in report["tasks"][0]["preflight_checks"]

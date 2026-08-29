@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Callable
 
 from .loop import AgentLoop
-from .reporting import render_evaluation_markdown, validate_evaluation_report
+from .reporting import (
+    aggregate_phase_telemetry,
+    render_evaluation_markdown,
+    validate_evaluation_report,
+)
 from .schemas import TokenUsage, utc_now
 from .tools import parse_pytest_invocation
 
@@ -401,7 +405,7 @@ class EvaluationRunner:
     def _validate_resume_report(
         self, suite: EvaluationSuite, saved: dict
     ) -> None:
-        if saved.get("report_schema_version") != 1:
+        if saved.get("report_schema_version") not in {1, 2}:
             raise ValueError("evaluation resume report schema does not match")
         if saved.get("suite") != suite.name:
             raise ValueError("evaluation resume suite name does not match")
@@ -474,7 +478,7 @@ class EvaluationRunner:
             if result["failure_kind"]:
                 failure_counts[result["failure_kind"]] = failure_counts.get(result["failure_kind"], 0) + 1
         report = {
-            "report_schema_version": 1,
+            "report_schema_version": 2,
             "suite": suite.name,
             "manifest": {
                 "path": suite.manifest_path,
@@ -518,6 +522,7 @@ class EvaluationRunner:
                 results, suite.baseline_variant
             ),
             "cases": self._case_summaries(results, suite.baseline_variant),
+            "phase_telemetry": aggregate_phase_telemetry(results),
             "tasks": results,
         }
         return report
