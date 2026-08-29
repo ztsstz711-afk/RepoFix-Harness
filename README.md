@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V3.5 消除 compact working set 上的重复保守准入：当 provider 明确支持 next-action token allowance 时，AgentLoop 传入精确剩余额度，由 Provider 根据完整 system/user/tool prompt 和最低输出空间决定放行或拒绝；普通 context 与不支持该接口的 provider 仍使用历史保守估算，硬 run 上限不增加。V3.4 auto-verify Trial 02 的真实历史离线复现证明 6,611 余额会被 Provider 安全放行，而旧 AgentLoop 在 6,758 估算处提前停止。真实门禁独立冻结，详见 [V3.5 provider-managed residual admission](docs/v3.5-provider-managed-admission.md)。
+V3.5 消除 compact working set 上的重复保守准入：支持 next-action token allowance 的 provider 根据完整 prompt 和最低输出空间做最终判断，普通 context 仍用历史保守估算，硬 run 上限不增加。同 V3.4 auto-verify follow-up 可比的 h11 三次门禁为 0/3 verified、3/3 范围命中，使用 33 requests / 176,119 tokens / 5 format retries，估算 $0.06803926；两条由 Provider 在 60k 内拒绝，一条在 12/12 停止并已获得第三次补丁机会。机制移除了提前拦截，但没有改善该状态机案例的模型修复结果。详见 [V3.5 provider-managed residual admission](docs/v3.5-provider-managed-admission.md)。
 
 V3.4 将 working set 扩展到 `patch_needs_verification`：只向模型保留当前补丁及其后的工具事件，旧导航仍留在完整 trace。离线重放 V3.3 的 5 个验证请求时，context 从 22–24k 降到 2.5–10.2k；真实门禁也降到 3.3–11.2k，但结果为 0/3 verified、3/3 范围命中，使用 35 requests / 164,905 tokens / 2 format retries，估算 $0.06341088。三次都写出第二补丁但仍未通过，瓶颈已转为有限请求内的补丁质量与显式验证开销。详见 [V3.4 verification working set](docs/v3.4-verification-working-set.md)。
 
