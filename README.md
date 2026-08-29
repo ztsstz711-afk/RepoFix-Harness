@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V3.0 针对 V2.9 暴露的 residual-budget recovery：格式重试不再固定要求完整 4,096 patch output reserve，而是在保守估算重复输入和纠错提示后，将剩余硬 token 预算动态分配给输出；若不足最低 256 输出仍拒绝。缩减后的 allowance 写入 diagnostics，run-level token 上限不放松。V2.9 三条失败中有两条理论上可利用 7.5–9.5k 剩余预算继续纠错；真实门禁将单独冻结。详见 [V3.0 residual-budget format recovery](docs/v3.0-residual-format-recovery.md)。
+V3.0 针对 V2.9 暴露的 residual-budget recovery：格式重试会在保守估算重复输入后，将剩余硬 token 预算动态分配给输出，最低 256，run 上限不放松。机制单测通过，真实冻结 60k 门禁中也确实发出了一次缩减后的额外 retry；但结果仍为 0/3 verified、3/3 范围命中、27 requests / 170,459 tokens / 4 retries，估算 $0.06453922。两条轨迹在普通下一请求前预算不足，另一条 retry 后仍返回无效补丁。V3.0 证明 residual recovery 可执行，没有证明修复能力提升。详见 [V3.0 residual-budget format recovery](docs/v3.0-residual-format-recovery.md)。
 
 V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：pytest 已直接指向刚修改源码时，只允许一次窄读便强制再次补丁；仅指向测试断言时仍保留两次导航。离线重放准确改变三条失败轨迹，但后续冻结 60k 门禁仍为 0/3 verified、3/3 范围命中、27 requests / 156,017 tokens / 3 format retries，估算 $0.06299875。它比 V2.8 同预算少约 5.7% tokens，却暴露出补丁格式纠错所需的完整 4,096 output reserve 无法装入剩余预算；这是负结果，不宣称成功率改善。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
 
