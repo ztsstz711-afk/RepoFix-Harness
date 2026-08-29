@@ -214,3 +214,36 @@ def test_v34_auto_verify_followup_changes_only_the_verification_policy():
     assert task["test_command"] == standard["test_command"]
     assert task["final_test_command"] == standard["final_test_command"]
     assert task["expected_changed_files"] == standard["expected_changed_files"]
+
+
+def test_v35_gate_matches_v34_auto_verify_followup_budgets_and_commands():
+    root = Path(__file__).resolve().parents[1]
+    previous = json.loads(
+        (
+            root
+            / "evals"
+            / "upstream-h11-chunk-footer-auto-verify-followup-v3.4.json"
+        ).read_text(encoding="utf-8")
+    )["tasks"][0]
+    manifest = json.loads(
+        (
+            root / "evals" / "upstream-h11-chunk-footer-stability-v3.5.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert manifest["max_total_requests"] == 36
+    task = manifest["tasks"][0]
+    assert task["verify_after_patch"] is previous["verify_after_patch"] is True
+    for field in (
+        "repo",
+        "task",
+        "test_command",
+        "final_test_command",
+        "execution_backend",
+        "max_steps",
+        "max_requests",
+        "max_tokens",
+        "repetitions",
+        "expected_changed_files",
+    ):
+        assert task[field] == previous[field]

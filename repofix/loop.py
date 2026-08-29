@@ -153,18 +153,33 @@ class AgentLoop:
         for step in range(self.state.step, self.max_steps):
             context_result = context_builder.build_with_metadata(self.state.history)
             context = context_result.text
+            token_limiter = getattr(self.provider, "limit_next_action_tokens", None)
+            provider_managed_token_admission = bool(
+                context_result.metadata.get("phase_working_set_active", False)
+                and token_limiter is not None
+            )
             estimated_next_tokens = self._estimate_next_request_tokens(
                 context,
                 prefer_context_estimate=context_result.metadata.get(
                     "phase_working_set_active", False
                 ),
             )
-            denied = self.budget.admission_denied(self.state.usage, estimated_next_tokens)
+            denied = (
+                self.budget.exceeded(self.state.usage)
+                if provider_managed_token_admission
+                else self.budget.admission_denied(
+                    self.state.usage, estimated_next_tokens
+                )
+            )
             if denied:
                 self._finish_budget(*denied)
                 break
             self.state.step = step + 1
-            context_snapshot = {"step": self.state.step, **context_result.metadata}
+            context_snapshot = {
+                "step": self.state.step,
+                **context_result.metadata,
+                "provider_managed_token_admission": provider_managed_token_admission,
+            }
             self.state.context_snapshots.append(context_snapshot)
             self._save_checkpoint()
             source_count = len(
@@ -183,7 +198,6 @@ class AgentLoop:
                 request_limiter = getattr(self.provider, "limit_next_action_requests", None)
                 if request_limiter is not None:
                     request_limiter(self.budget.remaining_requests(self.state.usage))
-                token_limiter = getattr(self.provider, "limit_next_action_tokens", None)
                 if token_limiter is not None:
                     token_limiter(self.budget.remaining_tokens(self.state.usage))
                 policy_setter = getattr(self.provider, "set_action_policy", None)

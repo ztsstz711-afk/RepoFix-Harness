@@ -79,6 +79,36 @@ class TokenLimitedProvider:
         )
 
 
+class WorkingSetTokenLimitedProvider:
+    def __init__(self):
+        self.calls = 0
+        self.limit = None
+
+    def limit_next_action_tokens(self, limit):
+        self.limit = limit
+
+    def next_action(self, context):
+        self.calls += 1
+        if self.calls == 1:
+            return ModelDecision(
+                Action(
+                    "apply_patch",
+                    {
+                        "path": "calculator.py",
+                        "old_text": "return a - b",
+                        "new_text": "return a * b",
+                    },
+                ),
+                TokenUsage(total_tokens=900, requests=1),
+                "mock-model",
+            )
+        raise ModelTokenLimitReached(
+            TokenUsage(),
+            estimated_next_tokens=120,
+            allowance=self.limit,
+        )
+
+
 def test_loop_completes_repair_cycle(tmp_path):
     (tmp_path / "calculator.py").write_text("def add(a, b):\n    return a - b\n", encoding="utf-8")
     (tmp_path / "test_calculator.py").write_text(
@@ -119,6 +149,26 @@ def test_loop_passes_remaining_token_allowance_into_provider(tmp_path):
     assert state.usage.total_tokens == 120
     assert "130 remain" in state.error
     assert "missing required arguments: path" in state.error
+
+
+def test_loop_delegates_compact_working_set_admission_to_bounded_provider(tmp_path):
+    (tmp_path / "calculator.py").write_text(
+        "def add(a, b):\n    return a - b\n", encoding="utf-8"
+    )
+    (tmp_path / "test_calculator.py").write_text(
+        "from calculator import add\n\ndef test_add():\n    assert add(2, 3) == 5\n",
+        encoding="utf-8",
+    )
+    provider = WorkingSetTokenLimitedProvider()
+
+    state = AgentLoop(provider, str(tmp_path), max_tokens=1_000).run("fix tests")
+
+    assert provider.calls == 2
+    assert provider.limit == 100
+    assert state.status == "budget_exhausted"
+    assert state.failure_kind == "token_budget_reserve"
+    assert state.context_snapshots[-1]["phase_working_set_kind"] == "verification"
+    assert state.context_snapshots[-1]["provider_managed_token_admission"] is True
 
 
 def test_loop_records_provider_diagnostics_for_successful_decision(tmp_path):

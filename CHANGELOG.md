@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.5.0 - 2026-08-29
+
+- Delegate residual token admission for active phase working sets to providers that explicitly implement a next-action token allowance.
+- Keep AgentLoop's conservative historical admission for ordinary contexts and providers without a token-limit interface.
+- Record whether each context snapshot used provider-managed admission while preserving the same hard run-level token ceiling.
+
 ## 3.4.0 - 2026-08-29
 
 - Add a verification working set that keeps only the current changed patch and later tool events while focused pytest is still required.

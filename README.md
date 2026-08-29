@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.5 消除 compact working set 上的重复保守准入：当 provider 明确支持 next-action token allowance 时，AgentLoop 传入精确剩余额度，由 Provider 根据完整 system/user/tool prompt 和最低输出空间决定放行或拒绝；普通 context 与不支持该接口的 provider 仍使用历史保守估算，硬 run 上限不增加。V3.4 auto-verify Trial 02 的真实历史离线复现证明 6,611 余额会被 Provider 安全放行，而旧 AgentLoop 在 6,758 估算处提前停止。真实门禁独立冻结，详见 [V3.5 provider-managed residual admission](docs/v3.5-provider-managed-admission.md)。
+
 V3.4 将 working set 扩展到 `patch_needs_verification`：只向模型保留当前补丁及其后的工具事件，旧导航仍留在完整 trace。离线重放 V3.3 的 5 个验证请求时，context 从 22–24k 降到 2.5–10.2k；真实门禁也降到 3.3–11.2k，但结果为 0/3 verified、3/3 范围命中，使用 35 requests / 164,905 tokens / 2 format retries，估算 $0.06341088。三次都写出第二补丁但仍未通过，瓶颈已转为有限请求内的补丁质量与显式验证开销。详见 [V3.4 verification working set](docs/v3.4-verification-working-set.md)。
 
 V3.4 另做了不并入主结果的 auto-verify follow-up：仅启用已有 `verify_after_patch`，同案例三次仍为 0/3，但请求从主门禁 35 降到 28，tokens 为 162,838，4 format retries，估算 $0.06690598。三条均在 token reserve 停止，其中一条剩余 6,611、准入估算 6,758，只差 147 tokens；这支持下一步收紧 working-set 请求的保守准入缓冲，而不是增加硬预算。
@@ -326,3 +328,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.2 当前补丁的测试证据时效](docs/v3.2-verification-freshness.md)
 - [V3.3 pytest 证据来源判定](docs/v3.3-test-evidence-provenance.md)
 - [V3.4 当前补丁的验证工作集](docs/v3.4-verification-working-set.md)
+- [V3.5 Provider 管理的剩余预算准入](docs/v3.5-provider-managed-admission.md)
