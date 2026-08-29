@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。最终使用 DeepSeek 对三个真实上游 Bug 各运行三次，完成 4/9 个完整套件修复；简单边界案例 3/3，复杂 parser 案例 0/3，结果如实展示了 Harness 已完整、模型稳定性仍有限。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在真实上游 Bug 上既有 3/3 稳定修复，也保留了复杂 h11 状态机在冻结 60k 门禁中 0/3 的负结果，证明 Harness 闭环、范围与预算可审计，同时诚实呈现模型能力边界。
 
 ## 3 分钟版本
 
@@ -13,7 +13,7 @@ RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness
 5. **安全与恢复**：路径和命令有白名单，写入前保存原始字节，回滚前比较结束哈希，避免覆盖用户后续编辑。
 6. **成本与稳定性**：限制 step/request/token，统计缓存和成本，对限流/超时退避重试，并阻止第三次相同动作。
    批量 suite 还会把每个 task 的请求上限乘以 repetitions；理论总量超过 manifest 明确授权时，模型调用前直接拒绝。
-7. **可观测性**：每次调用都记录 context 长度、历史裁剪和自动源码选择依据，但这些诊断不进入模型 history。
+7. **可观测性**：每次调用都记录 context 长度、phase working set、历史裁剪、预算准入责任和自动源码选择依据，但这些诊断不进入模型 history。
 8. **评测**：先用自建 deterministic suite 验证闭环，再转向 checksum-qualified 真实上游 commit。最终 9-trial gate 是 4/9 成功、4/9 精确范围，74 次请求、342,070 tokens；每个成功都通过完整上游 pytest。
 9. **对照实验**：五类 Bug 各做三次 context-on/off 配对，共 30 次真实修复；两组都是 15/15 成功和范围命中，context-on 平均请求减少 23.81%、token 减少 22.80%，但间接定位场景也出现反例。
 
@@ -33,7 +33,7 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 ### 为什么限制成 pytest，而不是任意 shell？
 
-V1.4 的目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。
+项目目标是可解释的 repair Harness。pytest 已足够形成执行反馈闭环，同时显著缩小命令注入风险；不可信仓库的测试进入禁网、只读挂载、无提权的受限 Docker 容器。Harness 自身仍在宿主机运行，因此不能宣称完整 OS sandbox。V3.3 还把“命令被拒绝”和“pytest 真正失败”分开，避免工具错误污染修复状态。
 
 ### 为什么不用 LangGraph？
 
@@ -55,6 +55,8 @@ V1.4 的目标是可解释的 repair Harness。pytest 已足够形成执行反�
 
 为了检查是否只对调参案例有效，V2.4 又加入 h11 协议回归、跨模块订单包和 assertion-only 配置语义三类未参与近期调参的任务，各三次共 9/9。面试时要主动说明只有 h11 是第三方源码，其余两个是自建 fixture。
 
+V2.7–V3.5 的 h11 chunk-footer 状态机是最适合讲失败分析的一组：72k 校准曾完成 1/1，V3.1 的 60k 三次门禁完成 2/3，但后续独立小样本在 0/3–1/3 波动。Harness 依次修复了 revision context、测试证据时效、拒绝命令误判、verification context 膨胀和重复预算准入；机制均有离线重放与真实 trace 证据，但最新 V3.5 仍是 0/3。正确结论是复杂修复主要受模型推理质量影响，不能靠不断放宽 Harness 预算包装成稳定成功。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -72,4 +74,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** 更换或对照更稳定的 coding model，并针对长 reasoning 导致的空响应/截断 action 做 Provider 层实验；不是先堆 multi-agent。
+- **下一步是什么？** 停止对单个 h11 Bug 继续调参，冻结 V3.5；换 DeepSeek 的更新模型或另一款更强 coding model做同 manifest 对照，并扩充新的 checksum-qualified 上游 Bug family，而不是先堆 multi-agent。

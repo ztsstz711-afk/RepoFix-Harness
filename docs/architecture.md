@@ -30,7 +30,7 @@ flowchart LR
 |---|---|
 | `loop.py` | Agent 状态机、终止条件、checkpoint 和事件流 |
 | `provider.py` | OpenAI-compatible API、原生 Function Calling、JSON fallback、阶段工具策略和格式/网络重试 |
-| `context.py` | 有界 prompt、独立 baseline、导航记忆、repair phase 和下一动作优先级 |
+| `context.py` | 有界 prompt、独立 baseline、导航记忆、测试证据时效、phase working set 和下一动作优先级 |
 | `failure_context.py` | 从 baseline traceback 安全提取仓库内源码位置与有界行号片段 |
 | `registry.py` | 单一 action schema 来源和参数验证 |
 | `permissions.py` | 仓库路径、控制目录和 pytest 参数边界 |
@@ -78,7 +78,7 @@ Docker readiness 的 daemon version、`docker image inspect` 返回的内容寻�
 
 Local pytest 和 Git 子进程会从环境中移除 provider 配置及常见凭据变量。Git diff/status 另外禁用 external diff、textconv、fsmonitor、global/system config 和 optional locks。Local backend 仍不是 OS sandbox，只应运行可信仓库；外部源码默认走 Docker。
 
-Token 预算除了检查累计用量，还会根据当前 context 与历史请求估算下一次请求成本。剩余额度不足时不发送请求；如果已有真实文件改动、baseline 失败且独立 final pytest 通过，Harness 可以在预算边界判定成功，而不额外购买一次仅用于 `finish` 的模型请求。
+Token 预算除了检查累计用量，还会根据当前 context 与历史请求估算下一次请求成本。普通 context 使用当前字符估算与历史请求均值中的较大值。revision/verification working set 已明确替代旧历史时，若 Provider 支持 next-action token allowance，AgentLoop 会传入精确剩余额度，由 Provider 按完整 system/user/tool prompt、最低 256 输出和动态输出上限做最终准入；不支持该接口的 Provider 仍走保守估算。两条路径都不增加 run 硬上限。若已有真实文件改动、baseline 失败且独立 final pytest 通过，Harness 可以在预算边界判定成功，而不额外购买一次仅用于 `finish` 的模型请求。
 
 单任务 request budget 会继续传给 provider 内部重试限制，suite 还可声明 `max_total_requests`。加载 manifest 时，Runner 计算 `sum(task.max_requests × repetitions)`；只要任一 task 未声明请求上限或理论总量超过 suite 授权值，就在 provider 创建前拒绝运行。报告同时保存 authorization、planned ceiling、actual 和 remaining，发布前再次核对四者。
 
@@ -90,7 +90,9 @@ baseline pytest 在首轮模型请求前执行，其命令、状态和压缩后�
 
 上下文提示明确说明 baseline 与自动附带的源码片段已经构成 inspection evidence，模型只在信息不足时调用 list/read/search。这样 context optimization 才能转化为更短的 action path，而不是提供了源码后仍机械重复读取。
 
-每次真正发起模型 action 前，Harness 会把 context provenance 写入 `RunState.context_snapshots`：包括实际/最大字符数、baseline 是否存在、history 纳入与省略数量，以及自动选择源码的相对路径、原因（traceback、local import 或 local call）、行号、符号和片段长度。这些信息属于 Harness 诊断状态，不加入 Agent history，因此不会改变后续模型决策或额外消耗 token。provider 内部格式/网络重试复用同一 context snapshot。
+每次真正发起模型 action 前，Harness 会把 context provenance 写入 `RunState.context_snapshots`：包括实际/最大字符数、baseline 是否存在、history 纳入与省略数量、phase working-set 类型与裁剪量、Provider 是否管理剩余预算，以及自动选择源码的相对路径、原因（traceback、local import 或 local call）、行号、符号和片段长度。这些信息属于 Harness 诊断状态，不加入 Agent history，因此不会改变后续模型决策或额外消耗 token。provider 内部格式/网络重试复用同一 context snapshot。
+
+测试证据绑定到产生它的 workspace revision。新补丁真正写入后，旧 pytest 结果立即失效；同一补丁携带的自动 post-patch pytest 则成为当前证据。只有带进程返回码或超时标记的 `run_command` 才算执行过 pytest，被权限层拒绝的非 pytest 命令只保留在 trace，不改变 repair phase。等待验证时只保留当前补丁及后续事件；验证失败后只保留对应补丁、当前失败和失败后的窄导航。完整 history/checkpoint 从不因 prompt working set 被删除。
 
 Evaluation manifest 可以为 task 声明 `case`、`repetitions`、`variant` 和 `seed_failure_context`，suite 可声明 `baseline_variant`。Runner 按 trial 轮次交错不同 task/variant，每次使用新的 provider 与临时仓库，并为重复项生成独立 artifact ID。报告既按 variant 汇总成功率、改动范围和资源分布，也按 `(case, trial)` 计算配对成功结果及 requests/tokens/steps/cost 差值，避免只看两组平均值掩盖逐对反例。
 
@@ -126,4 +128,4 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 ## Why a custom loop
 
-V1.4 没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
+V3.5 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
