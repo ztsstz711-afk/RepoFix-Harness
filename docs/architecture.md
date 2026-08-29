@@ -114,7 +114,7 @@ CLI 将 provider model、单次最大输出 token，以及 input/cached-input/ou
 
 最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope 和 failure counts；聚合值不一致时拒绝发布。这样 Markdown 渲染和面试结论不会建立在内部损坏的汇总字段上，完整 trial 仍保留在 `progress.json` 供修复后续跑收尾。
 
-跨模型对照不会直接相信两份报告标题相同。`repofix-compare` 会分别重验内部聚合，再要求 suite、manifest SHA-256、source snapshots、Harness 版本与源码哈希、输出/思考/工具配置、Docker fingerprint、请求授权和逐 trial 任务定义完全一致；provider model 与三档价格是允许变化的实验变量。通过后才计算 success/scope 总量、requests/tokens/cost 相对变化和逐 trial better/tied/worse，防止把不同代码、不同 fixture 或不同预算误归因为模型差异。
+评测 identity 还包含 Provider request timeout，避免长思考模型因等待上限不同而形成不可见混杂。`repofix-compare` 不会直接相信两份报告标题相同：它会分别重验内部聚合，再要求 suite、manifest SHA-256、source snapshots、Harness 版本与源码哈希、输出/工具配置、Docker fingerprint、请求授权和逐 trial 任务定义一致。调用者必须显式选择 `model` 或 `thinking_mode` 维度；前者只允许模型和对应价格变化并锁定 thinking，后者只允许 thinking 变化并锁定模型与价格。通过后才计算 success/scope、requests/tokens/cost 和逐 trial better/tied/worse。
 
 Provider 使用两层消息：system 消息只保存不可变的 action 协议、参数 schema 和安全规则；user 消息只承载带边界标记的任务与仓库 context。二者不会拼接到同一角色中，从结构上降低仓库文本覆盖控制指令的风险。
 
@@ -134,4 +134,4 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 ## Why a custom loop
 
-V3.7 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
+V3.8 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

@@ -12,11 +12,12 @@ def render_model_comparison_markdown(comparison: dict) -> str:
     outcomes = comparison["paired_outcomes"]
     return "\n".join(
         [
-            f"# Model comparison: {comparison['suite']}",
+            f"# Evaluation comparison: {comparison['suite']}",
             "",
             "| Metric | Baseline | Candidate | Delta |",
             "|---|---:|---:|---:|",
             f"| Model | `{baseline['model']}` | `{candidate['model']}` | — |",
+            f"| Thinking mode | `{baseline['thinking_mode']}` | `{candidate['thinking_mode']}` | — |",
             f"| Verified repairs | {baseline['successes']}/{baseline['trials']} | {candidate['successes']}/{candidate['trials']} | {delta['successes']:+} |",
             f"| Scope matches | {baseline['scope_matches']}/{baseline['scope_evaluated']} | {candidate['scope_matches']}/{candidate['scope_evaluated']} | {delta['scope_matches']:+} |",
             f"| Requests | {baseline['requests']:,} | {candidate['requests']:,} | {_delta_cell(delta['requests'])} |",
@@ -69,11 +70,16 @@ def main() -> int:
     )
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--candidate", required=True)
+    parser.add_argument(
+        "--dimension", choices=("model", "thinking_mode"), default="model"
+    )
     parser.add_argument("--output")
     args = parser.parse_args()
 
     comparison = compare_evaluation_reports(
-        load_evaluation_report(args.baseline), load_evaluation_report(args.candidate)
+        load_evaluation_report(args.baseline),
+        load_evaluation_report(args.candidate),
+        dimension=args.dimension,
     )
     markdown = render_model_comparison_markdown(comparison)
     if args.output:

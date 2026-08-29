@@ -6,16 +6,22 @@ from pathlib import Path
 from .reporting import validate_evaluation_report
 
 
-_EXPERIMENT_IDENTITY_FIELDS = (
+_COMMON_EXPERIMENT_IDENTITY_FIELDS = (
     "harness_version",
     "harness_source_sha256",
     "python_executable",
     "harness_module_path",
+    "request_timeout_seconds",
     "max_output_tokens",
     "patch_max_output_tokens",
-    "thinking_mode",
     "json_mode",
     "native_tool_calls",
+)
+
+_PRICE_FIELDS = (
+    "input_cost_per_million",
+    "cached_input_cost_per_million",
+    "output_cost_per_million",
 )
 
 _TASK_IDENTITY_FIELDS = (
@@ -38,12 +44,16 @@ _TASK_IDENTITY_FIELDS = (
 )
 
 
-def compare_evaluation_reports(baseline: dict, candidate: dict) -> dict:
+def compare_evaluation_reports(
+    baseline: dict, candidate: dict, dimension: str = "model"
+) -> dict:
+    if dimension not in {"model", "thinking_mode"}:
+        raise ValueError("comparison dimension must be model or thinking_mode")
     validate_evaluation_report(baseline)
     validate_evaluation_report(candidate)
     if not baseline.get("completed") or not candidate.get("completed"):
         raise ValueError("model comparison requires two completed reports")
-    _validate_comparable_identity(baseline, candidate)
+    _validate_comparable_identity(baseline, candidate, dimension)
 
     baseline_tasks = {task["id"]: task for task in baseline["tasks"]}
     candidate_tasks = {task["id"]: task for task in candidate["tasks"]}
@@ -61,6 +71,7 @@ def compare_evaluation_reports(baseline: dict, candidate: dict) -> dict:
 
     return {
         "comparison_schema_version": 1,
+        "comparison_dimension": dimension,
         "suite": baseline["suite"],
         "manifest_sha256": baseline["manifest"]["sha256"],
         "harness_version": baseline["experiment"]["harness_version"],
@@ -111,7 +122,14 @@ def compare_evaluation_reports(baseline: dict, candidate: dict) -> dict:
     }
 
 
-def _validate_comparable_identity(baseline: dict, candidate: dict) -> None:
+def _validate_comparable_identity(
+    baseline: dict, candidate: dict, dimension: str
+) -> None:
+    baseline_experiment = baseline.get("experiment", {})
+    candidate_experiment = candidate.get("experiment", {})
+    variable = "provider_model" if dimension == "model" else "thinking_mode"
+    if baseline_experiment.get(variable) == candidate_experiment.get(variable):
+        raise ValueError(f"comparison variable did not change: {variable}")
     checks = {
         "suite": (baseline.get("suite"), candidate.get("suite")),
         "manifest SHA-256": (
@@ -135,8 +153,8 @@ def _validate_comparable_identity(baseline: dict, candidate: dict) -> None:
             candidate.get("docker_runtime_fingerprints"),
         ),
         "Harness experiment": (
-            _experiment_identity(baseline),
-            _experiment_identity(candidate),
+            _experiment_identity(baseline, dimension),
+            _experiment_identity(candidate, dimension),
         ),
         "task definitions": (
             _task_identity(baseline),
@@ -162,9 +180,14 @@ def _request_identity(report: dict) -> tuple:
     return budget.get("max_total_requests"), budget.get("planned_request_ceiling")
 
 
-def _experiment_identity(report: dict) -> tuple:
+def _experiment_identity(report: dict, dimension: str) -> tuple:
     experiment = report.get("experiment", {})
-    return tuple(experiment.get(field) for field in _EXPERIMENT_IDENTITY_FIELDS)
+    fields = list(_COMMON_EXPERIMENT_IDENTITY_FIELDS)
+    if dimension == "model":
+        fields.append("thinking_mode")
+    else:
+        fields.extend(("provider_model", *_PRICE_FIELDS))
+    return tuple(experiment.get(field) for field in fields)
 
 
 def _task_identity(report: dict) -> dict:
@@ -185,6 +208,7 @@ def _freeze(value: object) -> object:
 def _report_summary(report: dict) -> dict:
     return {
         "model": report["experiment"]["provider_model"],
+        "thinking_mode": report["experiment"]["thinking_mode"],
         "trials": report["task_count"],
         "successes": report["successes"],
         "success_rate": report["success_rate"],

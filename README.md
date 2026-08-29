@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.8 将 Provider request timeout 纳入实验身份，并让 `repofix-compare` 显式支持 `model` 与 `thinking_mode` 两种单变量对照。冻结 Pro h11 三次组中，non-thinking 为 2/3 verified，thinking-high 为 3/3；thinking-high requests 从 33 降到 22（-33.33%）、tokens 从 162,442 降到 137,393（-15.42%），峰值保守成本从 $0.18748136 增至 $0.21714925（+15.82%）。每组只有三次且同案例历史波动明显，因此这是 thinking-high 的正向小样本证据，不是稳定胜率结论。详见 [V3.8 Pro thinking-high comparison](docs/v3.8-thinking-high-comparison.md)。
+
 V3.7 在冻结的 V3.6.0 Harness 上完成 `deepseek-v4-flash` 与 `deepseek-v4-pro` 的跨模型对照，并新增 `repofix-compare` 严格比较入口。Click 三次组均为 3/3 verified；Pro 将 requests 从 16 降到 10（-37.5%）、tokens 从 46,554 降到 25,323（-45.61%），但峰值保守成本增加 89.68%。h11 难例两组均为 1/3 verified、3/3 范围命中；Pro requests 增加 6.25%、tokens 仅减少 1.5%，成本增加 187.04%。因此当前 non-thinking 配置没有证据支持把默认模型从 Flash 切到 Pro。详见 [V3.7 frozen cross-model comparison](docs/v3.7-model-comparison.md)。
 
 V3.6 扩展到第七个 checksum-qualified 真实上游 Bug family：Click 在渲染 option help 时，会把任意默认对象与空字符串直接比较，遇到拒绝字符串比较的 `__eq__` 会抛异常。为支持该标准 `src/` 布局仓库，本地与 Docker pytest 后端现在都使用只指向目标仓库根目录及 `src/` 的隔离 `PYTHONPATH`。冻结门禁为 1/1 verified、1/1 精确范围，使用 6 requests / 17,468 tokens；独立三次 follow-up 为 3/3 verified、3/3 精确范围，使用 15 requests / 41,427 tokens、0 retries。每次最终验收均为 1,386 passed、21 skipped、1 xfailed。详见 [V3.6 Click upstream gate](docs/v3.6-upstream-click-help.md)。
@@ -103,7 +105,7 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 - checkpoint/resume、逐步 trace、独立 run artifacts
 - 隔离 evaluation suite，统计成功率、范围准确率、tokens、成本和失败类型
 - evaluation 支持重复 trial、命名 variant、交错 A/B 执行及请求/token/成本分布统计
-- 跨模型报告比较会先校验 manifest、source、Harness、Docker、预算与任务身份，再计算整体和逐 trial 的成功率、requests、tokens 与成本差异
+- 报告比较会先校验 manifest、source、Harness、Docker、timeout、预算与任务身份；显式选择 `model` 或 `thinking_mode` 单变量后，再计算整体和逐 trial 的成功率、requests、tokens 与成本差异
 - 配对实验按 case + trial 比较成功结果与资源差值，并记录 manifest/fixture SHA-256
 - 配对资源指标附带 better/tied/worse 计数和不依赖第三方统计库的双侧精确符号检验
 - 每个 trial 后原子更新 `progress.json`；单次 runner 异常被隔离，后续任务继续执行
@@ -225,6 +227,7 @@ repofix-runs --repo <repo> list
 repofix-runs --repo <repo> show latest
 repofix-runs --repo <repo> rollback latest
 repofix-compare --baseline <flash-report.json> --candidate <pro-report.json> --output <comparison-dir>
+repofix-compare --dimension thinking_mode --baseline <off.json> --candidate <on.json> --output <comparison-dir>
 ```
 
 如果文件在 Agent 结束后又被修改，普通回滚会拒绝覆盖；只有明确放弃后续修改时才使用 `rollback <run-id> --force`。
@@ -348,3 +351,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.5 Provider 管理的剩余预算准入](docs/v3.5-provider-managed-admission.md)
 - [V3.6 Click `src/` 布局真实上游门禁](docs/v3.6-upstream-click-help.md)
 - [V3.7 Flash/Pro 冻结跨模型对照](docs/v3.7-model-comparison.md)
+- [V3.8 Pro thinking-high 冻结对照](docs/v3.8-thinking-high-comparison.md)

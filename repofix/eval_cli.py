@@ -97,6 +97,7 @@ def main() -> int:
             "python_executable": str(Path(sys.executable).resolve()),
             "harness_module_path": str(Path(__file__).resolve()),
             "provider_model": settings.model,
+            "request_timeout_seconds": settings.request_timeout_seconds,
             "max_output_tokens": settings.max_output_tokens,
             "patch_max_output_tokens": settings.patch_max_output_tokens,
             "thinking_mode": settings.thinking_mode,

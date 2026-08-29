@@ -68,6 +68,7 @@ def _report(model, statuses, requests, tokens, costs):
             "python_executable": "python",
             "harness_module_path": "repofix/eval_cli.py",
             "provider_model": model,
+            "request_timeout_seconds": 120,
             "max_output_tokens": 2048,
             "patch_max_output_tokens": 4096,
             "thinking_mode": "disabled",
@@ -126,6 +127,15 @@ def test_compare_reports_rejects_changed_experiment_identity():
         compare_evaluation_reports(baseline, candidate)
 
 
+def test_compare_reports_rejects_changed_request_timeout():
+    baseline = _report("flash", ["success"], [4], [1000], [0.01])
+    candidate = _report("pro", ["success"], [3], [800], [0.02])
+    candidate["experiment"]["request_timeout_seconds"] = 45
+
+    with pytest.raises(ValueError, match="Harness experiment"):
+        compare_evaluation_reports(baseline, candidate)
+
+
 def test_compare_reports_rejects_tampered_aggregate_before_comparison():
     baseline = _report("flash", ["success"], [4], [1000], [0.01])
     candidate = copy.deepcopy(baseline)
@@ -143,8 +153,32 @@ def test_model_comparison_markdown_surfaces_resource_tradeoff():
 
     rendered = render_model_comparison_markdown(comparison)
 
-    assert "# Model comparison: frozen-suite" in rendered
+    assert "# Evaluation comparison: frozen-suite" in rendered
     assert "| Requests | 5 | 3 | -2 (-40.00%) |" in rendered
     assert "| Tokens | 1,000 | 600 | -400 (-40.00%) |" in rendered
     assert "Both successful: 1/1" in rendered
     assert f"Manifest SHA-256: `{'a' * 64}`" in rendered
+
+
+def test_compare_reports_can_isolate_thinking_mode():
+    baseline = _report("pro", ["success"], [5], [1000], [0.02])
+    candidate = _report("pro", ["success"], [4], [900], [0.02])
+    baseline["experiment"]["thinking_mode"] = "disabled"
+    candidate["experiment"]["thinking_mode"] = "enabled"
+
+    comparison = compare_evaluation_reports(
+        baseline, candidate, dimension="thinking_mode"
+    )
+
+    assert comparison["comparison_dimension"] == "thinking_mode"
+    assert comparison["baseline"]["model"] == comparison["candidate"]["model"]
+
+
+def test_thinking_comparison_rejects_model_change():
+    baseline = _report("flash", ["success"], [5], [1000], [0.01])
+    candidate = _report("pro", ["success"], [4], [900], [0.02])
+    baseline["experiment"]["thinking_mode"] = "disabled"
+    candidate["experiment"]["thinking_mode"] = "enabled"
+
+    with pytest.raises(ValueError, match="Harness experiment"):
+        compare_evaluation_reports(baseline, candidate, dimension="thinking_mode")
