@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.2.0 - 2026-08-30
+
+- Add a nine-trial cross-project regression gate over three checksum-qualified upstream bug families.
+- Verify 9/9 repairs and exact scopes with 43 requests, 103,631 tokens, and no provider retries.
+- Confirm the V4.1 target-read grace remains inactive on short stable trajectories and does not add navigation overhead.
+
 ## 4.1.0 - 2026-08-30
 
 - Add a one-action target-read grace when the fifth successful navigation action discovers an unread source line.

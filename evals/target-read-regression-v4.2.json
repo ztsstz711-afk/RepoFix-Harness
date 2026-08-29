@@ -1,0 +1,58 @@
+{
+  "name": "target-read-regression-v4.2",
+  "max_total_requests": 108,
+  "tasks": [
+    {
+      "id": "last-target-read-regression",
+      "case": "last_reversed_none",
+      "variant": "target_read_regression_v4_2",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-last-v2.5/buggy",
+      "task": "Fix last() so an iterable whose __reversed__ attribute is explicitly None falls back to normal iteration and returns its final item. Preserve the optimized path for genuinely reversible iterables and existing empty/default behavior. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_more.py::LastTests::test_reversed_is_none",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["more_itertools/more.py"],
+      "tags": ["external", "upstream-regression", "stability", "more-itertools", "fallback", "v4.2-target-read-regression"]
+    },
+    {
+      "id": "numeric-range-target-read-regression",
+      "case": "numeric_range_empty_reversed",
+      "variant": "target_read_regression_v4_2",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-numeric-range-v2.6/buggy",
+      "task": "Fix numeric_range.__reversed__() so reversing an empty numeric_range returns an empty iterator instead of raising IndexError. Preserve the existing reversed sequence for non-empty ranges. Use the focused regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_more.py::NumericRangeTests::test_empty_reversed",
+      "final_test_command": "pytest -q tests",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["more_itertools/more.py"],
+      "tags": ["external", "upstream-regression", "stability", "more-itertools", "empty-input", "v4.2-target-read-regression"]
+    },
+    {
+      "id": "click-target-read-regression",
+      "case": "click_help_strict_equality",
+      "variant": "target_read_regression_v4_2",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-click-help-v3.6/buggy",
+      "task": "Fix Click option help rendering so show_default supports non-string default objects whose equality method rejects comparison with strings, while preserving the special display for an empty-string default. Use the focused regression test while iterating; the harness will run the compatible full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_options.py::test_show_default_with_empty_string[non-string-comparable-object]",
+      "final_test_command": "pytest -q -W ignore::pytest.PytestRemovedIn10Warning",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 40000,
+      "expected_changed_files": ["src/click/core.py"],
+      "tags": ["external", "upstream-regression", "stability", "click", "src-layout", "help-rendering", "type-guard", "v4.2-target-read-regression"]
+    }
+  ]
+}

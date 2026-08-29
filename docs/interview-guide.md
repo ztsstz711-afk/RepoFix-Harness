@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机的波动结果；V4.1 进一步从三条重复失败定位阶段策略缺陷，并在同预算真实门禁中把 0/3 改进为 3/3。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目从三条重复失败定位阶段策略缺陷，在同预算 ItsDangerous 门禁中把 0/3 改进为 3/3；随后又用三个真实上游 family、九次 Flash 复验确认 9/9 且没有额外导航。
 
 ## 3 分钟版本
 
@@ -69,6 +69,8 @@ V4.0 可用于回答“单次成功能不能证明更强”：ItsDangerous 新�
 
 V4.1 可用于回答“如何从失败轨迹改 Harness 而不是改提示词”：三次 Pro 都在第五次导航搜索到 `class Signer` 后被 `patch_due` 禁止读取，只能写 placeholder。新阶段只给未读 search hit 一次窄读机会，三次真实复验都变成 search → target read → 单补丁 → finish，成功率 0/3 到 3/3，同时 requests/tokens 都下降。
 
+V4.2 可用于回答“修一个案例会不会过拟合”：用 last、numeric_range 和 Click 三类既有真实上游合同各重复三次，得到 9/9 修复与范围命中、0 retries；所有轨迹都没触发新阶段，因为它们在五次导航前已经补丁。新策略因此通过了正向触发和负向不触发两类门禁。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -86,4 +88,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** V4.1 已修复一个由新上游案例暴露的通用阶段缺陷；下一步应在旧的多项目门禁上做回归复验，确认 target-read grace 不会让已稳定案例增加无效导航。
+- **下一步是什么？** V4.2 已完成三项目负向回归；下一步应把阶段触发次数和阶段转移汇总进 evaluation report，让策略效果无需手工解析每条 context snapshot。
