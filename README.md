@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V3.2 修复 V3.1 唯一失败轨迹暴露的 verification freshness 问题：每次新补丁真正改动文件后，旧 pytest 结论立即失效，状态回到 `patch_needs_verification`；若同一补丁携带 Harness 自动测试结果，再以该结果进入 revision 或 verified phase。revision cap、working set 与进度摘要使用同一时序语义。真实门禁与 V3.1 结果严格分开冻结。详见 [V3.2 verification freshness](docs/v3.2-verification-freshness.md)。
+V3.2 修复 V3.1 唯一失败轨迹暴露的 verification freshness 问题：每次新补丁真正改动文件后，旧 pytest 结论立即失效；若同一补丁携带自动测试结果，再以该结果更新状态。冻结的同配置 h11 三次门禁为 0/3 verified、3/3 范围命中，使用 34 requests / 174,480 tokens / 3 format retries，估算 $0.06662267。前两次第二补丁后确实回到验证阶段，但只有一次真正执行 pytest；另一次非法 `sed` 与第三次非法 `python` 被工具正确拒绝，却被 Context 错误算作失败测试证据。V3.2 证明状态时序修复生效，但真实结果退化，不能宣称能力提升。详见 [V3.2 verification freshness](docs/v3.2-verification-freshness.md)。
 
 V3.1 将补丁失败后的模型 context 收敛为 revision working set：最近有效补丁、最新失败 pytest、以及失败后的窄读/搜索；首次补丁前不裁剪，完整 trace 不删除。重放 V3.0 三条真实失败轨迹时，下一修订请求分别减少 12,523、13,376、12,933 字符。随后同一 h11、同一 non-thinking 60k 配置的冻结三次门禁达到 2/3 verified、3/3 范围命中，使用 28 requests / 155,828 tokens / 1 format retry，估算 $0.06458051；两次成功均通过完整 78 项 h11 验收。剩余失败暴露出新补丁后仍沿用旧 pytest 失败状态的问题，因此这是一轮明确改善，不是稳定性结论。详见 [V3.1 revision working set](docs/v3.1-revision-working-set.md)。
 
