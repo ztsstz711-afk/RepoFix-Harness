@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.3.0 - 2026-08-29
+
+- Count `run_command` as pytest evidence only when execution metadata proves the command actually ran or timed out.
+- Keep denied non-pytest commands in the trace without changing repair phase, revision cap, working-set selection, or baseline freshness.
+- Retain compatibility with older checkpoints whose completed pytest events predate execution metadata.
+
 ## 3.2.0 - 2026-08-29
 
 - Invalidate focused pytest evidence whenever a later successful patch changes the workspace, so verification state always describes the current code.

@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.3 针对 V3.2 两条轨迹中的 evidence provenance 缺陷：只有带实际返回码或超时标记的 `run_command` 才算 pytest 证据；被权限层拒绝的 `sed`、`python` 等命令仍写入 trace，但不改变 repair phase、revision cap、working set 或 baseline freshness。旧 checkpoint 中无元数据的已执行测试保持兼容。真实门禁单独冻结，详见 [V3.3 test evidence provenance](docs/v3.3-test-evidence-provenance.md)。
+
 V3.2 修复 V3.1 唯一失败轨迹暴露的 verification freshness 问题：每次新补丁真正改动文件后，旧 pytest 结论立即失效；若同一补丁携带自动测试结果，再以该结果更新状态。冻结的同配置 h11 三次门禁为 0/3 verified、3/3 范围命中，使用 34 requests / 174,480 tokens / 3 format retries，估算 $0.06662267。前两次第二补丁后确实回到验证阶段，但只有一次真正执行 pytest；另一次非法 `sed` 与第三次非法 `python` 被工具正确拒绝，却被 Context 错误算作失败测试证据。V3.2 证明状态时序修复生效，但真实结果退化，不能宣称能力提升。详见 [V3.2 verification freshness](docs/v3.2-verification-freshness.md)。
 
 V3.1 将补丁失败后的模型 context 收敛为 revision working set：最近有效补丁、最新失败 pytest、以及失败后的窄读/搜索；首次补丁前不裁剪，完整 trace 不删除。重放 V3.0 三条真实失败轨迹时，下一修订请求分别减少 12,523、13,376、12,933 字符。随后同一 h11、同一 non-thinking 60k 配置的冻结三次门禁达到 2/3 verified、3/3 范围命中，使用 28 requests / 155,828 tokens / 1 format retry，估算 $0.06458051；两次成功均通过完整 78 项 h11 验收。剩余失败暴露出新补丁后仍沿用旧 pytest 失败状态的问题，因此这是一轮明确改善，不是稳定性结论。详见 [V3.1 revision working set](docs/v3.1-revision-working-set.md)。
@@ -318,3 +320,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V2.6 第五个 checksum-qualified 真实上游修复](docs/v2.6-upstream-numeric-range.md)
 - [V3.1 Revision working set 与真实门禁](docs/v3.1-revision-working-set.md)
 - [V3.2 当前补丁的测试证据时效](docs/v3.2-verification-freshness.md)
+- [V3.3 pytest 证据来源判定](docs/v3.3-test-evidence-provenance.md)

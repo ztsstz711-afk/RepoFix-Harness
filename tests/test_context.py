@@ -647,3 +647,86 @@ def test_new_revision_patch_uses_its_own_passing_automatic_test():
     assert result.metadata["repair_phase"] == "verified_patch"
     assert result.metadata["revision_navigation_cap"] is None
     assert "latest_agent_pytest=passed" in result.text
+
+
+def test_denied_command_is_not_treated_as_pytest_evidence_for_current_patch():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "run_command", "arguments": {"command": "sed -n 1,20p src/parser.py"}},
+            "observation": {
+                "success": False,
+                "output": "command denied; only pytest is permitted",
+                "metadata": {"output_chars": 40, "output_truncated": False},
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_verification"
+    assert result.metadata["revision_navigation_cap"] is None
+    assert result.metadata["revision_working_set_active"] is False
+    assert "latest_agent_pytest=not run for current patch" in result.text
+
+
+def test_executed_pytest_metadata_is_current_test_evidence():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "read"},
+            "observation": {"success": True, "output": "EARLY-SOURCE"},
+        },
+        {
+            "step": 2,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "src/parser.py:42: AssertionError",
+                "metadata": {"return_code": 1, "timed_out": False},
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_revision"
+    assert result.metadata["revision_navigation_cap"] == 1
+    assert result.metadata["revision_working_set_active"] is True
+    assert "latest_agent_pytest=failed" in result.text
+
+
+def test_denied_command_does_not_supersede_independent_baseline():
+    baseline = Snapshot(False, "ORIGINAL-BASELINE", command="pytest -q tests")
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "command denied; only pytest is permitted",
+                "metadata": {"output_chars": 40, "output_truncated": False},
+            },
+        }
+    ]
+
+    result = ContextBuilder("repo", "task", baseline=baseline).build_with_metadata(history)
+
+    assert result.metadata["baseline_output_superseded"] is False
+    assert "ORIGINAL-BASELINE" in result.text

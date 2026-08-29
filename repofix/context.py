@@ -168,11 +168,22 @@ class ContextBuilder:
         for event in history:
             action = event.get("action", {})
             observation = event.get("observation", {})
-            if action.get("name") == "run_command":
+            if ContextBuilder._is_pytest_evidence(action, observation):
                 return True
             if isinstance(observation.get("metadata", {}).get("post_patch_test"), dict):
                 return True
         return False
+
+    @staticmethod
+    def _is_pytest_evidence(action: dict, observation: dict) -> bool:
+        if action.get("name") != "run_command":
+            return False
+        metadata = observation.get("metadata", {})
+        if "return_code" in metadata or metadata.get("timed_out") is True:
+            return True
+        # Checkpoints created before execution metadata was recorded used an
+        # empty metadata object for completed pytest actions.
+        return not metadata
 
     @staticmethod
     def _deduplicate_navigation(history: list[dict]) -> tuple[list[dict], int]:
@@ -220,7 +231,7 @@ class ContextBuilder:
             ).get("changed"):
                 changed_patch_indices.append(index)
                 latest_failed_test = None
-            if action.get("name") == "run_command" and not observation.get(
+            if ContextBuilder._is_pytest_evidence(action, observation) and not observation.get(
                 "success", False
             ):
                 latest_failed_test = index
@@ -263,7 +274,7 @@ class ContextBuilder:
             if action.get("name") == "apply_patch" and observation.get("metadata", {}).get("changed"):
                 changed_files.add(observation["metadata"]["path"])
                 latest_pytest = "not run for current patch"
-            if action.get("name") == "run_command":
+            if ContextBuilder._is_pytest_evidence(action, observation):
                 latest_pytest = "passed" if observation.get("success") else "failed"
             post_patch_test = observation.get("metadata", {}).get("post_patch_test")
             if isinstance(post_patch_test, dict):
@@ -313,7 +324,7 @@ class ContextBuilder:
                         changed_files.add(str(path).replace("\\", "/"))
                 elif not success:
                     failed_patches += 1
-            elif name == "run_command":
+            elif ContextBuilder._is_pytest_evidence(action, observation):
                 latest_pytest = success
                 latest_pytest_output = "" if success else observation.get("output", "")
             post_patch_test = observation.get("metadata", {}).get("post_patch_test")
@@ -373,7 +384,7 @@ class ContextBuilder:
                 path = observation.get("metadata", {}).get("path")
                 if path:
                     changed_files.add(str(path).replace("\\", "/"))
-            elif action.get("name") == "run_command":
+            elif ContextBuilder._is_pytest_evidence(action, observation):
                 latest_pytest = bool(observation.get("success"))
                 latest_pytest_output = (
                     "" if latest_pytest else str(observation.get("output", ""))

@@ -1,0 +1,23 @@
+{
+  "name": "upstream-h11-chunk-footer-stability-v3.3",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "h11-chunk-footer-validation-v3.3",
+      "case": "h11_chunk_footer_validation",
+      "variant": "v3.3_test_evidence_provenance_nonthinking_60k",
+      "repo": "../external-workspaces/upstream-h11-chunk-footer-v2.7/buggy",
+      "task": "Fix the ChunkedReader so it validates that every chunk body is followed by the required CRLF bytes, including when those bytes arrive incrementally. Malformed chunk footers must raise LocalProtocolError, while valid chunked bodies keep their existing behavior. Use the focused upstream test while iterating; the harness will run the full h11 suite for final acceptance.",
+      "test_command": "pytest -q h11/tests/test_io.py::test_ChunkedReader",
+      "final_test_command": "pytest -q h11",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 18,
+      "max_requests": 12,
+      "max_tokens": 60000,
+      "repetitions": 3,
+      "expected_changed_files": ["h11/_readers.py"],
+      "tags": ["external", "upstream-regression", "h11", "protocol", "v3.3-test-evidence-provenance", "nonthinking-60k-stability"]
+    }
+  ]
+}
