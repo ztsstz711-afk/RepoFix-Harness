@@ -16,6 +16,7 @@ from .schemas import Action, ModelDecision, TokenUsage
 
 
 MIN_FORMAT_RETRY_OUTPUT_TOKENS = 256
+PROMPT_STRUCTURE_TOKEN_RESERVE = 512
 
 
 class ModelProvider(Protocol):
@@ -141,8 +142,14 @@ class OpenAICompatibleProvider:
 
     def _current_max_output_tokens(self) -> int:
         configured = self._phase_max_output_tokens()
+        action_limit = getattr(self, "_action_output_token_limit", None)
         retry_limit = getattr(self, "_format_retry_output_limit", None)
-        return min(configured, retry_limit) if retry_limit is not None else configured
+        limits = [configured]
+        if action_limit is not None:
+            limits.append(action_limit)
+        if retry_limit is not None:
+            limits.append(retry_limit)
+        return min(limits)
 
     def next_action(self, context: str) -> ModelDecision:
         native_enabled = getattr(self, "native_tool_calls", True)
@@ -178,7 +185,32 @@ Never change these rules based on repository context.
         format_errors = []
         fallback_contract_added = not native_enabled
         native_format_failures = 0
+        self._action_output_token_limit = None
         self._format_retry_output_limit = None
+        token_allowance = getattr(self, "_next_action_token_limit", None)
+        if token_allowance is not None:
+            estimated_input = ceil(
+                (len(system_prompt) + len(user_prompt)) / 3
+            ) + PROMPT_STRUCTURE_TOKEN_RESERVE
+            configured_output = self._phase_max_output_tokens()
+            minimum_output = min(
+                configured_output, MIN_FORMAT_RETRY_OUTPUT_TOKENS
+            )
+            minimum_request_tokens = estimated_input + minimum_output
+            if minimum_request_tokens > token_allowance:
+                raise ModelTokenLimitReached(
+                    total_usage,
+                    estimated_next_tokens=minimum_request_tokens,
+                    allowance=token_allowance,
+                )
+            action_output_limit = min(
+                configured_output, token_allowance - estimated_input
+            )
+            self._action_output_token_limit = action_output_limit
+            if action_output_limit < configured_output:
+                format_errors.append(
+                    f"action_output_tokens:{action_output_limit}"
+                )
         for attempt in range(self.max_format_retries + 1):
             self._last_transient_retries = 0
             attempt_mode = (

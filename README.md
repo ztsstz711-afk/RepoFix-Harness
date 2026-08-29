@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.1 将补丁失败后的模型 context 收敛为 revision working set：最近有效补丁、最新失败 pytest、以及失败后的窄读/搜索；首次补丁前不裁剪，完整 trace 不删除。重放 V3.0 三条真实失败轨迹时，下一修订请求分别减少 12,523、13,376、12,933 字符，落到约 8.4–9.4k。AgentLoop 对该工作集采用新 context 估算，Provider 还能按剩余硬预算缩小普通请求输出，最低 256。真实门禁另行冻结。详见 [V3.1 revision working set](docs/v3.1-revision-working-set.md)。
+
 V3.0 针对 V2.9 暴露的 residual-budget recovery：格式重试会在保守估算重复输入后，将剩余硬 token 预算动态分配给输出，最低 256，run 上限不放松。机制单测通过，真实冻结 60k 门禁中也确实发出了一次缩减后的额外 retry；但结果仍为 0/3 verified、3/3 范围命中、27 requests / 170,459 tokens / 4 retries，估算 $0.06453922。两条轨迹在普通下一请求前预算不足，另一条 retry 后仍返回无效补丁。V3.0 证明 residual recovery 可执行，没有证明修复能力提升。详见 [V3.0 residual-budget format recovery](docs/v3.0-residual-format-recovery.md)。
 
 V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：pytest 已直接指向刚修改源码时，只允许一次窄读便强制再次补丁；仅指向测试断言时仍保留两次导航。离线重放准确改变三条失败轨迹，但后续冻结 60k 门禁仍为 0/3 verified、3/3 范围命中、27 requests / 156,017 tokens / 3 format retries，估算 $0.06299875。它比 V2.8 同预算少约 5.7% tokens，却暴露出补丁格式纠错所需的完整 4,096 output reserve 无法装入剩余预算；这是负结果，不宣称成功率改善。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
@@ -76,6 +78,7 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 - baseline 的命令与压缩后失败输出直接进入首轮 context，模型无需先重复运行完整测试
 - 首轮 context 自动附带 pytest traceback 引用的仓库源码片段；若只命中测试文件，会优先解析失败行实际使用的本地 import，再定位入口函数并补充该函数实际调用的一跳本地实现，同时过滤外部路径与控制目录
 - 有界 context、工具输出头尾压缩、最近进度摘要；新 pytest 证据会替代重复的初始 baseline 正文，重复 read/search 在模型上下文只保留最新证据
+- 失败补丁进入 revision phase 后，模型只看到最近补丁、最新失败测试和失败后的导航 working set；首次补丁前与落盘 trace 不裁剪
 - 每步持久化 context 选择元数据，记录自动选中文件、原因、行号与字符预算，但不重复保存源码正文
 - step/request/token 预算、成本估算、限流与超时重试
 - suite 可声明总请求授权值；理论最坏请求量在运行前按 repetitions 展开校验

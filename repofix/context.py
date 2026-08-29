@@ -43,8 +43,11 @@ class ContextBuilder:
         return self.build_with_metadata(history).text
 
     def build_with_metadata(self, history: list[dict]) -> ContextBuildResult:
-        progress = self._progress_summary(history)
         repair_phase = self._repair_phase(history)
+        working_history, working_set_pruned = self._revision_working_set(
+            history, repair_phase
+        )
+        progress = self._progress_summary(history, working_history)
         revision_navigation_cap = self._revision_navigation_cap(history)
         next_priority = self._next_priority(repair_phase)
         preflight = self._preflight_section()
@@ -81,7 +84,7 @@ class ContextBuilder:
         used = 0
         oversized_skipped = 0
 
-        context_history, deduplicated = self._deduplicate_navigation(history)
+        context_history, deduplicated = self._deduplicate_navigation(working_history)
         for event in reversed(context_history):
             compact = self._compact_event(event)
             remaining = budget - used
@@ -112,8 +115,10 @@ class ContextBuilder:
                 "history_events_included": len(selected),
                 "history_events_omitted": omitted,
                 "history_events_deduplicated": deduplicated,
+                "revision_working_set_active": working_set_pruned > 0,
+                "revision_working_set_pruned": working_set_pruned,
                 "history_events_skipped_oversized": oversized_skipped,
-                "navigation_summary": self._navigation_summary(history),
+                "navigation_summary": self._navigation_summary(working_history),
                 "repair_phase": repair_phase,
                 "revision_navigation_cap": revision_navigation_cap,
                 "failure_context": {
@@ -199,6 +204,45 @@ class ContextBuilder:
         selected.reverse()
         return selected, deduplicated
 
+    @staticmethod
+    def _revision_working_set(
+        history: list[dict], repair_phase: str
+    ) -> tuple[list[dict], int]:
+        if repair_phase not in {"patch_needs_revision", "patch_due"}:
+            return history, 0
+        changed_patch_indices: list[int] = []
+        latest_failed_test: int | None = None
+        for index, event in enumerate(history):
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            if action.get("name") == "apply_patch" and observation.get(
+                "metadata", {}
+            ).get("changed"):
+                changed_patch_indices.append(index)
+            if action.get("name") == "run_command" and not observation.get(
+                "success", False
+            ):
+                latest_failed_test = index
+            post_patch_test = observation.get("metadata", {}).get("post_patch_test")
+            if isinstance(post_patch_test, dict) and not post_patch_test.get(
+                "success", False
+            ):
+                latest_failed_test = index
+        if latest_failed_test is None:
+            return history, 0
+        patch_candidates = [
+            index for index in changed_patch_indices if index <= latest_failed_test
+        ]
+        if not patch_candidates:
+            return history, 0
+        patch_index = patch_candidates[-1]
+        selected_indices = {patch_index, latest_failed_test}
+        selected_indices.update(range(latest_failed_test + 1, len(history)))
+        selected = [
+            event for index, event in enumerate(history) if index in selected_indices
+        ]
+        return selected, len(history) - len(selected)
+
     def _preflight_section(self) -> str:
         if self.preflight is None:
             return ""
@@ -207,7 +251,9 @@ class ContextBuilder:
         return f"\nPreflight: {'passed' if self.preflight.success else 'failed'}{suffix}"
 
     @staticmethod
-    def _progress_summary(history: list[dict]) -> str:
+    def _progress_summary(
+        history: list[dict], navigation_history: list[dict] | None = None
+    ) -> str:
         changed_files = set()
         latest_pytest = "not run by agent"
         for event in history:
@@ -221,7 +267,9 @@ class ContextBuilder:
             if isinstance(post_patch_test, dict):
                 latest_pytest = "passed" if post_patch_test.get("success") else "failed"
         files = ", ".join(sorted(changed_files)) if changed_files else "none"
-        navigation = ContextBuilder._navigation_summary(history)
+        navigation = ContextBuilder._navigation_summary(
+            history if navigation_history is None else navigation_history
+        )
         return (
             f"changed_files={files}; latest_agent_pytest={latest_pytest}; "
             f"repair_phase={ContextBuilder._repair_phase(history)}; {navigation}"

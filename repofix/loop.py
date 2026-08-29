@@ -153,7 +153,12 @@ class AgentLoop:
         for step in range(self.state.step, self.max_steps):
             context_result = context_builder.build_with_metadata(self.state.history)
             context = context_result.text
-            estimated_next_tokens = self._estimate_next_request_tokens(context)
+            estimated_next_tokens = self._estimate_next_request_tokens(
+                context,
+                prefer_context_estimate=context_result.metadata.get(
+                    "revision_working_set_active", False
+                ),
+            )
             denied = self.budget.admission_denied(self.state.usage, estimated_next_tokens)
             if denied:
                 self._finish_budget(*denied)
@@ -394,9 +399,11 @@ class AgentLoop:
             "repair_verified": repair_verified,
         })
 
-    def _estimate_next_request_tokens(self, context: str) -> int:
+    def _estimate_next_request_tokens(
+        self, context: str, prefer_context_estimate: bool = False
+    ) -> int:
         context_estimate = ceil(len(context) / 3) + 2_000
-        if not self.state.usage.requests:
+        if not self.state.usage.requests or prefer_context_estimate:
             return context_estimate
         historical_average = ceil(
             self.state.usage.total_tokens / self.state.usage.requests

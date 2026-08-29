@@ -442,3 +442,102 @@ def test_context_keeps_only_latest_repeated_navigation_evidence():
     assert result.metadata["history_events_included"] == 2
     assert result.metadata["history_events_omitted"] == 2
     assert result.metadata["history_events_deduplicated"] == 2
+
+
+def test_revision_working_set_drops_pre_patch_navigation_only_from_prompt():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "search"},
+            "observation": {
+                "success": True,
+                "output": "EARLY-SEARCH",
+                "metadata": {"query": "parser", "path": ".", "matches": 1},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "read"},
+            "observation": {
+                "success": True,
+                "output": "EARLY-SOURCE",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": 1,
+                    "end_line": 20,
+                },
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "output": "PATCH-RESULT",
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 4,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "LATEST-FAILURE src/parser.py:12",
+            },
+        },
+        {
+            "step": 5,
+            "action": {"name": "read"},
+            "observation": {
+                "success": True,
+                "output": "CURRENT-SOURCE",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": 8,
+                    "end_line": 16,
+                },
+            },
+        },
+    ]
+    original = [dict(event) for event in history]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert result.metadata["revision_working_set_active"] is True
+    assert result.metadata["revision_working_set_pruned"] == 2
+    assert result.metadata["history_events_total"] == 5
+    assert result.metadata["history_events_included"] == 3
+    assert "PATCH-RESULT" in result.text
+    assert "LATEST-FAILURE" in result.text
+    assert "CURRENT-SOURCE" in result.text
+    assert "EARLY-SEARCH" not in result.text
+    assert "EARLY-SOURCE" not in result.text
+    assert history == original
+
+
+def test_patch_due_before_first_change_keeps_navigation_history():
+    history = [
+        {
+            "step": step,
+            "action": {"name": "read"},
+            "observation": {
+                "success": True,
+                "output": f"SOURCE-{step}",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": step,
+                    "end_line": step,
+                },
+            },
+        }
+        for step in range(1, 6)
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert result.metadata["revision_working_set_active"] is False
+    assert result.metadata["revision_working_set_pruned"] == 0
+    assert "SOURCE-1" in result.text
+    assert "SOURCE-5" in result.text
