@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：若新 pytest traceback 已直接指向刚修改的源码文件，Agent 只允许一次窄读便必须再次补丁；若失败只指向测试断言，仍保留两次导航。离线重放 V2.8 的三条 60k 失败轨迹时，第 9 步全部从继续导航变为 `patch_due`。这是真实门禁前的确定性策略验证。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
+V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：pytest 已直接指向刚修改源码时，只允许一次窄读便强制再次补丁；仅指向测试断言时仍保留两次导航。离线重放准确改变三条失败轨迹，但后续冻结 60k 门禁仍为 0/3 verified、3/3 范围命中、27 requests / 156,017 tokens / 3 format retries，估算 $0.06299875。它比 V2.8 同预算少约 5.7% tokens，却暴露出补丁格式纠错所需的完整 4,096 output reserve 无法装入剩余预算；这是负结果，不宣称成功率改善。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
 
 V2.8 针对 V2.7 的长轨迹优化 Harness context：新 pytest 证据替代旧 baseline 正文，重复 read/search 只保留最新上下文副本，失败行实际使用的本地 import 优先。离线重放第 8–11 步减少 11,531 个上下文字符。后续冻结 DeepSeek 门禁仍揭示明确边界：non-thinking 60k 为 0/3 verified、3/3 范围命中、27 requests / 165,403 tokens；独立 72k follow-up 为 1/3 verified、3/3 范围命中、33 requests / 190,062 tokens，唯一成功通过完整 78 项 h11 测试。两组不合并，V2.8 没有证明该状态机修复已稳定。详见 [V2.8 context compaction and model gates](docs/v2.8-context-compaction.md)。
 
