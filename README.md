@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.0 新增第八个 checksum-qualified 真实上游 Bug family：ItsDangerous 必须拒绝可能出现在 URL-safe Base64 签名中的危险分隔符，同时统一处理 `str`/`bytes`。32k Flash 校准为 0/1；冻结 40k 单次对照中 Flash 0/1、Pro 1/1，Pro 用 7 requests / 21,672 tokens 完成并通过完整 100 项测试。但独立 Pro 三次 follow-up 为 0/3、3/3 精确范围，全部在 12-request 边界停止。因此该案例只证明 Pro 曾在同预算下完成，不能证明稳定胜过 Flash，也不触发自动模型路由。详见 [V4.0 ItsDangerous upstream gate](docs/v4.0-upstream-itsdangerous-separator.md)。
+
 V3.9 在另一个真实上游困难案例 Tomli dotted-key parser 上复验 Pro thinking-high。两组均为 3/3 verified、3/3 精确范围；thinking-high requests 从 20 增至 21（+5.00%）、tokens 从 63,551 增至 88,362（+39.04%），峰值保守成本从 $0.06942469 增至 $0.13594470（+95.82%）。三个配对 trial 的 thinking tokens 全部更多，说明 V3.8 在 h11 上的收益不能直接推广；默认仍保持 Flash/non-thinking。详见 [V3.9 Tomli thinking comparison](docs/v3.9-tomli-thinking-comparison.md)。
 
 V3.8 将 Provider request timeout 纳入实验身份，并让 `repofix-compare` 显式支持 `model` 与 `thinking_mode` 两种单变量对照。冻结 Pro h11 三次组中，non-thinking 为 2/3 verified，thinking-high 为 3/3；thinking-high requests 从 33 降到 22（-33.33%）、tokens 从 162,442 降到 137,393（-15.42%），峰值保守成本从 $0.18748136 增至 $0.21714925（+15.82%）。每组只有三次且同案例历史波动明显，因此这是 thinking-high 的正向小样本证据，不是稳定胜率结论。详见 [V3.8 Pro thinking-high comparison](docs/v3.8-thinking-high-comparison.md)。
@@ -299,9 +301,14 @@ V1.5 指定发布闸门使用 `deepseek-v4-flash` 完成 2/3：两个 more-itert
 ```powershell
 .\scripts\prepare_upstream_click_help_v3.6.ps1
 .\scripts\run_demo.ps1 -Suite evals\upstream-click-help-v3.6.json
+
+.\scripts\prepare_upstream_itsdangerous_separator_v4.0.ps1
+.\scripts\run_demo.ps1 -Suite evals\upstream-itsdangerous-separator-v4.0.json
 ```
 
 准备脚本固定 Click PR #3299 的第一父提交与 merge commit，校验两份归档 SHA-256，只把上游回归测试复制到 buggy snapshot，并保护 `src/click/core.py` 仍等于父提交。冻结单次门禁与后续三次稳定性结果分开报告，不合并成功率。
+
+V4.0 的 ItsDangerous 脚本同样固定父/修复 commit 和归档哈希，只导入上游 `tests.py`，并保护父版本 `itsdangerous.py`。其 Flash/Pro 单次对照与 Pro 三次 follow-up 也分别报告，避免用一次成功覆盖后续 0/3。
 
 V1.6 针对 Tomli 暴露的长仓库导航问题加入紧凑导航记忆、最多三跳的本地 facade 追踪、补丁后的 Harness 自动定向验证，以及 DeepSeek/OpenAI-compatible 原生 Function Calling。真实原生工具冒烟用 1 次请求返回合法 `list` 动作；固定 Tomli 门禁仍在第 7 步因 Provider 格式重试耗尽 12 次请求，未产生补丁。这个失败结果保留为当前能力边界，不通过扩大预算或挑选重跑改写结论。详见 [V1.6 navigation and native tools](docs/v1.6-navigation-and-native-tools.md)。
 
@@ -355,3 +362,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.7 Flash/Pro 冻结跨模型对照](docs/v3.7-model-comparison.md)
 - [V3.8 Pro thinking-high 冻结对照](docs/v3.8-thinking-high-comparison.md)
 - [V3.9 Tomli thinking-high 跨项目复验](docs/v3.9-tomli-thinking-comparison.md)
+- [V4.0 ItsDangerous 危险分隔符真实上游门禁](docs/v4.0-upstream-itsdangerous-separator.md)

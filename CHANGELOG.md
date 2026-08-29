@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.0.0 - 2026-08-29
+
+- Add an eighth checksum-qualified upstream bug family from ItsDangerous, including reproducible parent/fix archive preparation and Docker qualification.
+- Freeze a one-trial Flash/Pro comparison where only Pro completed, then keep the separate 0/3 Pro stability follow-up instead of promoting the selected success.
+- Document the new model-selection counterexample and preserve Flash/non-thinking as the cost-effective default without automatic routing.
+
 ## 3.9.0 - 2026-08-29
 
 - Add a frozen three-trial Tomli thinking-mode comparison over the existing checksum-qualified upstream regression.
