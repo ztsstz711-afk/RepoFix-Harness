@@ -283,6 +283,68 @@ def test_context_forces_revision_after_two_reads_following_failed_verification()
     assert "Do not call list, search, or read again" in result.text
 
 
+def test_context_forces_revision_after_one_read_when_traceback_points_to_patch():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "src/parser.py:42: ValueError: got partial footer",
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "read"},
+            "observation": {"success": True},
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert result.metadata["revision_navigation_cap"] == 1
+
+
+def test_context_keeps_two_reads_when_failure_only_points_to_test():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "tests/test_parser.py:12: AssertionError",
+            },
+        },
+        {
+            "step": 3,
+            "action": {"name": "read"},
+            "observation": {"success": True},
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_revision"
+    assert result.metadata["revision_navigation_cap"] == 2
+
+
 def test_context_forces_retry_after_two_reads_following_rejected_patch():
     history = [
         {

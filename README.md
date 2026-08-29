@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V2.9 针对 V2.8 六条 h11 轨迹共有的修订瓶颈加入 evidence-aware revision cap：若新 pytest traceback 已直接指向刚修改的源码文件，Agent 只允许一次窄读便必须再次补丁；若失败只指向测试断言，仍保留两次导航。离线重放 V2.8 的三条 60k 失败轨迹时，第 9 步全部从继续导航变为 `patch_due`。这是真实门禁前的确定性策略验证。详见 [V2.9 actionable revision cap](docs/v2.9-actionable-revision-cap.md)。
+
 V2.8 针对 V2.7 的长轨迹优化 Harness context：新 pytest 证据替代旧 baseline 正文，重复 read/search 只保留最新上下文副本，失败行实际使用的本地 import 优先。离线重放第 8–11 步减少 11,531 个上下文字符。后续冻结 DeepSeek 门禁仍揭示明确边界：non-thinking 60k 为 0/3 verified、3/3 范围命中、27 requests / 165,403 tokens；独立 72k follow-up 为 1/3 verified、3/3 范围命中、33 requests / 190,062 tokens，唯一成功通过完整 78 项 h11 测试。两组不合并，V2.8 没有证明该状态机修复已稳定。详见 [V2.8 context compaction and model gates](docs/v2.8-context-compaction.md)。
 
 V2.7 新增第六个 checksum-qualified 真实上游修复，也是首个协议解析状态机案例：h11 的 `ChunkedReader` 会无条件丢弃 chunk body 后两个字节，却不验证它们是否为必须的 CRLF。四次预先区分的预算校准依次为 auto 42k：0/1、non-thinking 42k：0/1、non-thinking 60k：0/1、non-thinking 72k：1/1；最后一次在 12/12 请求边界完成，独立完整验收为 78 passed。该结果说明复杂增量状态修复对轨迹和预算敏感，只能作为能力边界与预算校准，不能宣称稳定成功。详见 [V2.7 upstream h11 chunk footer calibration](docs/v2.7-upstream-h11-chunk-footer.md)。
@@ -156,6 +158,8 @@ Provider 还会优先使用 OpenAI-compatible Function Calling，把注册工具
 Action Registry 对参数类型、行号范围和两种 patch 模式提供同一份结构化定义；Context 根据已完成的定位、修改和测试状态标记 repair phase，在证据足够时优先推动最小局部补丁，验证通过后推动结束，而不是继续重复读取。
 
 Harness 还会把 repair phase 变成实际工具策略：例如 `patch_due` 请求只向模型暴露 `apply_patch`，`verified_patch` 只暴露 diff/status/finish。该限制同时作用于原生 Function Calling 和 JSON fallback，阶段外动作会被 Provider 拒绝。
+
+补丁后的 pytest 若直接指向已修改源码，revision phase 只允许一次窄导航就进入 `patch_due`；仅有测试断言时仍允许两次，避免盲目强制修改。
 
 单仓库 CLI 默认显示实时 repair phase、剩余预算、动作、补丁后定向测试及最终 before/after 摘要；`--quiet` 隐藏实时步骤但保留摘要，`--json` 只输出最终 RunState JSON。Preflight 判定目标不是 Git worktree 时，Provider 不再看到不可用的 git 工具。
 

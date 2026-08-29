@@ -45,6 +45,7 @@ class ContextBuilder:
     def build_with_metadata(self, history: list[dict]) -> ContextBuildResult:
         progress = self._progress_summary(history)
         repair_phase = self._repair_phase(history)
+        revision_navigation_cap = self._revision_navigation_cap(history)
         next_priority = self._next_priority(repair_phase)
         preflight = self._preflight_section()
         baseline_superseded = self.baseline is not None and self._has_new_test_evidence(
@@ -114,6 +115,7 @@ class ContextBuilder:
                 "history_events_skipped_oversized": oversized_skipped,
                 "navigation_summary": self._navigation_summary(history),
                 "repair_phase": repair_phase,
+                "revision_navigation_cap": revision_navigation_cap,
                 "failure_context": {
                     "enabled": self.seed_failure_context,
                     "included": bool(failure_result.text),
@@ -228,7 +230,9 @@ class ContextBuilder:
     @staticmethod
     def _repair_phase(history: list[dict]) -> str:
         changed = False
+        changed_files: set[str] = set()
         latest_pytest: bool | None = None
+        latest_pytest_output = ""
         successful_reads = 0
         successful_searches = 0
         empty_searches = 0
@@ -252,18 +256,28 @@ class ContextBuilder:
                 navigation_since_patch = 0
                 if success and observation.get("metadata", {}).get("changed"):
                     changed = True
+                    path = observation.get("metadata", {}).get("path")
+                    if path:
+                        changed_files.add(str(path).replace("\\", "/"))
                 elif not success:
                     failed_patches += 1
             elif name == "run_command":
                 latest_pytest = success
+                latest_pytest_output = "" if success else observation.get("output", "")
             post_patch_test = observation.get("metadata", {}).get("post_patch_test")
             if isinstance(post_patch_test, dict):
                 latest_pytest = bool(post_patch_test.get("success"))
+                latest_pytest_output = (
+                    "" if latest_pytest else str(post_patch_test.get("output", ""))
+                )
 
         if changed and latest_pytest is True:
             return "verified_patch"
         if changed and latest_pytest is False:
-            if navigation_since_patch >= 2:
+            navigation_cap = ContextBuilder._revision_cap_for_failure(
+                changed_files, latest_pytest_output
+            )
+            if navigation_since_patch >= navigation_cap:
                 return "patch_due"
             return "patch_needs_revision"
         if changed:
@@ -281,6 +295,46 @@ class ContextBuilder:
         if successful_reads or successful_searches:
             return "inspecting"
         return "locating"
+
+    @staticmethod
+    def _revision_cap_for_failure(
+        changed_files: set[str], pytest_output: str
+    ) -> int:
+        normalized = pytest_output.replace("\\", "/")
+        if any(f"{path}:" in normalized for path in changed_files):
+            return 1
+        return 2
+
+    @staticmethod
+    def _revision_navigation_cap(history: list[dict]) -> int | None:
+        changed_files: set[str] = set()
+        latest_pytest: bool | None = None
+        latest_pytest_output = ""
+        for event in history:
+            action = event.get("action", {})
+            observation = event.get("observation", {})
+            if action.get("name") == "apply_patch" and observation.get(
+                "metadata", {}
+            ).get("changed"):
+                path = observation.get("metadata", {}).get("path")
+                if path:
+                    changed_files.add(str(path).replace("\\", "/"))
+            elif action.get("name") == "run_command":
+                latest_pytest = bool(observation.get("success"))
+                latest_pytest_output = (
+                    "" if latest_pytest else str(observation.get("output", ""))
+                )
+            post_patch_test = observation.get("metadata", {}).get("post_patch_test")
+            if isinstance(post_patch_test, dict):
+                latest_pytest = bool(post_patch_test.get("success"))
+                latest_pytest_output = (
+                    "" if latest_pytest else str(post_patch_test.get("output", ""))
+                )
+        if not changed_files or latest_pytest is not False:
+            return None
+        return ContextBuilder._revision_cap_for_failure(
+            changed_files, latest_pytest_output
+        )
 
     @staticmethod
     def _next_priority(repair_phase: str) -> str:
