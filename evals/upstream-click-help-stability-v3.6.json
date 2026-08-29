@@ -1,0 +1,24 @@
+{
+  "name": "upstream-click-help-stability-v3.6",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "click-help-strict-equality",
+      "case": "click_help_strict_equality",
+      "variant": "upstream_parent_plus_regression_test",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-click-help-v3.6/buggy",
+      "task": "Fix Click option help rendering so show_default supports non-string default objects whose equality method rejects comparison with strings, while preserving the special display for an empty-string default. Use the focused regression test while iterating; the harness will run the compatible full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests/test_options.py::test_show_default_with_empty_string[non-string-comparable-object]",
+      "final_test_command": "pytest -q -W ignore::pytest.PytestRemovedIn10Warning",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 180,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 40000,
+      "verify_after_patch": true,
+      "expected_changed_files": ["src/click/core.py"],
+      "tags": ["external", "upstream-regression", "click", "src-layout", "help-rendering", "type-guard"]
+    }
+  ]
+}

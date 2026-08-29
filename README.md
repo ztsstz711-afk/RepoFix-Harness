@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.6 扩展到第七个 checksum-qualified 真实上游 Bug family：Click 在渲染 option help 时，会把任意默认对象与空字符串直接比较，遇到拒绝字符串比较的 `__eq__` 会抛异常。为支持该标准 `src/` 布局仓库，本地与 Docker pytest 后端现在都使用只指向目标仓库根目录及 `src/` 的隔离 `PYTHONPATH`。冻结门禁为 1/1 verified、1/1 精确范围，使用 6 requests / 17,468 tokens；独立三次 follow-up 为 3/3 verified、3/3 精确范围，使用 15 requests / 41,427 tokens、0 retries。每次最终验收均为 1,386 passed、21 skipped、1 xfailed。详见 [V3.6 Click upstream gate](docs/v3.6-upstream-click-help.md)。
+
 V3.5 消除 compact working set 上的重复保守准入：支持 next-action token allowance 的 provider 根据完整 prompt 和最低输出空间做最终判断，普通 context 仍用历史保守估算，硬 run 上限不增加。同 V3.4 auto-verify follow-up 可比的 h11 三次门禁为 0/3 verified、3/3 范围命中，使用 33 requests / 176,119 tokens / 5 format retries，估算 $0.06803926；两条由 Provider 在 60k 内拒绝，一条在 12/12 停止并已获得第三次补丁机会。机制移除了提前拦截，但没有改善该状态机案例的模型修复结果。详见 [V3.5 provider-managed residual admission](docs/v3.5-provider-managed-admission.md)。
 
 V3.4 将 working set 扩展到 `patch_needs_verification`：只向模型保留当前补丁及其后的工具事件，旧导航仍留在完整 trace。离线重放 V3.3 的 5 个验证请求时，context 从 22–24k 降到 2.5–10.2k；真实门禁也降到 3.3–11.2k，但结果为 0/3 verified、3/3 范围命中，使用 35 requests / 164,905 tokens / 2 format retries，估算 $0.06341088。三次都写出第二补丁但仍未通过，瓶颈已转为有限请求内的补丁质量与显式验证开销。详见 [V3.4 verification working set](docs/v3.4-verification-working-set.md)。
@@ -108,6 +110,7 @@ V1.4 使用同一反例完成三组交错 DeepSeek + Docker A/B：两组均 3/3 
 - Harness 包版本和源码树 SHA-256 也属于实验身份，防止不同实现版本静默续跑
 - Docker trial 保存完整 preflight checks，并汇总 daemon 版本、镜像 SHA-256 与容器 pytest 指纹
 - 受限 Docker pytest 后端：禁网、只读仓库、无提权并限制 CPU、内存和进程数
+- 本地与 Docker pytest 均支持根目录包和标准 `src/` 布局；导入路径只绑定当前目标仓库，不继承宿主机 `PYTHONPATH`
 
 架构与模块职责见 [Architecture](docs/architecture.md)。
 
@@ -281,6 +284,15 @@ V1.5 开始验证真实上游 Bug，而不是继续人工注入错误。准备�
 
 V1.5 指定发布闸门使用 `deepseek-v4-flash` 完成 2/3：两个 more-itertools 修复均通过完整上游套件并准确命中预期文件；Tomli 在 11 次请求内未产生补丁。整套实际使用 27/36 次授权请求、115,977 tokens，保守估算成本 $0.04467383。该结果按原样发布，不用探索性重跑拼接成功率。
 
+准备并运行 V3.6 Click help rendering 真实上游案例：
+
+```powershell
+.\scripts\prepare_upstream_click_help_v3.6.ps1
+.\scripts\run_demo.ps1 -Suite evals\upstream-click-help-v3.6.json
+```
+
+准备脚本固定 Click PR #3299 的第一父提交与 merge commit，校验两份归档 SHA-256，只把上游回归测试复制到 buggy snapshot，并保护 `src/click/core.py` 仍等于父提交。冻结单次门禁与后续三次稳定性结果分开报告，不合并成功率。
+
 V1.6 针对 Tomli 暴露的长仓库导航问题加入紧凑导航记忆、最多三跳的本地 facade 追踪、补丁后的 Harness 自动定向验证，以及 DeepSeek/OpenAI-compatible 原生 Function Calling。真实原生工具冒烟用 1 次请求返回合法 `list` 动作；固定 Tomli 门禁仍在第 7 步因 Provider 格式重试耗尽 12 次请求，未产生补丁。这个失败结果保留为当前能力边界，不通过扩大预算或挑选重跑改写结论。详见 [V1.6 navigation and native tools](docs/v1.6-navigation-and-native-tools.md)。
 
 `context-matrix.json` 的 30 个 trial 理论请求上限为 204，并在 suite 根节点用 `max_total_requests` 明确授权。增加 repetitions 或单任务上限而不同时审查总预算，会在加载 manifest 时失败，不会调用模型。
@@ -329,3 +341,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.3 pytest 证据来源判定](docs/v3.3-test-evidence-provenance.md)
 - [V3.4 当前补丁的验证工作集](docs/v3.4-verification-working-set.md)
 - [V3.5 Provider 管理的剩余预算准入](docs/v3.5-provider-managed-admission.md)
+- [V3.6 Click `src/` 布局真实上游门禁](docs/v3.6-upstream-click-help.md)

@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在真实上游 Bug 上既有 3/3 稳定修复，也保留了复杂 h11 状态机在冻结 60k 门禁中 0/3 的负结果，证明 Harness 闭环、范围与预算可审计，同时诚实呈现模型能力边界。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机在冻结 60k 门禁中 0/3 的负结果，证明 Harness 闭环、范围与预算可审计，同时诚实呈现模型能力边界。
 
 ## 3 分钟版本
 
@@ -57,6 +57,8 @@ before snapshot 用于恢复；after hash 用于判断 Agent 结束后用户是�
 
 V2.7–V3.5 的 h11 chunk-footer 状态机是最适合讲失败分析的一组：72k 校准曾完成 1/1，V3.1 的 60k 三次门禁完成 2/3，但后续独立小样本在 0/3–1/3 波动。Harness 依次修复了 revision context、测试证据时效、拒绝命令误判、verification context 膨胀和重复预算准入；机制均有离线重放与真实 trace 证据，但最新 V3.5 仍是 0/3。正确结论是复杂修复主要受模型推理质量影响，不能靠不断放宽 Harness 预算包装成稳定成功。
 
+V3.6 则展示“扩大覆盖面而不是继续过拟合失败例”的方法：新增 Click help rendering 上游 Bug 时先发现 Docker 无法导入标准 `src/` layout，于是统一 Local/Docker 的仓库内 `PYTHONPATH`，再冻结提交、归档哈希、测试文件和预期修改范围。单次门禁 1/1，独立三次 follow-up 3/3，所有成功均只修改 `src/click/core.py` 并通过 1,386 项完整测试。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -74,4 +76,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** 停止对单个 h11 Bug 继续调参，冻结 V3.5；换 DeepSeek 的更新模型或另一款更强 coding model做同 manifest 对照，并扩充新的 checksum-qualified 上游 Bug family，而不是先堆 multi-agent。
+- **下一步是什么？** V3.6 已扩充新的 checksum-qualified Click Bug family；下一步冻结 Harness 和 manifest，用 DeepSeek 的更新模型或另一款更强 coding model做同任务对照，而不是先堆 multi-agent。

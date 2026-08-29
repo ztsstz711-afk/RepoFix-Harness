@@ -32,6 +32,14 @@ def sanitized_subprocess_environment() -> dict[str, str]:
     return safe
 
 
+def local_pytest_environment(repo: Path) -> dict[str, str]:
+    """Build an isolated import path for root- and src-layout repositories."""
+    safe = sanitized_subprocess_environment()
+    candidates = [repo / "src", repo]
+    safe["PYTHONPATH"] = os.pathsep.join(str(path) for path in candidates if path.is_dir())
+    return safe
+
+
 class PytestExecutor(Protocol):
     name: str
 
@@ -42,7 +50,7 @@ class LocalPytestExecutor:
     name = "local"
 
     def run(self, repo: Path, arguments: list[str], timeout_seconds: int) -> Observation:
-        env = sanitized_subprocess_environment()
+        env = local_pytest_environment(repo)
         observation = _run(
             "run_command",
             [sys.executable, "-m", "pytest", *arguments],
@@ -92,6 +100,8 @@ class DockerPytestExecutor:
             "1.0",
             "--pids-limit",
             "256",
+            "--env",
+            "PYTHONPATH=/workspace/src:/workspace",
             self.image,
             "python",
             "-m",

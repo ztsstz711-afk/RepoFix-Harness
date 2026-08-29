@@ -74,6 +74,8 @@ Preflight 不执行仓库代码，也不调用模型。它只检查本地运行�
 
 Docker backend 的 preflight 会实际连接 daemon、检查指定镜像并在禁网容器中执行 `pytest --version`。测试容器使用只读仓库与根文件系统、临时 `/tmp`、无 capabilities、禁止提权以及 CPU/内存/PID 限制；超时后 Harness 会按唯一容器名强制清理。
 
+pytest 执行环境同时兼容根目录 package 与标准 `src/` layout。Docker 固定使用 `/workspace/src:/workspace`，Local backend 则用解析后的 `<repo>/src:<repo>`；两者都会覆盖而不是继承宿主机 `PYTHONPATH`，避免外部包路径影响目标仓库的导入与实验复现。
+
 Docker readiness 的 daemon version、`docker image inspect` 返回的内容寻址 SHA-256 和容器内 pytest 版本会保留在每个 suite task 的 `preflight_checks`，并去重汇总到报告。这样即使 manifest 使用 `repofix-pytest:latest`，两次实验也能判断标签背后的实际镜像是否相同。
 
 Local pytest 和 Git 子进程会从环境中移除 provider 配置及常见凭据变量。Git diff/status 另外禁用 external diff、textconv、fsmonitor、global/system config 和 optional locks。Local backend 仍不是 OS sandbox，只应运行可信仓库；外部源码默认走 Docker。
@@ -128,4 +130,4 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 ## Why a custom loop
 
-V3.5 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
+V3.6 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。

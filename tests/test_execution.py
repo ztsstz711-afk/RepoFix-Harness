@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -7,6 +8,7 @@ from repofix.execution import (
     DockerPytestExecutor,
     LocalPytestExecutor,
     create_pytest_executor,
+    local_pytest_environment,
     sanitized_subprocess_environment,
 )
 from repofix.schemas import Observation
@@ -34,6 +36,7 @@ def test_docker_executor_builds_a_restricted_container_command(monkeypatch, tmp_
     assert "--cap-drop" in command and "ALL" in command
     assert "no-new-privileges" in command
     assert "512m" in command
+    assert "PYTHONPATH=/workspace/src:/workspace" in command
     assert "repofix-test:image" in command
     assert command[-2:] == ["-q", "tests"]
     assert result.metadata["execution_backend"] == "docker"
@@ -99,6 +102,33 @@ def test_subprocess_environment_removes_provider_and_common_secrets(monkeypatch)
     assert "GITHUB_TOKEN" not in environment
     assert "DATABASE_PASSWORD" not in environment
     assert environment["SAFE_TEST_VALUE"] == "visible"
+
+
+def test_local_pytest_environment_uses_only_repository_import_roots(monkeypatch, tmp_path):
+    monkeypatch.setenv("PYTHONPATH", "C:\\untrusted-host-path")
+    (tmp_path / "src").mkdir()
+
+    environment = local_pytest_environment(tmp_path)
+
+    assert environment["PYTHONPATH"].split(os.pathsep) == [
+        str(tmp_path / "src"),
+        str(tmp_path),
+    ]
+
+
+def test_local_pytest_supports_src_layout(tmp_path):
+    package = tmp_path / "src" / "sample_package"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VALUE = 42\n", encoding="utf-8")
+    (tmp_path / "test_src_layout.py").write_text(
+        "from sample_package import VALUE\n\ndef test_value():\n    assert VALUE == 42\n",
+        encoding="utf-8",
+    )
+
+    result = LocalPytestExecutor().run(tmp_path, ["-q"], 20)
+
+    assert result.success is True
+    assert "1 passed" in result.output
 
 
 def test_local_pytest_cannot_read_repofix_api_key(monkeypatch, tmp_path):

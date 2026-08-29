@@ -52,3 +52,21 @@ def test_real_docker_timeout_removes_the_container(tmp_path):
     )
     assert process.returncode == 0
     assert process.stdout.strip() == ""
+
+
+def test_real_docker_backend_supports_src_layout(tmp_path):
+    require_docker()
+    package = tmp_path / "src" / "docker_src_package"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("VALUE = 42\n", encoding="utf-8")
+    (tmp_path / "test_src_layout.py").write_text(
+        "from docker_src_package import VALUE\n\ndef test_value():\n    assert VALUE == 42\n",
+        encoding="utf-8",
+    )
+
+    result = ToolRuntime(
+        str(tmp_path), execution_backend="docker", command_timeout_seconds=30
+    ).execute("run_command", {"command": "pytest -q"})
+
+    assert result.success is True
+    assert "1 passed" in result.output
