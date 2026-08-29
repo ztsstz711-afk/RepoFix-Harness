@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V2.8 针对 V2.7 的长轨迹做不调用模型的 Harness 优化：出现更新的 pytest 证据后，初始 baseline 输出降为状态/命令摘要；重复 read/search 只在模型上下文保留最新副本，原始 trace 不删；首轮本地 import 扩展优先选择失败行实际引用的符号。重放 V2.7 成功轨迹时，第 8–11 步合计减少约 11,531 个上下文字符；h11 首轮源码选择收敛为测试文件、`ChunkedReader` 和 `LocalProtocolError` 三个直接相关来源。该结果是确定性机制验证，不是新的模型成功率。详见 [V2.8 context compaction](docs/v2.8-context-compaction.md)。
+V2.8 针对 V2.7 的长轨迹优化 Harness context：新 pytest 证据替代旧 baseline 正文，重复 read/search 只保留最新上下文副本，失败行实际使用的本地 import 优先。离线重放第 8–11 步减少 11,531 个上下文字符。后续冻结 DeepSeek 门禁仍揭示明确边界：non-thinking 60k 为 0/3 verified、3/3 范围命中、27 requests / 165,403 tokens；独立 72k follow-up 为 1/3 verified、3/3 范围命中、33 requests / 190,062 tokens，唯一成功通过完整 78 项 h11 测试。两组不合并，V2.8 没有证明该状态机修复已稳定。详见 [V2.8 context compaction and model gates](docs/v2.8-context-compaction.md)。
 
 V2.7 新增第六个 checksum-qualified 真实上游修复，也是首个协议解析状态机案例：h11 的 `ChunkedReader` 会无条件丢弃 chunk body 后两个字节，却不验证它们是否为必须的 CRLF。四次预先区分的预算校准依次为 auto 42k：0/1、non-thinking 42k：0/1、non-thinking 60k：0/1、non-thinking 72k：1/1；最后一次在 12/12 请求边界完成，独立完整验收为 78 passed。该结果说明复杂增量状态修复对轨迹和预算敏感，只能作为能力边界与预算校准，不能宣称稳定成功。详见 [V2.7 upstream h11 chunk footer calibration](docs/v2.7-upstream-h11-chunk-footer.md)。
 

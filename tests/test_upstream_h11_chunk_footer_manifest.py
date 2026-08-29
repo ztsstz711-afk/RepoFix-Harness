@@ -26,3 +26,43 @@ def test_upstream_h11_chunk_footer_manifests_have_full_h11_acceptance():
         assert task["max_tokens"] == max_tokens
         assert task["expected_changed_files"] == ["h11/_readers.py"]
         assert task["repo"].endswith("upstream-h11-chunk-footer-v2.7/buggy")
+
+
+def test_v28_h11_stability_manifest_freezes_three_60k_trials():
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (
+            root / "evals" / "upstream-h11-chunk-footer-stability-v2.8.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert manifest["max_total_requests"] == 36
+    assert len(manifest["tasks"]) == 1
+    task = manifest["tasks"][0]
+    assert task["repetitions"] == 3
+    assert task["max_requests"] == 12
+    assert task["max_tokens"] == 60000
+    assert task["execution_backend"] == "docker"
+    assert task["test_command"].endswith("test_io.py::test_ChunkedReader")
+    assert task["final_test_command"] == "pytest -q h11"
+    assert task["expected_changed_files"] == ["h11/_readers.py"]
+
+
+def test_v28_h11_72k_followup_freezes_three_independent_trials():
+    root = Path(__file__).resolve().parents[1]
+    manifest = json.loads(
+        (
+            root / "evals" / "upstream-h11-chunk-footer-stability-72k-v2.8.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert manifest["max_total_requests"] == 36
+    assert len(manifest["tasks"]) == 1
+    task = manifest["tasks"][0]
+    assert task["repetitions"] == 3
+    assert task["max_requests"] == 12
+    assert task["max_tokens"] == 72000
+    assert task["execution_backend"] == "docker"
+    assert task["test_command"].endswith("test_io.py::test_ChunkedReader")
+    assert task["final_test_command"] == "pytest -q h11"
+    assert task["expected_changed_files"] == ["h11/_readers.py"]
