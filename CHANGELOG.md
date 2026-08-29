@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 3.9.0 - 2026-08-29
+
+- Add a frozen three-trial Tomli thinking-mode comparison over the existing checksum-qualified upstream regression.
+- Record a 3/3 versus 3/3 result where thinking-high used 39.04% more tokens and cost 95.82% more at conservative peak prices.
+- Keep Flash/non-thinking as the default and document that the positive h11 thinking result does not generalize to every difficult repair.
+
+## 3.8.0 - 2026-08-29
+
+- Add request timeout to evaluation identity and reject comparisons with unequal provider wait limits.
+- Support strict single-variable comparisons over either model or thinking mode.
+- Freeze the first Pro thinking-high comparison on the h11 state-machine case.
+
+## 3.7.0 - 2026-08-29
+
+- Add strict cross-model evaluation report comparison with identity and aggregate validation.
+- Freeze Flash versus Pro comparisons on Click and h11.
+
+## 3.6.0 - 2026-08-29
+
+- Add the checksum-qualified Click help-rendering upstream gate and isolated `src/` layout support.
+
 ## 3.5.0 - 2026-08-29
 
 - Delegate residual token admission for active phase working sets to providers that explicitly implement a next-action token allowance.

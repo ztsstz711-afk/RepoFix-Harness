@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V3.9 在另一个真实上游困难案例 Tomli dotted-key parser 上复验 Pro thinking-high。两组均为 3/3 verified、3/3 精确范围；thinking-high requests 从 20 增至 21（+5.00%）、tokens 从 63,551 增至 88,362（+39.04%），峰值保守成本从 $0.06942469 增至 $0.13594470（+95.82%）。三个配对 trial 的 thinking tokens 全部更多，说明 V3.8 在 h11 上的收益不能直接推广；默认仍保持 Flash/non-thinking。详见 [V3.9 Tomli thinking comparison](docs/v3.9-tomli-thinking-comparison.md)。
+
 V3.8 将 Provider request timeout 纳入实验身份，并让 `repofix-compare` 显式支持 `model` 与 `thinking_mode` 两种单变量对照。冻结 Pro h11 三次组中，non-thinking 为 2/3 verified，thinking-high 为 3/3；thinking-high requests 从 33 降到 22（-33.33%）、tokens 从 162,442 降到 137,393（-15.42%），峰值保守成本从 $0.18748136 增至 $0.21714925（+15.82%）。每组只有三次且同案例历史波动明显，因此这是 thinking-high 的正向小样本证据，不是稳定胜率结论。详见 [V3.8 Pro thinking-high comparison](docs/v3.8-thinking-high-comparison.md)。
 
 V3.7 在冻结的 V3.6.0 Harness 上完成 `deepseek-v4-flash` 与 `deepseek-v4-pro` 的跨模型对照，并新增 `repofix-compare` 严格比较入口。Click 三次组均为 3/3 verified；Pro 将 requests 从 16 降到 10（-37.5%）、tokens 从 46,554 降到 25,323（-45.61%），但峰值保守成本增加 89.68%。h11 难例两组均为 1/3 verified、3/3 范围命中；Pro requests 增加 6.25%、tokens 仅减少 1.5%，成本增加 187.04%。因此当前 non-thinking 配置没有证据支持把默认模型从 Flash 切到 Pro。详见 [V3.7 frozen cross-model comparison](docs/v3.7-model-comparison.md)。
@@ -352,3 +354,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.6 Click `src/` 布局真实上游门禁](docs/v3.6-upstream-click-help.md)
 - [V3.7 Flash/Pro 冻结跨模型对照](docs/v3.7-model-comparison.md)
 - [V3.8 Pro thinking-high 冻结对照](docs/v3.8-thinking-high-comparison.md)
+- [V3.9 Tomli thinking-high 跨项目复验](docs/v3.9-tomli-thinking-comparison.md)

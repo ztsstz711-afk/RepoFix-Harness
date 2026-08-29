@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机的波动结果；V3.7–V3.8 在同一冻结实验身份下分别比较模型和 thinking 配置，证明成功、范围、资源与成本都可以审计，而不是凭主观感觉选参数。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机的波动结果；V3.7–V3.9 在冻结实验身份下比较模型和 thinking 配置，并用 h11/Tomli 的相反结果证明参数收益依任务而变，不能凭主观感觉选模型。
 
 ## 3 分钟版本
 
@@ -63,6 +63,8 @@ V3.7 可用于回答“为什么默认使用 Flash 而不是更贵的 Pro”：�
 
 V3.8 可用于回答“thinking 是否一定更浪费”：同一 Pro/h11/60k/12-request/120s 配置下，thinking-high 从 2/3 到 3/3，并把 requests 减少 33.33%、tokens 减少 15.42%，但 reasoning output 使峰值成本仍增加 15.82%。它说明更长单次思考可能减少错误修订轮次；三对样本的 paired sign test 仍不显著，不能升级为默认路由规则。
 
+V3.9 给出必要的反例：同一 Pro/Tomli/80k/12-request/120s 配置下，两组都是 3/3，但 thinking-high tokens 增加 39.04%、峰值成本增加 95.82%。三个配对 trial 都是 non-thinking token 更少。因此项目不把“难任务”简单等同于“开启 thinking”，也不根据一次正向实验做自动路由。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -80,4 +82,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** V3.8 已把 Pro thinking-high 作为单独实验；下一步应在新的 checksum-qualified 难例上复验，达到跨项目证据后再考虑难度感知路由，不能根据一个 h11 案例直接自动切 Pro。
+- **下一步是什么？** V3.9 已得到 h11 正向、Tomli 负向的跨项目证据；下一步应增加未参与历史调参的新上游 Bug family，并积累更大的冻结矩阵后再研究可解释的难度路由。
