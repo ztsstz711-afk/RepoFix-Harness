@@ -186,3 +186,31 @@ def test_v34_h11_gate_repeats_the_same_60k_case_three_times():
     assert task["test_command"].endswith("test_io.py::test_ChunkedReader")
     assert task["final_test_command"] == "pytest -q h11"
     assert task["expected_changed_files"] == ["h11/_readers.py"]
+
+
+def test_v34_auto_verify_followup_changes_only_the_verification_policy():
+    root = Path(__file__).resolve().parents[1]
+    standard = json.loads(
+        (
+            root / "evals" / "upstream-h11-chunk-footer-stability-v3.4.json"
+        ).read_text(encoding="utf-8")
+    )["tasks"][0]
+    followup = json.loads(
+        (
+            root
+            / "evals"
+            / "upstream-h11-chunk-footer-auto-verify-followup-v3.4.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert followup["max_total_requests"] == 36
+    task = followup["tasks"][0]
+    assert task["verify_after_patch"] is True
+    assert task["repetitions"] == standard["repetitions"] == 3
+    assert task["max_requests"] == standard["max_requests"] == 12
+    assert task["max_tokens"] == standard["max_tokens"] == 60000
+    assert task["repo"] == standard["repo"]
+    assert task["task"] == standard["task"]
+    assert task["test_command"] == standard["test_command"]
+    assert task["final_test_command"] == standard["final_test_command"]
+    assert task["expected_changed_files"] == standard["expected_changed_files"]
