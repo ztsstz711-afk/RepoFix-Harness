@@ -255,6 +255,84 @@ def test_context_marks_patch_due_after_excessive_successful_navigation():
     assert "Do not call list, search, or read again" in result.text
 
 
+def test_context_allows_one_target_read_after_search_finds_unread_source_line():
+    history = [
+        {
+            "step": step,
+            "action": {"name": "read", "arguments": {"path": "src/parser.py"}},
+            "observation": {
+                "success": True,
+                "output": f"source-{step}",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": step * 10,
+                    "end_line": step * 10 + 5,
+                },
+            },
+        }
+        for step in range(1, 5)
+    ]
+    history.append(
+        {
+            "step": 5,
+            "action": {
+                "name": "search",
+                "arguments": {"query": "class Signer", "path": "src/signer.py"},
+            },
+            "observation": {
+                "success": True,
+                "output": "src/signer.py:271:class Signer:",
+                "metadata": {
+                    "query": "class Signer",
+                    "path": "src/signer.py",
+                    "matches": 1,
+                },
+            },
+        }
+    )
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "target_read_due"
+    assert result.metadata["target_read_grace"] is True
+    assert "Read one narrow range around that hit" in result.text
+
+
+def test_context_does_not_grant_target_read_when_search_hit_was_already_read():
+    history = [
+        {
+            "step": step,
+            "action": {"name": "read", "arguments": {"path": "src/parser.py"}},
+            "observation": {
+                "success": True,
+                "output": f"source-{step}",
+                "metadata": {
+                    "path": "src/parser.py",
+                    "start_line": step * 50,
+                    "end_line": step * 50 + 49,
+                },
+            },
+        }
+        for step in range(1, 5)
+    ]
+    history.append(
+        {
+            "step": 5,
+            "action": {"name": "search", "arguments": {"query": "parse_key"}},
+            "observation": {
+                "success": True,
+                "output": "src/parser.py:120:def parse_key():",
+                "metadata": {"query": "parse_key", "matches": 1},
+            },
+        }
+    )
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_due"
+    assert result.metadata["target_read_grace"] is False
+
+
 def test_context_forces_revision_after_two_reads_following_failed_verification():
     history = [
         {

@@ -367,6 +367,17 @@ def test_provider_removes_unavailable_git_tools_from_verified_phase():
     assert provider._allowed_actions() == ("finish",)
 
 
+def test_provider_target_read_phase_is_bounded_and_uses_patch_output_ceiling():
+    provider = OpenAICompatibleProvider.__new__(OpenAICompatibleProvider)
+    provider.max_output_tokens = 2048
+    provider.patch_max_output_tokens = 4096
+    provider.set_action_policy("target_read_due")
+    provider.set_unavailable_actions(())
+
+    assert provider._allowed_actions() == ("read", "apply_patch")
+    assert provider._phase_max_output_tokens() == 4096
+
+
 def test_provider_falls_back_from_invalid_native_call_to_json_mode():
     requests = []
     responses = iter(

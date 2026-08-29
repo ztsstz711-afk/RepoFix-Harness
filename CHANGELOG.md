@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.1.0 - 2026-08-30
+
+- Add a one-action target-read grace when the fifth successful navigation action discovers an unread source line.
+- Restrict the grace phase to `read` or `apply_patch`, then return to patch-only policy after the read.
+- Improve the frozen ItsDangerous Pro gate from 0/3 to 3/3 while reducing requests by 33.33% and tokens by 28.33%.
+
 ## 4.0.0 - 2026-08-29
 
 - Add an eighth checksum-qualified upstream bug family from ItsDangerous, including reproducible parent/fix archive preparation and Docker qualification.

@@ -1,0 +1,24 @@
+{
+  "name": "upstream-itsdangerous-separator-target-read-v4.1",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "itsdangerous-unsafe-separator-target-read",
+      "case": "itsdangerous_unsafe_separator",
+      "variant": "target_read_grace",
+      "repetitions": 3,
+      "repo": "../external-workspaces/upstream-itsdangerous-separator-v4.0/buggy",
+      "task": "Reject signing separators that may appear in a URL-safe Base64 signature, after normalizing string or byte separators consistently. Preserve valid separators and existing signing behavior. Use the focused upstream regression test while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q tests.py::SignerTestCase::test_sign_invalid_separator",
+      "final_test_command": "pytest -q tests.py",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 16,
+      "max_requests": 12,
+      "max_tokens": 40000,
+      "expected_changed_files": ["itsdangerous.py"],
+      "tags": ["external", "upstream-regression", "stability", "itsdangerous", "validation", "bytes", "v4.1-target-read-grace"]
+    }
+  ]
+}

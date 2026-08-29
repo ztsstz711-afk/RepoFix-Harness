@@ -2,7 +2,7 @@
 
 ## 30 秒版本
 
-RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机的波动结果；V3.7–V4.0 比较模型和 thinking 配置，并用重复门禁推翻单次 Pro 成功的过度结论，证明参数选择必须建立在可审计实验上。
+RepoFix-Harness 是一个面向 Python 仓库 Bug 修复的 Coding Agent Harness。真实 LLM 自主查看、搜索和修改代码；Harness 负责有界上下文、阶段工具权限、预算、checkpoint、Docker 测试、回滚和独立评测。项目在 Click 真实上游 Bug 上完成独立 3/3 稳定修复，也保留了复杂 h11 状态机的波动结果；V4.1 进一步从三条重复失败定位阶段策略缺陷，并在同预算真实门禁中把 0/3 改进为 3/3。
 
 ## 3 分钟版本
 
@@ -67,6 +67,8 @@ V3.9 给出必要的反例：同一 Pro/Tomli/80k/12-request/120s 配置下，�
 
 V4.0 可用于回答“单次成功能不能证明更强”：ItsDangerous 新上游案例的冻结单次对照是 Flash 0/1、Pro 1/1，Pro 还少用 44.10% tokens；但独立 Pro follow-up 随即变成 0/3。项目保留两组结果并明确区分 feasibility 与 stability，而不是只展示最好的一次。
 
+V4.1 可用于回答“如何从失败轨迹改 Harness 而不是改提示词”：三次 Pro 都在第五次导航搜索到 `class Signer` 后被 `patch_due` 禁止读取，只能写 placeholder。新阶段只给未读 search hit 一次窄读机会，三次真实复验都变成 search → target read → 单补丁 → finish，成功率 0/3 到 3/3，同时 requests/tokens 都下降。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -84,4 +86,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** V4.0 已加入未参与历史调参的第八个上游 Bug family，并再次暴露单次结果不稳定；下一步应扩大多项目重复矩阵，并为候选路由设置最小样本和置信门槛，而不是继续挑成功轨迹。
+- **下一步是什么？** V4.1 已修复一个由新上游案例暴露的通用阶段缺陷；下一步应在旧的多项目门禁上做回归复验，确认 target-read grace 不会让已稳定案例增加无效导航。

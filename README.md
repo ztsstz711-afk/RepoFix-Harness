@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.1 修复 V4.0 三条 Pro 失败轨迹共同暴露的阶段策略缺陷：第 5 次导航刚搜索到尚未读取的源码行时，不再立即强制补丁，而进入一次性的 `target_read_due`，只允许 `read/apply_patch`；完成窄读后立刻回到 patch-only。离线重放把三条旧轨迹的 placeholder 补丁前移除；同一 ItsDangerous/Pro/non-thinking/40k/12-request 三次真实门禁从 0/3 提升到 3/3，requests 从 36 降到 24（-33.33%）、tokens 从 107,158 降到 76,799（-28.33%），0 format retries，完整 100 项测试和 3/3 范围均通过。详见 [V4.1 target-read grace](docs/v4.1-target-read-grace.md)。
+
 V4.0 新增第八个 checksum-qualified 真实上游 Bug family：ItsDangerous 必须拒绝可能出现在 URL-safe Base64 签名中的危险分隔符，同时统一处理 `str`/`bytes`。32k Flash 校准为 0/1；冻结 40k 单次对照中 Flash 0/1、Pro 1/1，Pro 用 7 requests / 21,672 tokens 完成并通过完整 100 项测试。但独立 Pro 三次 follow-up 为 0/3、3/3 精确范围，全部在 12-request 边界停止。因此该案例只证明 Pro 曾在同预算下完成，不能证明稳定胜过 Flash，也不触发自动模型路由。详见 [V4.0 ItsDangerous upstream gate](docs/v4.0-upstream-itsdangerous-separator.md)。
 
 V3.9 在另一个真实上游困难案例 Tomli dotted-key parser 上复验 Pro thinking-high。两组均为 3/3 verified、3/3 精确范围；thinking-high requests 从 20 增至 21（+5.00%）、tokens 从 63,551 增至 88,362（+39.04%），峰值保守成本从 $0.06942469 增至 $0.13594470（+95.82%）。三个配对 trial 的 thinking tokens 全部更多，说明 V3.8 在 h11 上的收益不能直接推广；默认仍保持 Flash/non-thinking。详见 [V3.9 Tomli thinking comparison](docs/v3.9-tomli-thinking-comparison.md)。
@@ -363,3 +365,4 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V3.8 Pro thinking-high 冻结对照](docs/v3.8-thinking-high-comparison.md)
 - [V3.9 Tomli thinking-high 跨项目复验](docs/v3.9-tomli-thinking-comparison.md)
 - [V4.0 ItsDangerous 危险分隔符真实上游门禁](docs/v4.0-upstream-itsdangerous-separator.md)
+- [V4.1 search-hit target-read 阶段修复](docs/v4.1-target-read-grace.md)

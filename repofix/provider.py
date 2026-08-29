@@ -134,7 +134,12 @@ class OpenAICompatibleProvider:
 
     def _phase_max_output_tokens(self) -> int:
         phase = getattr(self, "_repair_phase", "")
-        if phase in {"ready_to_patch", "patch_due", "patch_attempt_failed"}:
+        if phase in {
+            "ready_to_patch",
+            "target_read_due",
+            "patch_due",
+            "patch_attempt_failed",
+        }:
             return getattr(
                 self, "patch_max_output_tokens", getattr(self, "max_output_tokens", 2048)
             )

@@ -62,3 +62,31 @@ def test_v40_preparation_script_freezes_upstream_identity():
     assert "10572AA78FF7480982A1273180EBB66855F28270BB5655CE636F516621EB23EB" in script
     assert "Parent implementation changed" in script
     assert "Imported upstream regression test checksum mismatch" in script
+
+
+def test_v41_target_read_gate_changes_only_the_variant_identity():
+    previous = _manifest(
+        "upstream-itsdangerous-separator-stability-v4.0.json"
+    )["tasks"][0]
+    manifest = _manifest(
+        "upstream-itsdangerous-separator-target-read-v4.1.json"
+    )
+    current = manifest["tasks"][0]
+
+    assert manifest["max_total_requests"] == 36
+    assert current["repetitions"] == 3
+    assert current["variant"] == "target_read_grace"
+    for field in (
+        "repo",
+        "task",
+        "test_command",
+        "final_test_command",
+        "execution_backend",
+        "command_timeout_seconds",
+        "verify_after_patch",
+        "max_steps",
+        "max_requests",
+        "max_tokens",
+        "expected_changed_files",
+    ):
+        assert current[field] == previous[field]

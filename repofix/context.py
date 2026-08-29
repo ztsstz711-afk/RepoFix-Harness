@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import asdict, dataclass
 
 from .failure_context import FailureContextExtractor, FailureContextResult
@@ -125,6 +126,7 @@ class ContextBuilder:
                 "history_events_skipped_oversized": oversized_skipped,
                 "navigation_summary": self._navigation_summary(working_history),
                 "repair_phase": repair_phase,
+                "target_read_grace": repair_phase == "target_read_due",
                 "revision_navigation_cap": revision_navigation_cap,
                 "failure_context": {
                     "enabled": self.seed_failure_context,
@@ -367,12 +369,59 @@ class ContextBuilder:
         if empty_searches >= 3 and not successful_reads and not successful_searches:
             return "search_exhausted"
         if successful_reads + successful_searches >= 5:
+            if ContextBuilder._latest_search_has_unread_hit(history):
+                return "target_read_due"
             return "patch_due"
         if successful_reads >= 2 or (successful_reads and successful_searches):
             return "ready_to_patch"
         if successful_reads or successful_searches:
             return "inspecting"
         return "locating"
+
+    @staticmethod
+    def _latest_search_has_unread_hit(history: list[dict]) -> bool:
+        """Allow one final read when the latest search found unseen source lines."""
+        if not history:
+            return False
+        latest = history[-1]
+        action = latest.get("action", {})
+        observation = latest.get("observation", {})
+        if (
+            action.get("name") != "search"
+            or not observation.get("success", True)
+            or observation.get("metadata", {}).get("matches", 0) < 1
+        ):
+            return False
+
+        hits: list[tuple[str, int]] = []
+        for line in str(observation.get("output", "")).splitlines():
+            match = re.match(r"^(.+?):(\d+):", line)
+            if match:
+                hits.append((match.group(1).replace("\\", "/"), int(match.group(2))))
+        if not hits:
+            return False
+
+        read_ranges: dict[str, list[tuple[int, int]]] = {}
+        for event in history[:-1]:
+            previous_action = event.get("action", {})
+            previous_observation = event.get("observation", {})
+            metadata = previous_observation.get("metadata", {})
+            if previous_action.get("name") != "read" or not previous_observation.get(
+                "success", True
+            ):
+                continue
+            path = metadata.get("path")
+            start = metadata.get("start_line")
+            end = metadata.get("end_line")
+            if isinstance(path, str) and isinstance(start, int) and isinstance(end, int):
+                read_ranges.setdefault(path.replace("\\", "/"), []).append(
+                    (start, end)
+                )
+
+        return any(
+            not any(start <= line <= end for start, end in read_ranges.get(path, []))
+            for path, line in hits
+        )
 
     @staticmethod
     def _revision_cap_for_failure(
@@ -423,6 +472,7 @@ class ContextBuilder:
             "search_exhausted": "Stop guessing symbol names. List files or read a known likely source path.",
             "inspecting": "Read only the missing narrow source range needed for a repair.",
             "ready_to_patch": "If the evidence supports the cause, apply the smallest localized patch now instead of rereading known code.",
+            "target_read_due": "The latest search found an unread source location. Read one narrow range around that hit, then apply the patch; do not search or list again.",
             "patch_due": "Do not call list, search, or read again. Apply the smallest localized patch now using exact text already observed.",
             "patch_attempt_failed": "Use the patch failure observation to correct the localized edit without broadening scope.",
             "patch_needs_verification": "Run the focused pytest command for the changed behavior.",

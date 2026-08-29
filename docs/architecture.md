@@ -124,6 +124,8 @@ Provider 使用两层消息：system 消息只保存不可变的 action 协议�
 
 Provider 优先使用中央 registry 生成的原生 Function Calling schema；非法或空 tool response 会回退 JSON mode，再按需回退纯文本。每次格式纠错都占用同一个 run 的 request/token 预算，且下一重试必须通过 Provider 级 token admission。错误模式与原因写入 trace；如果失败前已经产生文件修改，Harness 会执行一次独立 final pytest，只有真实通过才将任务恢复为成功。
 
+V4.1 在首次补丁前增加一个有界例外：如果第 5 次成功导航是 search，且输出包含此前 read range 未覆盖的源码行，阶段变为 `target_read_due`，只暴露 `read/apply_patch`。一次 read 后自动回到 `patch_due`；已读命中、无行号输出或空搜索都不获得宽限。这样避免刚定位目标就被迫写 placeholder，同时不重新开放 list/search 循环。
+
 原生工具响应首次为空或参数被截断时，Provider 会先在同一原生 schema 下纠错一次，第二次仍失败才降级到 JSON。导航阶段使用 `REPOFIX_MAX_OUTPUT_TOKENS`，补丁阶段单独使用 `REPOFIX_PATCH_MAX_OUTPUT_TOKENS`；后者默认更高，以容纳 reasoning 与 patch 参数，并同步进入 retry token admission 和评测实验身份。
 
 `REPOFIX_THINKING_MODE` 默认为跨 Provider 安全的 `auto`，也可显式设为 `enabled` 或 `disabled`。DeepSeek 的项目配置选择 `disabled`，避免默认 high thinking 在短工具调用中耗尽输出上限；该值与实际 Python executable、模块路径一起写入 evaluation identity。
@@ -134,4 +136,4 @@ Provider 优先使用中央 registry 生成的原生 Function Calling schema；�
 
 ## Why a custom loop
 
-V4.0 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
+V4.1 仍没有使用 LangGraph。当前控制流只有单 Agent、单 action、单 observation，标准 Python 状态机更容易审查、测试和解释。若未来出现并行分支、人工审批节点或分布式持久化，再引入图编排框架才有明确收益。
