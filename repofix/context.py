@@ -219,6 +219,7 @@ class ContextBuilder:
                 "metadata", {}
             ).get("changed"):
                 changed_patch_indices.append(index)
+                latest_failed_test = None
             if action.get("name") == "run_command" and not observation.get(
                 "success", False
             ):
@@ -261,6 +262,7 @@ class ContextBuilder:
             observation = event.get("observation", {})
             if action.get("name") == "apply_patch" and observation.get("metadata", {}).get("changed"):
                 changed_files.add(observation["metadata"]["path"])
+                latest_pytest = "not run for current patch"
             if action.get("name") == "run_command":
                 latest_pytest = "passed" if observation.get("success") else "failed"
             post_patch_test = observation.get("metadata", {}).get("post_patch_test")
@@ -304,6 +306,8 @@ class ContextBuilder:
                 navigation_since_patch = 0
                 if success and observation.get("metadata", {}).get("changed"):
                     changed = True
+                    latest_pytest = None
+                    latest_pytest_output = ""
                     path = observation.get("metadata", {}).get("path")
                     if path:
                         changed_files.add(str(path).replace("\\", "/"))
@@ -364,6 +368,8 @@ class ContextBuilder:
             if action.get("name") == "apply_patch" and observation.get(
                 "metadata", {}
             ).get("changed"):
+                latest_pytest = None
+                latest_pytest_output = ""
                 path = observation.get("metadata", {}).get("path")
                 if path:
                     changed_files.add(str(path).replace("\\", "/"))

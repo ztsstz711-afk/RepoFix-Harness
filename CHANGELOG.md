@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 3.2.0 - 2026-08-29
+
+- Invalidate focused pytest evidence whenever a later successful patch changes the workspace, so verification state always describes the current code.
+- Preserve automatic post-patch test results as fresh evidence from the same edit, including both failed revision feedback and successful verification.
+- Reset revision navigation and working-set selection after an untested revision patch instead of carrying a stale failure across code versions.
+
 ## 2.4.0 - 2026-08-28
 
 ## 2.3.0 - 2026-08-28

@@ -541,3 +541,109 @@ def test_patch_due_before_first_change_keeps_navigation_history():
     assert result.metadata["revision_working_set_pruned"] == 0
     assert "SOURCE-1" in result.text
     assert "SOURCE-5" in result.text
+
+
+def test_new_revision_patch_invalidates_older_failed_pytest_evidence():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "run_command"},
+            "observation": {
+                "success": False,
+                "output": "src/parser.py:42: AssertionError",
+            },
+        },
+        {"step": 3, "action": {"name": "read"}, "observation": {"success": True}},
+        {
+            "step": 4,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_verification"
+    assert result.metadata["revision_navigation_cap"] is None
+    assert result.metadata["revision_working_set_active"] is False
+    assert "latest_agent_pytest=not run for current patch" in result.text
+
+
+def test_new_revision_patch_uses_its_own_failed_automatic_test():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {"changed": True, "path": "src/parser.py"},
+            },
+        },
+        {
+            "step": 2,
+            "action": {"name": "run_command"},
+            "observation": {"success": False, "output": "OLD-FAILURE"},
+        },
+        {
+            "step": 3,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {
+                    "changed": True,
+                    "path": "src/parser.py",
+                    "post_patch_test": {
+                        "success": False,
+                        "output": "src/parser.py:50: CURRENT-FAILURE",
+                    },
+                },
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "patch_needs_revision"
+    assert result.metadata["revision_navigation_cap"] == 1
+    assert result.metadata["revision_working_set_active"] is True
+    assert "CURRENT-FAILURE" in result.text
+    assert "OLD-FAILURE" not in result.text
+
+
+def test_new_revision_patch_uses_its_own_passing_automatic_test():
+    history = [
+        {
+            "step": 1,
+            "action": {"name": "run_command"},
+            "observation": {"success": False, "output": "OLD-FAILURE"},
+        },
+        {
+            "step": 2,
+            "action": {"name": "apply_patch"},
+            "observation": {
+                "success": True,
+                "metadata": {
+                    "changed": True,
+                    "path": "src/parser.py",
+                    "post_patch_test": {"success": True, "output": "1 passed"},
+                },
+            },
+        },
+    ]
+
+    result = ContextBuilder("repo", "task").build_with_metadata(history)
+
+    assert result.metadata["repair_phase"] == "verified_patch"
+    assert result.metadata["revision_navigation_cap"] is None
+    assert "latest_agent_pytest=passed" in result.text
