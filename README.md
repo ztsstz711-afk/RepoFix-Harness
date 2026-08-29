@@ -6,7 +6,7 @@
 
 ## 实测结果
 
-V3.3 针对 V3.2 两条轨迹中的 evidence provenance 缺陷：只有带实际返回码或超时标记的 `run_command` 才算 pytest 证据；被权限层拒绝的 `sed`、`python` 等命令仍写入 trace，但不改变 repair phase、revision cap、working set 或 baseline freshness。旧 checkpoint 中无元数据的已执行测试保持兼容。真实门禁单独冻结，详见 [V3.3 test evidence provenance](docs/v3.3-test-evidence-provenance.md)。
+V3.3 针对 V3.2 两条轨迹中的 evidence provenance 缺陷：只有带实际返回码或超时标记的 `run_command` 才算 pytest 证据；被权限层拒绝的命令仍写入 trace，但不改变测试状态。冻结 h11 三次门禁为 1/3 verified、3/3 范围命中，使用 30 requests / 161,327 tokens / 1 format retry，估算 $0.06474308；成功项通过完整 78 项验收。另两项都在第二补丁的真实 pytest 仍失败后触及 token reserve，并暴露验证请求重新膨胀到 22–24k context 的成本问题。详见 [V3.3 test evidence provenance](docs/v3.3-test-evidence-provenance.md)。
 
 V3.2 修复 V3.1 唯一失败轨迹暴露的 verification freshness 问题：每次新补丁真正改动文件后，旧 pytest 结论立即失效；若同一补丁携带自动测试结果，再以该结果更新状态。冻结的同配置 h11 三次门禁为 0/3 verified、3/3 范围命中，使用 34 requests / 174,480 tokens / 3 format retries，估算 $0.06662267。前两次第二补丁后确实回到验证阶段，但只有一次真正执行 pytest；另一次非法 `sed` 与第三次非法 `python` 被工具正确拒绝，却被 Context 错误算作失败测试证据。V3.2 证明状态时序修复生效，但真实结果退化，不能宣称能力提升。详见 [V3.2 verification freshness](docs/v3.2-verification-freshness.md)。
 
