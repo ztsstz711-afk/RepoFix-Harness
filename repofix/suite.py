@@ -13,6 +13,7 @@ from typing import Callable
 
 from .loop import AgentLoop
 from .reporting import (
+    aggregate_grouped_phase_telemetry,
     aggregate_phase_telemetry,
     render_evaluation_markdown,
     validate_evaluation_report,
@@ -405,7 +406,7 @@ class EvaluationRunner:
     def _validate_resume_report(
         self, suite: EvaluationSuite, saved: dict
     ) -> None:
-        if saved.get("report_schema_version") not in {1, 2}:
+        if saved.get("report_schema_version") not in {1, 2, 3}:
             raise ValueError("evaluation resume report schema does not match")
         if saved.get("suite") != suite.name:
             raise ValueError("evaluation resume suite name does not match")
@@ -478,7 +479,7 @@ class EvaluationRunner:
             if result["failure_kind"]:
                 failure_counts[result["failure_kind"]] = failure_counts.get(result["failure_kind"], 0) + 1
         report = {
-            "report_schema_version": 2,
+            "report_schema_version": 3,
             "suite": suite.name,
             "manifest": {
                 "path": suite.manifest_path,
@@ -523,6 +524,12 @@ class EvaluationRunner:
             ),
             "cases": self._case_summaries(results, suite.baseline_variant),
             "phase_telemetry": aggregate_phase_telemetry(results),
+            "phase_telemetry_by_variant": aggregate_grouped_phase_telemetry(
+                results, "variant"
+            ),
+            "phase_telemetry_by_case": aggregate_grouped_phase_telemetry(
+                results, "case"
+            ),
             "tasks": results,
         }
         return report

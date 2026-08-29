@@ -73,6 +73,8 @@ V4.2 可用于回答“修一个案例会不会过拟合”：用 last、numeric
 
 V4.3 可用于回答“如何证明策略确实触发或没有触发”：报告不再只保存原始 `context_snapshots`，而是从 task 明细重算 phase 次数、真实 phase transition 和 target-read grace 激活次数。冻结 V4.2 数据离线回算为 43 snapshots、0 次激活；schema v2 若被手工改成其他数字会在发布前拒绝。这把可观测性从“有 trace”推进到“可聚合、可校验的策略证据”。
 
+V4.4 可用于回答“总量异常后怎样定位具体瓶颈”：相同 phase telemetry 同时按 case 和 variant 汇总。V4.2 回算中 Click、last、numeric_range 分别有 14/15/14 个 snapshots，但只有 last 出现 4 个 `patch_attempt_failed` snapshots；因此无需重放全部轨迹就能看到它的额外请求来自补丁被拒绝后的恢复，而不是定位或 target-read 策略。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -90,4 +92,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** V4.3 已把阶段策略变成可聚合、可校验的报告指标；下一步应增加按 case/variant 的 phase telemetry 对照，帮助定位资源差异来自哪个阶段，而不是继续堆新工具。
+- **下一步是什么？** V4.4 已能按 case/variant 定位阶段成本；下一步应在严格可比的 baseline/candidate 报告中直接计算 phase delta，避免人工比较两份 grouped telemetry。

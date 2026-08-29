@@ -3,6 +3,7 @@ import copy
 import pytest
 
 from repofix.reporting import (
+    aggregate_grouped_phase_telemetry,
     aggregate_phase_telemetry,
     render_evaluation_markdown,
     validate_evaluation_report,
@@ -249,6 +250,33 @@ def test_validate_schema_v2_recomputes_phase_telemetry():
         validate_evaluation_report(report)
 
 
+def test_validate_schema_v3_recomputes_grouped_phase_telemetry():
+    report = _valid_aggregate_report()
+    report["report_schema_version"] = 3
+    report["tasks"][0].update(
+        variant="candidate",
+        case="parser",
+        context_snapshots=[
+            {"repair_phase": "locating", "target_read_grace": False},
+            {"repair_phase": "verified_patch", "target_read_grace": False},
+        ],
+    )
+    tasks = report["tasks"]
+    report["phase_telemetry"] = aggregate_phase_telemetry(tasks)
+    report["phase_telemetry_by_variant"] = aggregate_grouped_phase_telemetry(
+        tasks, "variant"
+    )
+    report["phase_telemetry_by_case"] = aggregate_grouped_phase_telemetry(
+        tasks, "case"
+    )
+
+    validate_evaluation_report(report)
+    report["phase_telemetry_by_case"]["parser"]["snapshot_count"] = 9
+
+    with pytest.raises(ValueError, match="case phase telemetry"):
+        validate_evaluation_report(report)
+
+
 def test_render_evaluation_markdown_includes_phase_telemetry():
     report = {
         "report_schema_version": 2,
@@ -275,6 +303,22 @@ def test_render_evaluation_markdown_includes_phase_telemetry():
             "transition_counts": {"locating -> target_read_due": 1},
             "target_read_grace_activations": 1,
         },
+        "phase_telemetry_by_variant": {
+            "candidate": {
+                "snapshot_count": 2,
+                "phase_counts": {},
+                "transition_counts": {},
+                "target_read_grace_activations": 1,
+            }
+        },
+        "phase_telemetry_by_case": {
+            "parser": {
+                "snapshot_count": 2,
+                "phase_counts": {},
+                "transition_counts": {},
+                "target_read_grace_activations": 1,
+            }
+        },
     }
 
     rendered = render_evaluation_markdown(report)
@@ -283,6 +327,8 @@ def test_render_evaluation_markdown_includes_phase_telemetry():
     assert "Target-read grace activations: 1" in rendered
     assert "| target_read_due | 1 |" in rendered
     assert "| locating -> target_read_due | 1 |" in rendered
+    assert "| Variant | candidate | 2 | 1 |" in rendered
+    assert "| Case | parser | 2 | 1 |" in rendered
 
 
 @pytest.mark.parametrize(

@@ -52,12 +52,28 @@ def aggregate_phase_telemetry(tasks: list[dict]) -> dict:
     }
 
 
+def aggregate_grouped_phase_telemetry(
+    tasks: list[dict], field: str
+) -> dict[str, dict]:
+    """Group task snapshots by a stable evaluation identity field."""
+    grouped: dict[str, list[dict]] = {}
+    for task in tasks:
+        value = task.get(field)
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"task must declare non-empty {field}")
+        grouped.setdefault(value, []).append(task)
+    return {
+        value: aggregate_phase_telemetry(group_tasks)
+        for value, group_tasks in sorted(grouped.items())
+    }
+
+
 def validate_evaluation_report(report: dict) -> None:
     """Reject internally inconsistent aggregate reports before publication."""
     errors = []
     tasks = report.get("tasks")
     schema_version = report.get("report_schema_version")
-    if schema_version not in {1, 2}:
+    if schema_version not in {1, 2, 3}:
         errors.append("unsupported report schema")
     if not isinstance(tasks, list):
         raise ValueError("invalid evaluation report: tasks must be a list")
@@ -150,6 +166,22 @@ def validate_evaluation_report(report: dict) -> None:
         else:
             if report.get("phase_telemetry") != expected_telemetry:
                 errors.append("phase telemetry does not match task snapshots")
+    elif schema_version == 3:
+        try:
+            expected_telemetry = aggregate_phase_telemetry(tasks)
+            expected_by_variant = aggregate_grouped_phase_telemetry(
+                tasks, "variant"
+            )
+            expected_by_case = aggregate_grouped_phase_telemetry(tasks, "case")
+        except ValueError as exc:
+            errors.append(f"invalid phase telemetry source: {exc}")
+        else:
+            if report.get("phase_telemetry") != expected_telemetry:
+                errors.append("phase telemetry does not match task snapshots")
+            if report.get("phase_telemetry_by_variant") != expected_by_variant:
+                errors.append("variant phase telemetry does not match tasks")
+            if report.get("phase_telemetry_by_case") != expected_by_case:
+                errors.append("case phase telemetry does not match tasks")
 
     if errors:
         raise ValueError("invalid evaluation report: " + "; ".join(errors))
@@ -227,6 +259,26 @@ def render_evaluation_markdown(report: dict) -> str:
             ])
             for transition, count in transitions.items():
                 lines.append(f"| {_cell(transition)} | {_number(count)} |")
+
+        grouped_rows = []
+        for label, field in (
+            ("Variant", "phase_telemetry_by_variant"),
+            ("Case", "phase_telemetry_by_case"),
+        ):
+            for name, summary in report.get(field, {}).items():
+                grouped_rows.append((label, name, summary))
+        if grouped_rows:
+            lines.extend([
+                "",
+                "| Group | Name | Snapshots | Target-read activations |",
+                "|---|---|---:|---:|",
+            ])
+            for label, name, summary in grouped_rows:
+                lines.append(
+                    f"| {label} | {_cell(name)} | "
+                    f"{_number(summary['snapshot_count'])} | "
+                    f"{_number(summary['target_read_grace_activations'])} |"
+                )
 
     variants = report.get("variants", {})
     if variants:

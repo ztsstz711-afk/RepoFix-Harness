@@ -292,7 +292,7 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monke
     report = EvaluationRunner(SuiteMockProvider).run(load_suite(str(manifest)), str(output))
 
     assert report["success_rate"] == 1.0
-    assert report["report_schema_version"] == 2
+    assert report["report_schema_version"] == 3
     assert report["manifest"]["path"] == str(manifest.resolve())
     assert len(report["manifest"]["sha256"]) == 64
     assert report["sources"]["addition"] == {
@@ -307,6 +307,12 @@ def test_suite_runner_aggregates_results_without_mutating_source(tmp_path, monke
     assert report["docker_runtime_fingerprints"] == []
     assert report["phase_telemetry"]["snapshot_count"] == 5
     assert sum(report["phase_telemetry"]["phase_counts"].values()) == 5
+    assert report["phase_telemetry_by_variant"]["default"] == report[
+        "phase_telemetry"
+    ]
+    assert report["phase_telemetry_by_case"]["addition"] == report[
+        "phase_telemetry"
+    ]
     assert any(
         check["name"] == "execution_backend"
         for check in report["tasks"][0]["preflight_checks"]
@@ -487,6 +493,11 @@ def test_suite_repeats_trials_and_aggregates_variants(tmp_path):
         "both_failed": 0,
     }
     assert report["cases"]["addition"]["trials"] == 4
+    assert set(report["phase_telemetry_by_variant"]) == {
+        "context_off",
+        "context_on",
+    }
+    assert report["phase_telemetry_by_case"]["addition"]["snapshot_count"] == 20
     assert report["cases"]["addition"]["comparisons"]["context_on"] == comparison
     assert (
         output / "runs" / "context-on--trial-01" / "result.json"

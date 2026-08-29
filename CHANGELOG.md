@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.4.0 - 2026-08-30
+
+- Add checksum-derived repair-phase telemetry grouped by evaluation case and variant.
+- Introduce report schema v3 while retaining validation and resume compatibility for schema v1 and v2.
+- Surface grouped snapshot and target-read activation totals in the human-readable evaluation report.
+
 ## 4.3.0 - 2026-08-30
 
 - Add report-level repair-phase counts, changed-phase transitions, and target-read grace activations derived from task context snapshots.

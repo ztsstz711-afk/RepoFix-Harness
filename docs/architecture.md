@@ -112,7 +112,7 @@ CLI 将 provider model、单次最大输出 token，以及 input/cached-input/ou
 
 同一 metadata 还包含安装包版本和 Harness source SHA-256。后者按相对路径与原始字节哈希 `repofix/**/*.py` 和 `pyproject.toml`，因此即使开发者忘记提升版本号，任何控制逻辑变化也会让旧 progress 拒绝续跑。
 
-最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope、failure counts 和 repair-phase telemetry；聚合值不一致时拒绝发布。phase telemetry 包含所有决策前 context snapshot 的阶段次数、排除同阶段停留后的真实阶段切换，以及每个 task 进入 `target_read_due` 的次数。这样策略是否触发不再依赖手工遍历 trace，Markdown 渲染和面试结论也不会建立在内部损坏的汇总字段上。schema v2 强制校验这些字段，历史 v1 报告仍可验证和恢复。
+最终 `report.json` 写入前还会从 `tasks` 重新计算 task/success/step、八个 usage 字段、成本、scope、failure counts 和 repair-phase telemetry；聚合值不一致时拒绝发布。phase telemetry 包含所有决策前 context snapshot 的阶段次数、排除同阶段停留后的真实阶段切换，以及每个 task 进入 `target_read_due` 的次数，并按 overall、variant 和 case 保存三层完整统计。这样策略是否触发、资源集中在哪类任务不再依赖手工遍历 trace，Markdown 渲染和面试结论也不会建立在内部损坏的汇总字段上。schema v3 强制校验三层字段，历史 v1/v2 报告仍可验证和恢复。
 
 评测 identity 还包含 Provider request timeout，避免长思考模型因等待上限不同而形成不可见混杂。`repofix-compare` 不会直接相信两份报告标题相同：它会分别重验内部聚合，再要求 suite、manifest SHA-256、source snapshots、Harness 版本与源码哈希、输出/工具配置、Docker fingerprint、请求授权和逐 trial 任务定义一致。调用者必须显式选择 `model` 或 `thinking_mode` 维度；前者只允许模型和对应价格变化并锁定 thinking，后者只允许 thinking 变化并锁定模型与价格。通过后才计算 success/scope、requests/tokens/cost 和逐 trial better/tied/worse。
 

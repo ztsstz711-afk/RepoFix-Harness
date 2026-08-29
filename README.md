@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.4 在 V4.3 overall telemetry 上增加按 `case` 和 `variant` 分组的完整阶段统计，report schema v3 会分别从 task 明细重算三层数据并拒绝不一致结果。V4.2 冻结轨迹离线回算显示：Click 14 snapshots、`last()` 15、`numeric_range` 14，三组均为 0 次 target-read grace；其中 `last()` 有 4 个 `patch_attempt_failed` snapshots，而 numeric_range 为 0，使“请求花在哪里”能够定位到具体案例与阶段。详见 [V4.4 grouped phase telemetry](docs/v4.4-grouped-phase-telemetry.md)。
+
 V4.3 把 `context_snapshots` 中的修复阶段提升为可校验的 report-level telemetry：自动汇总阶段次数、真实阶段切换和 `target_read_due` 激活次数，并在发布 Markdown 前从 task 明细重新计算，手工篡改汇总会被拒绝。用冻结的 V4.2 九条真实轨迹离线回算得到 43 snapshots、0 次 target-read grace 激活；阶段明细现在无需逐条解析 JSON。evaluation report schema 升级到 v2，同时继续兼容读取和恢复 v1 报告。详见 [V4.3 phase telemetry](docs/v4.3-phase-telemetry.md)。
 
 V4.2 对 V4.1 做跨项目回归：复用 `more-itertools.last()`、`numeric_range.__reversed__()` 和 Click help rendering 三个 checksum-qualified 真实上游合同，各运行三次。默认 Flash/non-thinking 得到 9/9 verified、9/9 精确范围，43 requests / 103,631 tokens、0 retries，峰值保守成本 $0.03658515。九条轨迹都在 1–3 次导航内进入补丁，没有触发 `target_read_due`，说明新宽限只处理“第五次搜索刚发现未读目标”的边界，没有给历史稳定案例增加步骤。详见 [V4.2 cross-project regression](docs/v4.2-target-read-regression.md)。
