@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.6 首次用真实 DeepSeek Flash/non-thinking 原生生成 schema-v3 报告，而不是离线回填：三个低成本 Docker 案例得到 3/3 verified、3/3 精确范围，使用 12/24 授权 requests、22,205 tokens、0 retries，估算 `$0.00633385`。报告自动汇总 12 snapshots，并按 case 分为 toy 3、optional config 4、username normalization 5；三层 telemetry 重算校验通过。详见 [V4.6 native schema-v3 gate](docs/v4.6-native-phase-telemetry.md)。
+
 V4.5 将两份严格 identity-compatible 报告的 phase telemetry 自动做差，输出 overall 与 per-case snapshot/phase/transition delta；历史 v1/v2 报告仍可比较，但没有阶段数据时不伪造结论。对 V3.7 冻结 Click Flash/Pro 报告做确定性离线迁移后，Pro 少 6 个决策 snapshots，差异完全来自少 3 个 `ready_to_patch` 和少 3 个 `patch_attempt_failed`，与当时 requests 从 16 降到 10 一致，说明优势来自避免被拒补丁及恢复轮次。详见 [V4.5 phase-delta comparison](docs/v4.5-phase-delta-comparison.md)。
 
 V4.4 在 V4.3 overall telemetry 上增加按 `case` 和 `variant` 分组的完整阶段统计，report schema v3 会分别从 task 明细重算三层数据并拒绝不一致结果。V4.2 冻结轨迹离线回算显示：Click 14 snapshots、`last()` 15、`numeric_range` 14，三组均为 0 次 target-read grace；其中 `last()` 有 4 个 `patch_attempt_failed` snapshots，而 numeric_range 为 0，使“请求花在哪里”能够定位到具体案例与阶段。详见 [V4.4 grouped phase telemetry](docs/v4.4-grouped-phase-telemetry.md)。

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.6.0 - 2026-08-31
+
+- Add a bounded three-case Docker gate for native schema-v3 phase telemetry generation.
+- Verify 3/3 repairs and exact scopes with 12/24 authorized requests, 22,205 tokens, and no retries.
+- Freeze report, manifest, Harness source, source-tree, and Docker runtime fingerprints for the native telemetry result.
+
 ## 4.5.0 - 2026-08-30
 
 - Add overall and per-case repair-phase deltas to strict model/thinking report comparisons.

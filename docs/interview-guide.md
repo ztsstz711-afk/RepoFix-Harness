@@ -77,6 +77,8 @@ V4.4 可用于回答“总量异常后怎样定位具体瓶颈”：相同 phase
 
 V4.5 可用于回答“更贵模型为什么请求更少”：严格比较不仅显示 requests/tokens delta，还对 phase telemetry 做差。V3.7 Click 冻结报告离线回算中，Pro 恰好少 6 个 snapshots，其中 `ready_to_patch` 和 `patch_attempt_failed` 各少 3 个；因此 16→10 requests 不是定位更少，而是 Pro 绕过了 Flash 的无效补丁/恢复路径。这个解释来自已保存轨迹，不是事后猜测。
 
+V4.6 可用于回答“新报告功能只在单测里工作吗”：用 DeepSeek Flash/non-thinking 对三个 Docker fixture 做原生 schema-v3 门禁，3/3 修复且范围命中，12 requests / 22,205 tokens / 0 retries。最终 report.md 直接展示 overall、variant 和三个 case 的 snapshot 计数，validator 再从 12 个 task snapshots 重算全部聚合，因此真实 API 路径和报告路径同时闭环。
+
 不要说：
 
 > 达到生产级自动修复能力，或在 SWE-bench 上达到 100%。
@@ -94,4 +96,4 @@ V1.4 把这个反例变成了可复现的改进实验：AST 只补充入口函�
 - **如果模型乱改很多文件？** 默认最多五个不同文件，suite 还比较隐藏的期望改动范围。
 - **如果自动修改失败？** 可选择自动回滚，也可事后用 `repofix-runs rollback`；哈希冲突默认拒绝覆盖。
 - **如何换模型？** provider 使用 OpenAI-compatible 接口，只改 BASE_URL/API_KEY/MODEL 环境变量。
-- **下一步是什么？** V4.5 已把 phase delta 接入严格比较；下一步应设计一个新的多 case、两 variant 冻结门禁来原生生成 schema-v3 对照，验证这套归因不只适用于历史回填。
+- **下一步是什么？** V4.6 已原生验证 schema-v3 单模型多 case 报告；下一步可以用相同三案例做一次严格 Flash/Pro 或 non-thinking/thinking 对照，原生验证 phase delta，但应先权衡额外 API 成本和三次小样本价值。
