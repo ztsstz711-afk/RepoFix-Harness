@@ -42,12 +42,22 @@ def render_model_comparison_markdown(comparison: dict) -> str:
         for phase, value in phase_delta["phase_counts"].items():
             if value:
                 lines.append(f"| Phase `{phase}` | {value:+} |")
-        for case, case_delta in (
-            comparison.get("phase_telemetry_by_case_delta") or {}
-        ).items():
-            lines.append(
-                f"| Case `{case}` snapshots | {case_delta['snapshot_count']:+} |"
-            )
+        case_deltas = comparison.get("phase_telemetry_by_case_delta") or {}
+        if case_deltas:
+            lines.extend([
+                "",
+                "### Per-case attribution",
+                "",
+                "| Case | Snapshots | Target-read grace | Non-zero phase deltas |",
+                "|---|---:|---:|---|",
+            ])
+            for case, case_delta in case_deltas.items():
+                phase_summary = _phase_delta_summary(case_delta["phase_counts"])
+                lines.append(
+                    f"| `{case}` | {case_delta['snapshot_count']:+} | "
+                    f"{case_delta['target_read_grace_activations']:+} | "
+                    f"{phase_summary} |"
+                )
 
     lines.extend([
             "",
@@ -89,6 +99,15 @@ def _pair_counts(summary: dict) -> str:
             "baseline_better_pairs",
         )
     )
+
+
+def _phase_delta_summary(phase_counts: dict[str, int]) -> str:
+    changes = [
+        f"`{phase}` {value:+}"
+        for phase, value in phase_counts.items()
+        if value
+    ]
+    return ", ".join(changes) if changes else "—"
 
 
 def main() -> int:

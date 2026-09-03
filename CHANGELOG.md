@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 4.7.0 - 2026-09-03
+
+- Surface per-case target-read and non-zero repair-phase deltas in comparison Markdown.
+- Add a model-neutral, bounded three-case manifest for native schema-v3 model comparisons.
+- Verify Flash and Pro at 3/3 repairs and exact scopes; Pro used 27.27% fewer requests and 38.61% fewer tokens but cost 94.61% more.
+
 ## 4.6.0 - 2026-08-31
 
 - Add a bounded three-case Docker gate for native schema-v3 phase telemetry generation.

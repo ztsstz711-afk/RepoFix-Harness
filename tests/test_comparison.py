@@ -167,7 +167,10 @@ def test_compare_reports_attributes_phase_deltas_overall_and_by_case():
     assert "## Repair-phase delta" in rendered
     assert "| Context snapshots | +1 |" in rendered
     assert "| Phase `inspecting` | -1 |" in rendered
-    assert "| Case `case` snapshots | +1 |" in rendered
+    assert "### Per-case attribution" in rendered
+    assert "| `case` | +1 | +1 |" in rendered
+    assert "`inspecting` -1" in rendered
+    assert "`target_read_due` +1" in rendered
 
 
 def test_compare_reports_rejects_changed_experiment_identity():

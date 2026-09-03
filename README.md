@@ -6,6 +6,8 @@
 
 ## 实测结果
 
+V4.7 在同一份 4.7.0 Harness、manifest、仓库快照和 Docker 运行时上，原生完成 Flash/Pro 三案例严格对照。两组均为 3/3 verified、3/3 精确范围、0 retries；Pro 从 11 requests / 21,295 tokens 降至 8 requests / 13,074 tokens（-27.27% / -38.61%），但峰值保守成本从 `$0.00847512` 升至 `$0.01649349`（+94.61%）。新报告把差异进一步归因到每个案例的具体 repair phase：Pro 在 optional-config 案例少走一次 `ready_to_patch`、`patch_needs_revision` 和 `patch_due`，而不是笼统地只报告总请求下降。三个任务都是低成本自建 fixture、每模型单次运行，因此默认仍保持 Flash，结果不外推为模型胜率。详见 [V4.7 native phase model comparison](docs/v4.7-native-phase-model-comparison.md)。
+
 V4.6 首次用真实 DeepSeek Flash/non-thinking 原生生成 schema-v3 报告，而不是离线回填：三个低成本 Docker 案例得到 3/3 verified、3/3 精确范围，使用 12/24 授权 requests、22,205 tokens、0 retries，估算 `$0.00633385`。报告自动汇总 12 snapshots，并按 case 分为 toy 3、optional config 4、username normalization 5；三层 telemetry 重算校验通过。详见 [V4.6 native schema-v3 gate](docs/v4.6-native-phase-telemetry.md)。
 
 V4.5 将两份严格 identity-compatible 报告的 phase telemetry 自动做差，输出 overall 与 per-case snapshot/phase/transition delta；历史 v1/v2 报告仍可比较，但没有阶段数据时不伪造结论。对 V3.7 冻结 Click Flash/Pro 报告做确定性离线迁移后，Pro 少 6 个决策 snapshots，差异完全来自少 3 个 `ready_to_patch` 和少 3 个 `patch_attempt_failed`，与当时 requests 从 16 降到 10 一致，说明优势来自避免被拒补丁及恢复轮次。详见 [V4.5 phase-delta comparison](docs/v4.5-phase-delta-comparison.md)。
@@ -377,3 +379,8 @@ V1.4 只允许 Agent 读取仓库可见文件、写入仓库普通文件、运�
 - [V4.0 ItsDangerous 危险分隔符真实上游门禁](docs/v4.0-upstream-itsdangerous-separator.md)
 - [V4.1 search-hit target-read 阶段修复](docs/v4.1-target-read-grace.md)
 - [V4.2 target-read 跨项目回归门禁](docs/v4.2-target-read-regression.md)
+- [V4.3 报告级 repair-phase telemetry](docs/v4.3-phase-telemetry.md)
+- [V4.4 按案例与 variant 分组的 phase telemetry](docs/v4.4-grouped-phase-telemetry.md)
+- [V4.5 严格比较中的 phase delta](docs/v4.5-phase-delta-comparison.md)
+- [V4.6 真实模型原生 schema-v3 门禁](docs/v4.6-native-phase-telemetry.md)
+- [V4.7 原生 Flash/Pro 阶段归因对照](docs/v4.7-native-phase-model-comparison.md)

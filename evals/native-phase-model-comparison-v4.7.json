@@ -1,0 +1,57 @@
+{
+  "name": "native-phase-model-comparison-v4.7",
+  "max_total_requests": 24,
+  "tasks": [
+    {
+      "id": "toy-add-v47",
+      "case": "toy_addition",
+      "variant": "native_schema_v3",
+      "repo": "../examples/toy_repo",
+      "task": "Fix the failing addition test with the smallest correct change and verify it.",
+      "test_command": "pytest -q",
+      "final_test_command": "pytest -q",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 10,
+      "max_requests": 8,
+      "max_tokens": 12000,
+      "expected_changed_files": ["calculator.py"],
+      "tags": ["authored-fixture", "single-file", "model-comparison", "schema-v3"]
+    },
+    {
+      "id": "username-normalization-v47",
+      "case": "username_normalization",
+      "variant": "native_schema_v3",
+      "repo": "../examples/multi_file_repo",
+      "task": "Fix the failing username normalization test, locate the responsible implementation, and verify it.",
+      "test_command": "pytest -q",
+      "final_test_command": "pytest -q",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 12,
+      "max_requests": 8,
+      "max_tokens": 16000,
+      "expected_changed_files": ["formatter.py"],
+      "tags": ["authored-fixture", "multi-file", "model-comparison", "schema-v3"]
+    },
+    {
+      "id": "optional-config-v47",
+      "case": "optional_config_override",
+      "variant": "native_schema_v3",
+      "repo": "../examples/config_merge_repo",
+      "task": "Fix the failing optional configuration override behavior while preserving explicit override values, then verify all tests.",
+      "test_command": "pytest -q",
+      "final_test_command": "pytest -q",
+      "execution_backend": "docker",
+      "command_timeout_seconds": 120,
+      "verify_after_patch": true,
+      "max_steps": 12,
+      "max_requests": 8,
+      "max_tokens": 16000,
+      "expected_changed_files": ["config_loader.py"],
+      "tags": ["authored-fixture", "none-handling", "model-comparison", "schema-v3"]
+    }
+  ]
+}
