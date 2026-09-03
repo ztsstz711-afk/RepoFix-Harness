@@ -23,6 +23,18 @@ class SuiteMockProvider:
         return ModelDecision(next(self.actions), TokenUsage(100, 20, 120, requests=1), "mock-model")
 
 
+def _load_external_suite(root: Path, filename: str):
+    try:
+        return load_suite(str(root / "evals" / filename))
+    except FileNotFoundError as exc:
+        if "external-workspaces" not in str(exc):
+            raise
+        pytest.skip(
+            "external benchmark workspace is not prepared; run the matching "
+            "scripts/prepare_*.ps1 command"
+        )
+
+
 def test_release_demo_manifest_is_small_and_bounded():
     project_root = Path(__file__).resolve().parents[1]
     suite = load_suite(str(project_root / "evals" / "demo.json"))
@@ -107,7 +119,7 @@ def test_v15_upstream_bug_manifest_is_bounded_and_has_provenance_contract():
 
 def test_v16_navigation_memory_gate_is_single_case_and_bounded():
     project_root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(project_root / "evals" / "navigation-memory-v1.6.json"))
+    suite = _load_external_suite(project_root, "navigation-memory-v1.6.json")
 
     assert suite.name == "navigation-memory-v1.6"
     assert suite.max_total_requests == 12
@@ -125,7 +137,7 @@ def test_v16_navigation_memory_gate_is_single_case_and_bounded():
 
 def test_v17_patch_readiness_gate_keeps_original_budget_contract():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "patch-readiness-v1.7.json"))
+    suite = _load_external_suite(root, "patch-readiness-v1.7.json")
 
     assert suite.max_total_requests == 12
     assert len(suite.tasks) == 1
@@ -140,7 +152,7 @@ def test_v17_patch_readiness_gate_keeps_original_budget_contract():
 
 def test_v18_phase_policy_gate_covers_three_upstream_cases_with_fixed_budget():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "phase-policy-v1.8.json"))
+    suite = _load_external_suite(root, "phase-policy-v1.8.json")
 
     assert suite.max_total_requests == 36
     assert len(suite.tasks) == 3
@@ -157,7 +169,7 @@ def test_v18_phase_policy_gate_covers_three_upstream_cases_with_fixed_budget():
 
 def test_v20_stability_suite_authorizes_nine_interleaved_trials():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "stability-v2.0.json"))
+    suite = _load_external_suite(root, "stability-v2.0.json")
 
     assert suite.max_total_requests == 108
     assert len(suite.tasks) == 3
@@ -170,7 +182,7 @@ def test_v20_stability_suite_authorizes_nine_interleaved_trials():
 
 def test_v21_provider_recovery_gate_is_bounded_to_two_difficult_cases():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "provider-recovery-v2.1.json"))
+    suite = _load_external_suite(root, "provider-recovery-v2.1.json")
 
     assert suite.max_total_requests == 24
     assert len(suite.tasks) == 2
@@ -187,7 +199,7 @@ def test_v21_provider_recovery_gate_is_bounded_to_two_difficult_cases():
 
 def test_v22_nonthinking_stability_suite_authorizes_six_interleaved_trials():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "nonthinking-stability-v2.2.json"))
+    suite = _load_external_suite(root, "nonthinking-stability-v2.2.json")
 
     assert suite.max_total_requests == 72
     assert len(suite.tasks) == 2
@@ -199,7 +211,7 @@ def test_v22_nonthinking_stability_suite_authorizes_six_interleaved_trials():
 
 def test_v22_revision_cap_gate_keeps_two_task_request_ceiling():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "revision-cap-v2.2.json"))
+    suite = _load_external_suite(root, "revision-cap-v2.2.json")
 
     assert suite.max_total_requests == 24
     assert len(suite.tasks) == 2
@@ -209,7 +221,7 @@ def test_v22_revision_cap_gate_keeps_two_task_request_ceiling():
 
 def test_v23_comparable_gate_matches_v20_case_and_trial_count():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "comparable-stability-v2.3.json"))
+    suite = _load_external_suite(root, "comparable-stability-v2.3.json")
 
     assert suite.max_total_requests == 108
     assert len(suite.tasks) == 3
@@ -225,7 +237,7 @@ def test_v23_comparable_gate_matches_v20_case_and_trial_count():
 
 def test_v23_noop_patch_followup_has_one_task_ceiling():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "noop-patch-v2.3.json"))
+    suite = _load_external_suite(root, "noop-patch-v2.3.json")
 
     assert suite.max_total_requests == 12
     assert len(suite.tasks) == 1
@@ -235,7 +247,7 @@ def test_v23_noop_patch_followup_has_one_task_ceiling():
 
 def test_v23_search_evidence_followup_has_one_task_ceiling():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "search-evidence-v2.3.json"))
+    suite = _load_external_suite(root, "search-evidence-v2.3.json")
 
     assert suite.max_total_requests == 12
     assert len(suite.tasks) == 1
@@ -245,7 +257,7 @@ def test_v23_search_evidence_followup_has_one_task_ceiling():
 
 def test_v24_generalization_gate_has_three_families_and_nine_trials():
     root = Path(__file__).resolve().parents[1]
-    suite = load_suite(str(root / "evals" / "generalization-v2.4.json"))
+    suite = _load_external_suite(root, "generalization-v2.4.json")
 
     assert suite.max_total_requests == 90
     assert len(suite.tasks) == 3

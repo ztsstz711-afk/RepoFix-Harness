@@ -41,7 +41,7 @@ def test_real_docker_timeout_removes_the_container(tmp_path):
     ).execute("run_command", {"command": "pytest -q"})
 
     assert result.success is False
-    assert result.metadata["timed_out"] is True
+    assert result.metadata["timed_out"] is True, result.output
     assert result.metadata["cleanup_success"] is True
     name = result.metadata["container_name"]
     process = subprocess.run(
@@ -68,5 +68,5 @@ def test_real_docker_backend_supports_src_layout(tmp_path):
         str(tmp_path), execution_backend="docker", command_timeout_seconds=30
     ).execute("run_command", {"command": "pytest -q"})
 
-    assert result.success is True
+    assert result.success is True, result.output
     assert "1 passed" in result.output
