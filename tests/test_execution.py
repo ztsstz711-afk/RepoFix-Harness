@@ -7,6 +7,7 @@ import pytest
 from repofix.execution import (
     DockerPytestExecutor,
     LocalPytestExecutor,
+    _docker_container_user,
     create_pytest_executor,
     local_pytest_environment,
     sanitized_subprocess_environment,
@@ -36,11 +37,17 @@ def test_docker_executor_builds_a_restricted_container_command(monkeypatch, tmp_
     assert "--cap-drop" in command and "ALL" in command
     assert "no-new-privileges" in command
     assert "512m" in command
+    assert command[command.index("--user") + 1] == _docker_container_user()
     assert "PYTHONPATH=/workspace/src:/workspace" in command
     assert "repofix-test:image" in command
     assert command[-2:] == ["-q", "tests"]
     assert result.metadata["execution_backend"] == "docker"
     assert result.metadata["workspace_mount"] == "readonly"
+
+
+def test_docker_container_user_preserves_windows_and_posix_mount_access():
+    assert _docker_container_user(platform_name="nt") == "65534:65534"
+    assert _docker_container_user(platform_name="posix", uid=1001, gid=1002) == "1001:1002"
 
 
 def test_unknown_execution_backend_is_rejected():

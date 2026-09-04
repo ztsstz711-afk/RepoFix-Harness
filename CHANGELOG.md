@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Run Linux Docker pytest containers with the host UID/GID so read-only bind mounts remain accessible without weakening the remaining sandbox restrictions.
+- Skip external benchmark manifest contract tests in clean clones where the ignored benchmark workspaces have not been prepared.
+
 ## 4.7.0 - 2026-09-03
 
 - Surface per-case target-read and non-zero repair-phase deltas in comparison Markdown.

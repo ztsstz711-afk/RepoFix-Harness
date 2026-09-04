@@ -89,7 +89,7 @@ class DockerPytestExecutor:
             "--workdir",
             "/workspace",
             "--user",
-            "65534:65534",
+            _docker_container_user(),
             "--cap-drop",
             "ALL",
             "--security-opt",
@@ -154,6 +154,21 @@ def create_pytest_executor(backend: str, docker_image: str) -> PytestExecutor:
     if backend == "docker":
         return DockerPytestExecutor(docker_image)
     raise ValueError(f"unknown execution backend: {backend}")
+
+
+def _docker_container_user(
+    *,
+    platform_name: str | None = None,
+    uid: int | None = None,
+    gid: int | None = None,
+) -> str:
+    """Choose an unprivileged container identity that can read the bind mount."""
+    platform_name = os.name if platform_name is None else platform_name
+    if platform_name == "nt":
+        return "65534:65534"
+    resolved_uid = os.getuid() if uid is None else uid
+    resolved_gid = os.getgid() if gid is None else gid
+    return f"{resolved_uid}:{resolved_gid}"
 
 
 def find_docker_executable() -> str:
