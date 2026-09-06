@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+## 4.7.1 - 2026-09-07
+
+- Polish the public README and repository metadata, and add CI, security guidance, and an MIT license.
 - Run Linux Docker pytest containers with the host UID/GID so read-only bind mounts remain accessible without weakening the remaining sandbox restrictions.
 - Skip external benchmark manifest contract tests in clean clones where the ignored benchmark workspaces have not been prepared.
 
