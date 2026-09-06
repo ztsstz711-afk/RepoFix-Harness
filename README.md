@@ -12,7 +12,7 @@ inspect → run pytest → read/search code → apply patch → verify → finis
 
 RepoFix 不是聊天界面，也不是通过规则假装 Agent。模型负责选择动作和生成修改；Harness 负责上下文、工具、权限、预算、状态恢复、执行隔离、轨迹记录和独立验收。
 
-> 当前版本：`v4.7.1` · 自动测试：`281 passed` · 默认模型：`deepseek-v4-flash`
+> 当前版本：`v4.7.1` · 自动测试：`282 passed` · 默认模型：`deepseek-v4-flash`
 
 ## 运行效果
 

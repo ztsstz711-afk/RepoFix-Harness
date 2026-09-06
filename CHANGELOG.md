@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Freeze a 27-trial V4.8 breadth regression gate covering nine prepared bugs across five upstream Python projects, with exact-scope and independent-verification acceptance criteria fixed before execution.
+
 ## 4.7.1 - 2026-09-07
 
 - Polish the public README and repository metadata, and add CI, security guidance, and an MIT license.
