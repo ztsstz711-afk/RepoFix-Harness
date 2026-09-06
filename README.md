@@ -12,7 +12,7 @@ inspect → run pytest → read/search code → apply patch → verify → finis
 
 RepoFix 不是聊天界面，也不是通过规则假装 Agent。模型负责选择动作和生成修改；Harness 负责上下文、工具、权限、预算、状态恢复、执行隔离、轨迹记录和独立验收。
 
-> 当前版本：`v4.7.1` · 自动测试：`282 passed` · 默认模型：`deepseek-v4-flash`
+> 当前版本：`v4.8.0` · 自动测试：`282 passed` · 默认模型：`deepseek-v4-flash`
 
 ## 运行效果
 
@@ -165,6 +165,7 @@ repofix --repo <python-repo> `
 
 | Gate | Contract | Result |
 |---|---|---|
+| V4.8 breadth | 5 个真实项目、9 个已知上游 Bug × 3 trials，冻结预算与 Docker 验收 | 22/27 verified；成功项精确范围 22/22；191 requests，$0.2684 |
 | V4.7 Flash/Pro | 同一 Harness、manifest、源码与 Docker；3 个小型 case | 两组均 3/3；Pro requests -27.27%、tokens -38.61%，成本 +94.61% |
 | V4.2 cross-project | 3 个 checksum-qualified 上游 Bug × 3 trials | 9/9 verified，9/9 精确范围，0 retries |
 | V2.0 stability | 3 个难度不同的上游 Bug × 3 trials | 4/9 verified，保留失败结果作为能力边界 |
@@ -174,6 +175,7 @@ repofix --repo <python-repo> `
 
 重点结果：
 
+- [V4.8 五项目二十七次广度回归](docs/v4.8-breadth-regression-results.md)
 - [V4.7 原生 Flash/Pro 阶段归因对照](docs/v4.7-native-phase-model-comparison.md)
 - [V4.2 跨项目 target-read 回归](docs/v4.2-target-read-regression.md)
 - [V2.0 三案例九次稳定性门禁](docs/v2.0-stability-results.md)

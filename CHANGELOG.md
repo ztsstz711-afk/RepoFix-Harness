@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Freeze a 27-trial V4.8 breadth regression gate covering nine prepared bugs across five upstream Python projects, with exact-scope and independent-verification acceptance criteria fixed before execution.
+## 4.8.0 - 2026-09-07
+
+- Freeze and execute a 27-trial breadth regression gate covering nine prepared bugs across five upstream Python projects.
+- Verify 22/27 repairs with exact changed-file scope for all 22 successes, using 191 requests, 718,910 tokens, and an estimated $0.26840522.
+- Retain all five budget-bound failures and identify h11 chunk-footer repair loops as the main remaining weakness.
+- Validate the schema-v3 aggregate report and publish the known-regression limitation and held-out follow-up explicitly.
 
 ## 4.7.1 - 2026-09-07
 
