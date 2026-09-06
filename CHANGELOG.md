@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Freeze a three-project, single-attempt V4.9 held-out upstream gate after validating failing parent snapshots and passing upstream-fix oracles.
+- Add a pinned offline evaluation image for the Packaging and Attrs test-only dependencies.
+
 ## 4.8.0 - 2026-09-07
 
 - Freeze and execute a 27-trial breadth regression gate covering nine prepared bugs across five upstream Python projects.

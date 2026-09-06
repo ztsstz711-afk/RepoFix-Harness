@@ -1,0 +1,63 @@
+{
+  "name": "heldout-upstream-v4.9",
+  "max_total_requests": 36,
+  "tasks": [
+    {
+      "id": "packaging-empty-platforms-v49",
+      "case": "packaging_empty_platforms",
+      "variant": "frozen_v4_8_0_heldout",
+      "repetitions": 1,
+      "repo": "../external-workspaces/heldout-v4.9/packaging-empty-platforms/buggy",
+      "task": "Fix tag generation so an explicitly empty platform iterable is preserved instead of being replaced by the host platform defaults. Preserve the existing default behavior when platforms is omitted. Use the focused regression while iterating; the harness will run the complete tag module suite for final acceptance.",
+      "test_command": "pytest -q tests/test_repofix_regression.py",
+      "final_test_command": "pytest -q tests/test_tags.py tests/test_repofix_regression.py",
+      "execution_backend": "docker",
+      "docker_image": "repofix-pytest-heldout:v4.9",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 18,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["src/packaging/tags.py"],
+      "tags": ["external", "held-out", "packaging", "iterator", "default-value", "v4.9"]
+    },
+    {
+      "id": "pluggy-bound-method-v49",
+      "case": "pluggy_bound_method",
+      "variant": "frozen_v4_8_0_heldout",
+      "repetitions": 1,
+      "repo": "../external-workspaces/heldout-v4.9/pluggy-bound-method/buggy",
+      "task": "Fix argument-name inspection for a bound method created by assigning a module-level function to a class. The implicit self argument must be removed even though the function qualname is not dotted. Preserve existing handling of ordinary functions, class methods, static methods, and decorated methods. Use the focused regression while iterating; the harness will run the full upstream suite for final acceptance.",
+      "test_command": "pytest -q testing/test_repofix_regression.py",
+      "final_test_command": "pytest -q",
+      "execution_backend": "docker",
+      "docker_image": "repofix-pytest-heldout:v4.9",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 18,
+      "max_requests": 12,
+      "max_tokens": 36000,
+      "expected_changed_files": ["src/pluggy/_hooks.py"],
+      "tags": ["external", "held-out", "pluggy", "reflection", "bound-method", "v4.9"]
+    },
+    {
+      "id": "attrs-forward-classvar-v49",
+      "case": "attrs_forward_classvar",
+      "variant": "frozen_v4_8_0_heldout",
+      "repetitions": 1,
+      "repo": "../external-workspaces/heldout-v4.9/attrs-forward-classvar/buggy",
+      "task": "Fix ClassVar detection when the annotation is represented by typing.ForwardRef, while preserving current string and concrete ClassVar handling. Use the focused regression while iterating; the harness will run the upstream annotation suite plus the regression for final acceptance.",
+      "test_command": "pytest -q repofix_tests/test_regression.py",
+      "final_test_command": "pytest -q tests/test_annotations.py repofix_tests/test_regression.py",
+      "execution_backend": "docker",
+      "docker_image": "repofix-pytest-heldout:v4.9",
+      "command_timeout_seconds": 180,
+      "verify_after_patch": true,
+      "max_steps": 18,
+      "max_requests": 12,
+      "max_tokens": 32000,
+      "expected_changed_files": ["src/attr/_make.py"],
+      "tags": ["external", "held-out", "attrs", "typing", "forward-reference", "v4.9"]
+    }
+  ]
+}

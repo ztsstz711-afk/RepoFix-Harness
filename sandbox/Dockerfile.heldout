@@ -1,0 +1,8 @@
+FROM repofix-pytest:latest
+
+# Extra test-only dependencies required by the frozen V4.9 upstream suites.
+# They are installed while building the image; evaluation containers still run
+# with --network none.
+RUN python -m pip install --no-cache-dir \
+    "hypothesis==6.167.1" \
+    "pretend==1.0.9"
