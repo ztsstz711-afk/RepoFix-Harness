@@ -2,8 +2,12 @@
 
 ## Unreleased
 
+## 4.9.0 - 2026-09-07
+
 - Freeze a three-project, single-attempt V4.9 held-out upstream gate after validating failing parent snapshots and passing upstream-fix oracles.
 - Add a pinned offline evaluation image for the Packaging and Attrs test-only dependencies.
+- Verify 2/3 first-use upstream repairs with exact changed-file scope on all three attempts, no retries, 82,275 tokens, and an estimated $0.02958065.
+- Retain the Packaging token-reserve failure without rerunning or changing its frozen 32k budget.
 
 ## 4.8.0 - 2026-09-07
 
