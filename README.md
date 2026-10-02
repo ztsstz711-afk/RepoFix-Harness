@@ -40,7 +40,7 @@ flowchart LR
 
 ## 当前验证状态
 
-本机验证已完成：非 Docker 测试为 `279 passed`；Docker Linux engine 与 `repofix-pytest:latest` 镜像就绪后，4 个真实容器隔离场景为 `4 passed`。这些测试覆盖受限容器边界、超时容器清理、`src/` 布局支持和隔离修复场景；它们只验证 Harness 的现有执行控制，不代表模型在任意仓库上的修复成功率。
+本机完整验证为 `283 passed`：其中包含 Docker Linux engine 与 `repofix-pytest:latest` 镜像下的 4 个真实容器隔离场景，覆盖受限容器边界、超时容器清理、`src/` 布局支持和隔离修复。这些测试只验证 Harness 的现有执行控制，不代表模型在任意仓库上的修复成功率。
 
 ## 快速开始
 
