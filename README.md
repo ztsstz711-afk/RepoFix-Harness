@@ -40,7 +40,7 @@ flowchart LR
 
 ## 当前验证状态
 
-本机非 Docker 测试已验证为 `279 passed`。另有 4 个 Docker 隔离场景会在 Docker Linux engine 或 sandbox image 不可用时明确跳过；当前电脑的 Docker engine 未启动，因此这些场景不是“已通过”，需要在 Docker 就绪后重新执行。
+本机验证已完成：非 Docker 测试为 `279 passed`；Docker Linux engine 与 `repofix-pytest:latest` 镜像就绪后，4 个真实容器隔离场景为 `4 passed`。这些测试覆盖受限容器边界、超时容器清理、`src/` 布局支持和隔离修复场景；它们只验证 Harness 的现有执行控制，不代表模型在任意仓库上的修复成功率。
 
 ## 快速开始
 
