@@ -9,3 +9,4 @@ dist/
 .env
 eval-results/
 external-workspaces/
+work/

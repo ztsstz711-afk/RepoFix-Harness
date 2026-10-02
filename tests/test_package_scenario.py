@@ -1,5 +1,8 @@
 from pathlib import Path
 
+import pytest
+
+from repofix.execution import check_docker_ready
 from repofix.schemas import Action, ModelDecision, TokenUsage
 from repofix.suite import EvaluationRunner, load_suite
 
@@ -30,7 +33,15 @@ class PackageRepairProvider:
         return ModelDecision(next(self.actions), TokenUsage(10, 2, 12, requests=1), "scripted")
 
 
+def require_docker():
+    try:
+        check_docker_ready("repofix-pytest:latest")
+    except (FileNotFoundError, RuntimeError) as exc:
+        pytest.skip(str(exc))
+
+
 def test_package_style_scenario_repairs_in_isolation(tmp_path):
+    require_docker()
     root = Path(__file__).resolve().parents[1]
     suite = load_suite(str(root / "evals" / "package.json"))
 

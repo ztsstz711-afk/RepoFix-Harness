@@ -9,7 +9,7 @@ requires-python = ">=3.10"
 dependencies = ["openai>=1.40.0"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.4,<9"]
 
 [project.scripts]
 repofix = "repofix.cli:main"
