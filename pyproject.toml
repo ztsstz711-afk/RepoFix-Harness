@@ -6,7 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "repofix-harness"
 version = "4.9.0"
 requires-python = ">=3.10"
-dependencies = ["openai>=1.40.0"]
+# openai 1.40 passes the removed `proxies` argument to httpx 0.28+ during
+# client construction. Keep the transport in the compatible 0.27 series so a
+# provider preflight fails for task reasons, not before any request is made.
+dependencies = ["openai>=1.40.0", "httpx<0.28"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.4,<9"]

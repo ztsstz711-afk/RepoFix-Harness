@@ -42,6 +42,8 @@ flowchart LR
 
 本机完整验证为 `283 passed`：其中包含 Docker Linux engine 与 `repofix-pytest:latest` 镜像下的 4 个真实容器隔离场景，覆盖受限容器边界、超时容器清理、`src/` 布局支持和隔离修复。这些测试只验证 Harness 的现有执行控制，不代表模型在任意仓库上的修复成功率。
 
+在冻结的 `upstream-bugs-v1.5` 上游回归清单中，2026-10-03 的 Docker 运行完成 `2/3`：3 个任务均先由独立 baseline 确认为失败，两个成功任务通过最终完整 pytest 和改动范围校验；另一个任务在固定的 12 次请求上限到达后保留为失败。该小型、单次运行只说明本清单和当次环境中的受限修复表现，不是通用修复成功率。可复核的清单与报告哈希见 [当前上游运行记录](docs/upstream-v1.5-current-run.md)。
+
 ## 快速开始
 
 ```powershell
